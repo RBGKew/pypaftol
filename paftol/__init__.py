@@ -1,4 +1,5 @@
 import sys
+import re
 import os
 import tempfile
 import subprocess
@@ -6,63 +7,182 @@ import shutil
 import multiprocessing
 
 import Bio
+import Bio.SeqIO
+import Bio.SeqIO.QualityIO
+import Bio.Alphabet.IUPAC
+
 
 verbose = 0
     
     
 class HybseqAnalyser(object):
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, tempDirname=None):
+    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None):
         self.targetsFname = targetsFname
         self.outFname = outFname
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
-        self.tempDirname = tempDirname
-        self.generateTempdir = tempDirname is None
+        self.workdirTgz = workdirTgz
+        self.workDirname = None
+        self.numThreads = 1
     
     def __str__(self):
         return 'HybseqAnalyser(targetsFname=%s, outFname=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsFname), repr(self.outFname), repr(self.forwardFastq), repr(self.reverseFastq))
         
+    def checkTargets(self):
+        for targetSr in Bio.SeqIO.parse(self.targetsFname, 'fasta', alphabet = Bio.Alphabet.IUPAC.ambiguous_dna):
+            setDiff = set(str(targetSr.seq).lower()) - set('acgt')
+            if len(setDiff) != 0:
+                raise StandardError, 'target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff))
+
     def isPaired(self):
         return self.reverseFastq is not None
     
     def analyse(self):
         raise StandardError, 'not implemented in this "abstract" base class'
     
+    def setupWorkdir(self):
+        if self.workDirname is None:
+            self.workDirname = tempfile.mkdtemp(prefix='paftools')
+        else:
+            raise StandardError, 'illegal state: already have generated working directory %s' % self.workDirname
+
+    def cleanupWorkdir(self):
+        if self.workDirname is not None:
+            shutil.rmtree(self.workDirname)
+            # sys.stderr.write('not removing temporary directory %s\n' % self.workDirname)
+            self.workDirname = None
+
+    def makeTgz(self):
+        if self.workdirTgz is not None:
+            if self.workDirname is None:
+                raise StandardError, 'illegal state: no working directory generated'
+            tgzArgv = ['tar', '-zcf', self.workdirTgz, self.workDirname]
+            subprocess.check_call(tgzArgv)
+
 
 class HybpiperAnalyser(HybseqAnalyser):
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, tempDirname=None):
-        super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, tempDirname)
+    taxonLocusRe = re.compile('([^-]+)-([^-]+)')
+    
+    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workDirname=None):
+        super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, workDirname)
 
     def setup(self):
-        if self.generateTempdir:
-            self.tempDirname = tempfile.mkdtemp(prefix='paftools')
-        shutil.copy(self.targetsFname, self.tempDirname)
+        self.setupWorkdir()
+        shutil.copy(self.targetsFname, self.workDirname)
             
     def cleanup(self):
-        if self.generateTempdir:
-            # shutil.rmtree(self.tempDirname)
-            sys.stderr.write('not removing temporary directory %s\n' % self.tempDirname)
+        self.cleanupWorkdir()
     
     def bwaIndexReference(self):
-        bwaIndexArgs = ['bwa', 'index', os.path.join(self.tempDirname, self.targetsFname)]
-        subprocess.check_call(bwaIndexArgs)
+        bwaIndexArgv = ['bwa', 'index', os.path.join(self.workDirname, self.targetsFname)]
+        subprocess.check_call(bwaIndexArgv)
         
-    def distributeBwa(self):
+    def bwaReadLocusDict(self):
         self.bwaIndexReference()
-        
-    def analyse(self):
-        self.setup()
-        self.distributeBwa()
-        self.cleanup()
-        
+        fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
+        if self.reverseFastq is not None:
+            fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
+        # bwa parameters for tweaking considerations: -k, -r, -T
+        bwaArgv = ['bwa', 'mem', '-M', '-k', '11', '-T', '10', '-t', '%d' % self.numThreads, self.targetsFname] + fastqArgs
+        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
+        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.workDirname)
+        sys.stderr.write('%s\n' % ' '.join(bwaArgv))
+        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.workDirname)
+        sys.stderr.write('%s\n' % ' '.join(samtoolsArgv))
+        readLocusDict = {}
+        samLine = samtoolsProcess.stdout.readline()
+        while samLine != '':
+            # sys.stderr.write(samLine)
+            if samLine[0] != '@':
+                w = samLine[:-1].split('\t')
+                qname = w[0]
+                rname = w[2]
+                m = self.taxonLocusRe.match(rname)
+                if m is not None:
+                    locusName = m.group(2)
+                else:
+                    locusName = rname
+                if qname not in readLocusDict:
+                    readLocusDict[qname] = set()
+                readLocusDict[qname].add(locusName)
+            samLine = samtoolsProcess.stdout.readline()
+        bwaProcess.stdout.close()
+        samtoolsProcess.stdout.close()
+        bwaReturncode = bwaProcess.wait()
+        samtoolsReturncode = samtoolsProcess.wait()
+        if bwaReturncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode)
+        if samtoolsReturncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
+        return readLocusDict
     
+    def locusFastaPath(self, locusName, suffix = ''):
+        return os.path.join(self.workDirname, '%s%s.fasta' % (locusName, suffix))
+    
+    def distributeSingle(self, readLocusDict):
+        fForward = open(self.forwardFastq, 'r')
+        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
+            readName = fwdReadTitle.split()[0]
+            if readName in readLocusDict:
+                for locusName in readLocusDict[readName]:
+                    f = open(self.locusFastaPath(locusName), 'a')
+                    f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                    f.close()
+        fForward.close()
+    
+    def distributePaired(self, readLocusDict):
+        # FIXME: consider try...finally to ensure files are closed
+        for readName in readLocusDict.keys():
+            sys.stderr.write('%s\n' % readName)
+        fForward = open(self.forwardFastq, 'r')
+        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        fReverse = open(self.reverseFastq, 'r')
+        fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
+        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
+            readName = fwdReadTitle.split()[0]
+            # FIXME: premature end of reverse fastq will trigger
+            # StopIteration and premature end of forward will leave
+            # rest of reverse ignored
+            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+            if readName != revReadTitle.split()[0]:
+                raise StandardError, 'paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle)
+            if readName in readLocusDict:
+                for locusName in readLocusDict[readName]:
+                    f = open(self.locusFastaPath(locusName, '_R1'), 'a')
+                    f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                    f.close()
+                    f = open(self.locusFastaPath(locusName, '_R2'), 'a')
+                    f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
+                    f.close()
+        # should trigger an exception: revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+        fForward.close()
+        fReverse.close()
+    
+    def distributeBwa(self):
+        readLocusDict = self.bwaReadLocusDict()
+        if self.isPaired():
+            self.distributePaired(readLocusDict)
+        else:
+            self.distributeSingle(readLocusDict)
+    
+    def analyse(self):
+        self.checkTargets()
+        try:
+            self.setup()
+            self.distributeBwa()
+            self.makeTgz()
+        finally:
+            self.cleanup()
+
+
 def runHybseq(argNamespace):
-    hybseqAnalyser = HybseqAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads)
+    hybseqAnalyser = HybseqAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     sys.stderr.write('%s\n' % str(hybseqAnalyser))
 
 
 def runHybpiper(argNamespace):
-    hybpiperAnalyser = HybpiperAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads)
+    hybpiperAnalyser = HybpiperAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     hybpiperAnalyser.analyse()
