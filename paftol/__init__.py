@@ -67,6 +67,27 @@ class HybpiperAnalyser(HybseqAnalyser):
     
     def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workDirname=None):
         super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, workDirname)
+        self.initLocusNameList()
+        
+    def extractLocusName(self, seqId, allowNew=False):
+        m = self.taxonLocusRe.match(seqId)
+        if m is not None:
+            locusName = m.group(2)
+        else:
+            locusName = seqId
+        if not allowNew and locusName not in self.locusNameList:
+            raise StandardError, 'unknown locus "%s" (found in seqId "%s")' % (locusName, seqId)
+        return locusName
+        
+    def initLocusNameList(self):
+        if self.targetsFname is None:
+            raise StandardError, 'illegal state: cannot init locus name with targetsFname = None'
+        self.locusNameList = []
+        for sr in Bio.SeqIO.parse(self.targetsFname, 'fasta'):
+            locusName = self.extractLocusName(sr.id, allowNew=True)
+            if locusName in self.locusNameList:
+                raise StandardError, 'duplicate locus name: %s' % locusName
+            self.locusNameList.append(locusName)
 
     def setup(self):
         self.setupWorkdir()
@@ -99,11 +120,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                 w = samLine[:-1].split('\t')
                 qname = w[0]
                 rname = w[2]
-                m = self.taxonLocusRe.match(rname)
-                if m is not None:
-                    locusName = m.group(2)
-                else:
-                    locusName = rname
+                locusName = self.extractLocusName(rname)
                 if qname not in readLocusDict:
                     readLocusDict[qname] = set()
                 readLocusDict[qname].add(locusName)
@@ -120,6 +137,9 @@ class HybpiperAnalyser(HybseqAnalyser):
     
     def locusFastaPath(self, locusName, suffix = ''):
         return os.path.join(self.workDirname, '%s%s.fasta' % (locusName, suffix))
+    
+    def locusInterleavedFastaPath(self, locusName):
+        return os.path.join(self.workDirname, '%s_interleaved.fasta' % locusName)
     
     def distributeSingle(self, readLocusDict):
         fForward = open(self.forwardFastq, 'r')
@@ -151,12 +171,16 @@ class HybpiperAnalyser(HybseqAnalyser):
                 raise StandardError, 'paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle)
             if readName in readLocusDict:
                 for locusName in readLocusDict[readName]:
-                    f = open(self.locusFastaPath(locusName, '_R1'), 'a')
+                    f = open(self.locusInterleavedFastaPath(locusName), 'a')
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                    f.close()
-                    f = open(self.locusFastaPath(locusName, '_R2'), 'a')
                     f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
                     f.close()
+                    # f = open(self.locusFastaPath(locusName, '_R1'), 'a')
+                    # f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                    # f.close()
+                    # f = open(self.locusFastaPath(locusName, '_R2'), 'a')
+                    # f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
+                    # f.close()
         # should trigger an exception: revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
         fForward.close()
         fReverse.close()
@@ -167,12 +191,42 @@ class HybpiperAnalyser(HybseqAnalyser):
             self.distributePaired(readLocusDict)
         else:
             self.distributeSingle(readLocusDict)
+            
+            
+    def assembleSpades(self, spadesNumThreads=1, spadesCovCutoff=8, spadesKvals=None):
+        # consider --fg to ensure wait for all parallel processes?
+        # is --eta really of any use here?
+        # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
+        spadesArgv = ['parallel', '--eta', 'spades.py', '--only-assembler', '--threads', '%d' % spadesNumThreads, '--cov-cutoff', '%d' % spadesCovCutoff]
+        if spadesKvals is not None:
+            spadesArgv.extend(['-k', ','.join(spadesKvals)])
+        spadesArgv.extend(['--12', '{}_interleaved.fasta', '-o', '{}_spades'])
+        # time parallel --eta spades.py --only-assembler --threads 1 --cov-cutoff 8 --12 {}/{}_interleaved.fasta -o {}/{}_spades :::: spades_genelist.txt > spades.log
+        spadesProcess = subprocess.Popen(spadesArgv, stdin=subprocess.PIPE, cwd = self.workDirname)
+        sys.stderr.write('%s\n' % ' '.join(spadesArgv))
+        pid = os.fork()
+        if pid == 0:
+            spadesProcess.stdout.close()
+            for locusName in self.locusNameList:
+                spadesProcess.stdin.write('%s\n' % locusName)
+            spadesProcess.stdin.close()
+            os._exit(0)
+        spadesProcess.stdin.close()
+        wPid, wExit = os.waitpid(pid, 0)
+        if pid != wPid:
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+        if wExit != 0:
+            raise StandardError, 'wait on forked process returned %d' % wExit
+        spadesReturncode = spadesProcess.wait()
+        if spadesRedurncode != 0:
+            raise StandardError, 'parallel spades process exited with %d' % spadesReturncode
     
     def analyse(self):
         self.checkTargets()
         try:
             self.setup()
             self.distributeBwa()
+            self.assembleSpades()
             self.makeTgz()
         finally:
             self.cleanup()
