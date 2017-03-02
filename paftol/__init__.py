@@ -17,13 +17,14 @@ verbose = 0
     
 class HybseqAnalyser(object):
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None):
+    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
         self.targetsFname = targetsFname
         self.outFname = outFname
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
         self.workdirTgz = workdirTgz
-        self.workDirname = None
+        self.workDirname = workDirname
+        self.tmpDirname = None
         self.numThreads = 1
     
     def __str__(self):
@@ -41,33 +42,44 @@ class HybseqAnalyser(object):
     def analyse(self):
         raise StandardError, 'not implemented in this "abstract" base class'
     
-    def setupWorkdir(self):
-        if self.workDirname is None:
-            self.workDirname = tempfile.mkdtemp(prefix='paftools')
-        else:
-            raise StandardError, 'illegal state: already have generated working directory %s' % self.workDirname
+    def setupTmpdir(self):
+        if self.tmpDirname is not None:
+            raise StandardError, 'illegal state: already have generated working directory %s' % self.tmpDirname
+        self.tmpDirname = tempfile.mkdtemp(prefix=self.workDirname)
+        os.mkdir(self.makeWorkDirname())
 
-    def cleanupWorkdir(self):
-        if self.workDirname is not None:
-            shutil.rmtree(self.workDirname)
-            # sys.stderr.write('not removing temporary directory %s\n' % self.workDirname)
-            self.workDirname = None
+    def cleanupTmpdir(self):
+        if self.tmpDirname is not None:
+            # shutil.rmtree(self.tmpDirname)
+            sys.stderr.write('not removing temporary directory %s\n' % self.tmpDirname)
+            self.tmpDirname = None
 
+    def makeWorkDirname(self):
+        if self.tmpDirname is None:
+            raise StandardError, 'illegal state: no temporary directory and hence no working directory'
+        # sys.stderr.write('tmpDirname = %s, workDirname = %s\n' % (self.tmpDirname, self.workDirname))
+        return os.path.join(self.tmpDirname, self.workDirname)
+            
     def makeTgz(self):
         if self.workdirTgz is not None:
-            if self.workDirname is None:
-                raise StandardError, 'illegal state: no working directory generated'
-            tgzArgv = ['tar', '-zcf', self.workdirTgz, self.workDirname]
-            subprocess.check_call(tgzArgv)
+            if self.tmpDirname is None:
+                raise StandardError, 'illegal state: no temporary directory generated'
+            tmpTgz = os.path.join(self.tmpDirname, '%s.tgz' % self.workDirname)
+            tgzArgv = ['tar', '-zcf', tmpTgz, self.workDirname]
+            tgzProcess = subprocess.Popen(tgzArgv, cwd = self.tmpDirname)
+            tgzReturncode = tgzProcess.wait()
+            if tgzReturncode != 0:
+                raise StandardError, 'process "%s" returned %d' % (' '.join(tgzArgv), tgzReturncode)
+            shutil.move(os.path.join(self.tmpDirname, tmpTgz), self.workdirTgz)
 
 
 class HybpiperAnalyser(HybseqAnalyser):
     
     taxonLocusRe = re.compile('([^-]+)-([^-]+)')
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workDirname=None):
-        super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, workDirname)
-        self.initLocusNameList()
+    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
+        super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, workdirTgz, workDirname)
+        self.initLocusNameSet()
         
     def extractLocusName(self, seqId, allowNew=False):
         m = self.taxonLocusRe.match(seqId)
@@ -75,29 +87,27 @@ class HybpiperAnalyser(HybseqAnalyser):
             locusName = m.group(2)
         else:
             locusName = seqId
-        if not allowNew and locusName not in self.locusNameList:
+        if not allowNew and locusName not in self.locusNameSet:
             raise StandardError, 'unknown locus "%s" (found in seqId "%s")' % (locusName, seqId)
         return locusName
         
-    def initLocusNameList(self):
+    def initLocusNameSet(self):
         if self.targetsFname is None:
             raise StandardError, 'illegal state: cannot init locus name with targetsFname = None'
-        self.locusNameList = []
+        self.locusNameSet = set()
         for sr in Bio.SeqIO.parse(self.targetsFname, 'fasta'):
-            locusName = self.extractLocusName(sr.id, allowNew=True)
-            if locusName in self.locusNameList:
-                raise StandardError, 'duplicate locus name: %s' % locusName
-            self.locusNameList.append(locusName)
+            self.locusNameSet.add(self.extractLocusName(sr.id, allowNew=True))
 
     def setup(self):
-        self.setupWorkdir()
-        shutil.copy(self.targetsFname, self.workDirname)
+        self.setupTmpdir()
+        shutil.copy(self.targetsFname, self.makeWorkDirname())
             
     def cleanup(self):
-        self.cleanupWorkdir()
+        self.cleanupTmpdir()
     
     def bwaIndexReference(self):
-        bwaIndexArgv = ['bwa', 'index', os.path.join(self.workDirname, self.targetsFname)]
+        bwaIndexArgv = ['bwa', 'index', os.path.join(self.makeWorkDirname(), self.targetsFname)]
+        sys.stderr.write('%s\n' % ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
     def bwaReadLocusDict(self):
@@ -108,10 +118,10 @@ class HybpiperAnalyser(HybseqAnalyser):
         # bwa parameters for tweaking considerations: -k, -r, -T
         bwaArgv = ['bwa', 'mem', '-M', '-k', '11', '-T', '10', '-t', '%d' % self.numThreads, self.targetsFname] + fastqArgs
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
-        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.workDirname)
         sys.stderr.write('%s\n' % ' '.join(bwaArgv))
-        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.workDirname)
+        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
         sys.stderr.write('%s\n' % ' '.join(samtoolsArgv))
+        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
         readLocusDict = {}
         samLine = samtoolsProcess.stdout.readline()
         while samLine != '':
@@ -136,10 +146,10 @@ class HybpiperAnalyser(HybseqAnalyser):
         return readLocusDict
     
     def locusFastaPath(self, locusName, suffix = ''):
-        return os.path.join(self.workDirname, '%s%s.fasta' % (locusName, suffix))
+        return os.path.join(self.makeWorkDirname(), '%s%s.fasta' % (locusName, suffix))
     
     def locusInterleavedFastaPath(self, locusName):
-        return os.path.join(self.workDirname, '%s_interleaved.fasta' % locusName)
+        return os.path.join(self.makeWorkDirname(), '%s_interleaved.fasta' % locusName)
     
     def distributeSingle(self, readLocusDict):
         fForward = open(self.forwardFastq, 'r')
@@ -197,29 +207,34 @@ class HybpiperAnalyser(HybseqAnalyser):
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
-        spadesArgv = ['parallel', '--eta', 'spades.py', '--only-assembler', '--threads', '%d' % spadesNumThreads, '--cov-cutoff', '%d' % spadesCovCutoff]
+        if self.isPaired():
+            spadesInputArgs = ['--12', '{}_interleaved.fasta']
+        else:
+            spadesInputArgs = ['-s', '{}.fasta']
+            
+        parallelSpadesArgv = ['parallel', 'spades.py', '--only-assembler', '--threads', '%d' % spadesNumThreads, '--cov-cutoff', '%d' % spadesCovCutoff]
         if spadesKvals is not None:
-            spadesArgv.extend(['-k', ','.join(spadesKvals)])
-        spadesArgv.extend(['--12', '{}_interleaved.fasta', '-o', '{}_spades'])
+            parallelSpadesArgv.extend(['-k', ','.join(spadesKvals)])
+        parallelSpadesArgv.extend(spadesInputArgs)
+        parallelSpadesArgv.extend(['-o', '{}_spades'])
         # time parallel --eta spades.py --only-assembler --threads 1 --cov-cutoff 8 --12 {}/{}_interleaved.fasta -o {}/{}_spades :::: spades_genelist.txt > spades.log
-        spadesProcess = subprocess.Popen(spadesArgv, stdin=subprocess.PIPE, cwd = self.workDirname)
-        sys.stderr.write('%s\n' % ' '.join(spadesArgv))
+        parallelSpadesProcess = subprocess.Popen(parallelSpadesArgv, stdin=subprocess.PIPE, cwd = self.makeWorkDirname())
+        sys.stderr.write('%s\n' % ' '.join(parallelSpadesArgv))
         pid = os.fork()
         if pid == 0:
-            spadesProcess.stdout.close()
-            for locusName in self.locusNameList:
-                spadesProcess.stdin.write('%s\n' % locusName)
-            spadesProcess.stdin.close()
+            for locusName in self.locusNameSet:
+                parallelSpadesProcess.stdin.write('%s\n' % locusName)
+            parallelSpadesProcess.stdin.close()
             os._exit(0)
-        spadesProcess.stdin.close()
+        parallelSpadesProcess.stdin.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
             raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
         if wExit != 0:
             raise StandardError, 'wait on forked process returned %d' % wExit
-        spadesReturncode = spadesProcess.wait()
-        if spadesRedurncode != 0:
-            raise StandardError, 'parallel spades process exited with %d' % spadesReturncode
+        parallelSpadesReturncode = parallelSpadesProcess.wait()
+        if parallelSpadesReturncode != 0:
+            raise StandardError, 'parallel spades process exited with %d' % parallelSpadesReturncode
     
     def analyse(self):
         self.checkTargets()
