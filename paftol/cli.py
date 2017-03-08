@@ -4,6 +4,24 @@ import argparse
 import paftol
 
 
+def runHybseq(argNamespace):
+    hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
+    sys.stderr.write('%s\n' % str(hybseqAnalyser))
+
+
+def runHybpiper(argNamespace):
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
+    # sys.stderr.write('bwaMinSeedLength: %s, bwaScoreThreshold: %s, bwaReseedTrigger: %s\n' % (str(argNamespace.bwaMinSeedLength), str(argNamespace.bwaScoreThreshold), str(argNamespace.bwaReseedTrigger)))
+    if argNamespace.bwaMinSeedLength is not None:
+        hybpiperAnalyser.bwaMinSeedLength = argNamespace.bwaMinSeedLength
+    if argNamespace.bwaScoreThreshold is not None:
+        hybpiperAnalyser.bwaScoreThreshold = argNamespace.bwaScoreThreshold
+    if argNamespace.bwaReseedTrigger is not None:
+        hybpiperAnalyser.bwaReseedTrigger = argNamespace.bwaReseedTrigger
+    hybpiperAnalyser.keepTmpDir = True
+    hybpiperAnalyser.analyse()
+
+
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev')
     p.add_argument('-s', '--str', help='set a parameter')
@@ -20,7 +38,7 @@ def addHybseqParser(subparsers):
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
-    p.set_defaults(func=paftol.runHybseq)
+    p.set_defaults(func=runHybseq)
 
     
 def addHybpiperParser(subparsers):
@@ -28,10 +46,13 @@ def addHybpiperParser(subparsers):
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+    p.add_argument('--bwaMinSeedLength', type=int, help='set minimum seed length for BWA (see bwa mem -k)')
+    p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
+    p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
-    p.set_defaults(func=paftol.runHybpiper)
+    p.set_defaults(func=runHybpiper)
     
 
 def showArgs(args):
