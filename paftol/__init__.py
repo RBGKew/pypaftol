@@ -13,12 +13,25 @@ import Bio.Alphabet.IUPAC
 
 
 verbose = 0
-    
+
+
+def isSane(filename):
+    """Check whether a file name is sane, in the sense that it does not contain any "funny" characters"""
+    if filename == '':
+        return False
+    funnyCharRe = re.compile('/ ;,$#')
+    m = funnyCharRe.search(filename)
+    if m is not None:
+        return False
+    if filename[0] == '-':
+        return False
+    return True
+
     
 class HybseqAnalyser(object):
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
-        self.targetsFname = targetsFname
+    def __init__(self, targetsSourcePath, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
+        self.targetsSourcePath = targetsSourcePath
         self.outFname = outFname
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
@@ -26,12 +39,16 @@ class HybseqAnalyser(object):
         self.workDirname = workDirname
         self.tmpDirname = None
         self.keepTmpDir = False
+        # parameters for ensuring file names don't clash, e.g. because locus / organism name is same as targets basename etc.
+        self.targetsFname = 'targets.fasta'
+        self.locusFnamePattern = 'locus-%s.fasta'
     
     def __str__(self):
-        return 'HybseqAnalyser(targetsFname=%s, outFname=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsFname), repr(self.outFname), repr(self.forwardFastq), repr(self.reverseFastq))
+        return 'HybseqAnalyser(targetsSourcePath=%s, outFname=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.outFname), repr(self.forwardFastq), repr(self.reverseFastq))
         
     def checkTargets(self):
-        for targetSr in Bio.SeqIO.parse(self.targetsFname, 'fasta', alphabet = Bio.Alphabet.IUPAC.ambiguous_dna):
+        # FIXME: merge with __init__()?
+        for targetSr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta', alphabet = Bio.Alphabet.IUPAC.ambiguous_dna):
             setDiff = set(str(targetSr.seq).lower()) - set('acgt')
             if len(setDiff) != 0:
                 raise StandardError, 'target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff))
@@ -61,7 +78,20 @@ class HybseqAnalyser(object):
             raise StandardError, 'illegal state: no temporary directory and hence no working directory'
         # sys.stderr.write('tmpDirname = %s, workDirname = %s\n' % (self.tmpDirname, self.workDirname))
         return os.path.join(self.tmpDirname, self.workDirname)
-            
+    
+    def makeTargetsFname(self, absolutePath=False):
+        if absolutePath:
+            return os.path.join(self.makeWorkDirname(), self.targetsFname)
+        else:
+            return self.targetsFname
+
+    def makeLocusFname(self, locusName, absolutePath=False):
+        locusFname = self.locusFnamePattern % locusName
+        if absolutePath:
+            return os.path.join(self.makeWorkDirname(), locusFname)
+        else:
+            return locusFname
+        
     def makeTgz(self):
         if self.workdirTgz is not None:
             if self.tmpDirname is None:
@@ -96,12 +126,10 @@ class OrganismLocus(object):
     
     def __init__(self, organism, locus, seqRecord):
         self.organism = organism
-        self.numMappedReads = 0
-        self.cumulativeMapq = 0
         self.seqRecord = seqRecord
         self.samAlignmentList = []
         if locus.name in organism.organismLocusDict or organism.name in locus.organismLocusDict:
-            raise StandardError, 'duplicate organism/locus: organism = %s, locus = %s, seqId = %s' % (organism.name, locus.name seqRecord.id)
+            raise StandardError, 'duplicate organism/locus: organism = %s, locus = %s, seqId = %s' % (organism.name, locus.name, seqRecord.id)
         organism.organismLocusDict[locus.name] = self
         locus.organismLocusDict[organism.name] = self
         
@@ -112,6 +140,7 @@ class OrganismLocus(object):
         return sum([a.mapq for a in self.samAlignmentList])
     
     def qnameSet(self):
+        # FIXME: may have to trim away "/1", "/2"?
         return set([a.qname for a in self.samAlignmentList])
 
 
@@ -139,13 +168,12 @@ class HybpiperAnalyser(HybseqAnalyser):
     
     organismLocusRe = re.compile('([^-]+)-([^-]+)')
     
-    def __init__(self, targetsFname, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
-        super(HybpiperAnalyser, self).__init__(targetsFname, outFname, forwardFastq, reverseFastq, workdirTgz, workDirname)
+    def __init__(self, targetsSourcePath, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
+        super(HybpiperAnalyser, self).__init__(targetsSourcePath, outFname, forwardFastq, reverseFastq, workdirTgz, workDirname)
         self.bwaNumThreads = 1
         self.bwaMinSeedLength = 19
         self.bwaScoreThreshold = 30
         self.bwaReseedTrigger = 1.5
-        self.initLocusNameSet()
         self.initOrganismLocusDicts()
         
     def extractOrganismAndLocusNames(self, s):
@@ -155,49 +183,39 @@ class HybpiperAnalyser(HybseqAnalyser):
             locusName = m.group(2)
         else:
             organismName = 'unknown'
-            locusName = sr.id
+            locusName = s
         return organismName, locusName
         
     def initOrganismLocusDicts(self):
-        if self.targetsFname is None:
-            raise StandardError, 'illegal state: cannot init organism and locus dicts with targetsFname = None'
+        if self.targetsSourcePath is None:
+            raise StandardError, 'illegal state: cannot init organism and locus dicts with targetsSourcePath = None'
         self.locusDict = {}
         self.organismDict = {}
-        for sr in Bio.SeqIO.parse(self.targetsFname, 'fasta'):
+        for sr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta'):
             organismName, locusName = self.extractOrganismAndLocusNames(sr.id)
+            if not isSane(organismName):
+                raise StandardError, 'bad organism name: %s' % organismName
+            if not isSane(locusName):
+                raise StandardError, 'bad locus name: %s' % locusName
             if organismName not in self.organismDict:
                 self.organismDict[organismName] = Organism(organismName)
             if locusName not in self.locusDict:
                 self.locusDict[locusName] = Locus(locusName)
             organismLocus = OrganismLocus(self.organismDict[organismName], self.locusDict[locusName], sr)
-        
-    def extractLocusName(self, seqId, allowNew=False):
-        m = self.organismLocusRe.match(seqId)
-        if m is not None:
-            locusName = m.group(2)
-        else:
-            locusName = seqId
-        if not allowNew and locusName not in self.locusNameSet:
-            raise StandardError, 'unknown locus "%s" (found in seqId "%s")' % (locusName, seqId)
-        return locusName
-        
-    def initLocusNameSet(self):
-        if self.targetsFname is None:
-            raise StandardError, 'illegal state: cannot init locus name with targetsFname = None'
-        self.locusNameSet = set()
-        for sr in Bio.SeqIO.parse(self.targetsFname, 'fasta'):
-            self.locusNameSet.add(self.extractLocusName(sr.id, allowNew=True))
 
     def setup(self):
+        if self.targetsSourcePath is None:
+            raise StandardError, 'illegal state: cannot set up with targetsSourcePath = None'
         self.setupTmpdir()
-        shutil.copy(self.targetsFname, self.makeWorkDirname())
+        shutil.copy(self.targetsSourcePath, self.makeTargetsFname(True))
             
     def cleanup(self):
         self.cleanupTmpdir()
     
     def bwaIndexReference(self):
-        bwaIndexArgv = ['bwa', 'index', os.path.join(self.makeWorkDirname(), self.targetsFname)]
-        sys.stderr.write('%s\n' % ' '.join(bwaIndexArgv))
+        bwaIndexArgv = ['bwa', 'index', self.makeTargetsFname(True)]
+        if verbose:
+            sys.stderr.write('%s\n' % ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
     def mapReadsBwa(self):
@@ -206,7 +224,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         if self.reverseFastq is not None:
             fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
         # bwa parameters for tweaking considerations: -k, -r, -T
-        bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.targetsFname] + fastqArgs
+        bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.makeTargetsFname()] + fastqArgs
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
         sys.stderr.write('%s\n' % ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
@@ -236,47 +254,6 @@ class HybpiperAnalyser(HybseqAnalyser):
         if samtoolsReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
     
-    def bwaReadLocusDict(self):
-        self.bwaIndexReference()
-        fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
-        if self.reverseFastq is not None:
-            fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
-        # bwa parameters for tweaking considerations: -k, -r, -T
-        bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.targetsFname] + fastqArgs
-        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
-        sys.stderr.write('%s\n' % ' '.join(bwaArgv))
-        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
-        sys.stderr.write('%s\n' % ' '.join(samtoolsArgv))
-        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
-        readLocusDict = {}
-        samLine = samtoolsProcess.stdout.readline()
-        while samLine != '':
-            # sys.stderr.write(samLine)
-            if samLine[0] != '@':
-                w = samLine[:-1].split('\t')
-                qname = w[0]
-                rname = w[2]
-                locusName = self.extractLocusName(rname)
-                if qname not in readLocusDict:
-                    readLocusDict[qname] = set()
-                readLocusDict[qname].add(locusName)
-            samLine = samtoolsProcess.stdout.readline()
-        bwaProcess.stdout.close()
-        samtoolsProcess.stdout.close()
-        bwaReturncode = bwaProcess.wait()
-        samtoolsReturncode = samtoolsProcess.wait()
-        if bwaReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode)
-        if samtoolsReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
-        return readLocusDict
-    
-    def locusFastaPath(self, locusName, suffix = ''):
-        return os.path.join(self.makeWorkDirname(), '%s%s.fasta' % (locusName, suffix))
-    
-    def locusInterleavedFastaPath(self, locusName):
-        return os.path.join(self.makeWorkDirname(), '%s_interleaved.fasta' % locusName)
-    
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
@@ -284,7 +261,8 @@ class HybpiperAnalyser(HybseqAnalyser):
             readName = fwdReadTitle.split()[0]
             for locus in self.locusDict.values():
                 if readName in locus.qnameSet():
-                    f = open(self.locusFastaPath(locus.name), 'a')
+                    f = open(self.makeLocusFname(locus.name, True), 'a')
+                    sys.stderr.write('appending to %s\n' % f.name)
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                     f.close()
         fForward.close()
@@ -305,21 +283,17 @@ class HybpiperAnalyser(HybseqAnalyser):
                 raise StandardError, 'paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle)
             for locus in self.locusDict.values():
                 if readName in locus.qnameSet():
-                    f = open(self.locusInterleavedFastaPath(locusName), 'a')
+                    f = open(self.makeLocusFname(locus.name, True), 'a')
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                     f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
                     f.close()
-                    # f = open(self.locusFastaPath(locusName, '_R1'), 'a')
-                    # f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                    # f.close()
-                    # f = open(self.locusFastaPath(locusName, '_R2'), 'a')
-                    # f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
-                    # f.close()
-        # should trigger an exception: revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+        # FIXME: check for dangling stuff in reverse: should trigger
+        # an exception:
+        # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
         fForward.close()
         fReverse.close()
     
-    def distributeBwa(self):
+    def distribute(self):
         if self.isPaired():
             self.distributePaired()
         else:
@@ -356,17 +330,19 @@ class HybpiperAnalyser(HybseqAnalyser):
         parallelSpadesReturncode = parallelSpadesProcess.wait()
         if parallelSpadesReturncode != 0:
             raise StandardError, 'parallel spades process exited with %d' % parallelSpadesReturncode
+        
+    def makeSpadesLocusDirname(self, locusName):
+        return 'spades-%s' % locusName
             
     def assembleLocusSpades(self, locusName, spadesCovCutoff, spadesKvals):
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
+        locusFname = self.makeLocusFname(locusName)
         if self.isPaired():
-            locusFname = self.locusInterleavedFastaPath(locusName)
             spadesInputArgs = ['--12', locusFname]
         else:
-            locusFname = self.locusFastaPath(locusName)
-            spadesInputArgs = ['-s', '%s.fasta' % locusName]
+            spadesInputArgs = ['-s', locusFname]
         if not os.path.exists(os.path.join(self.makeWorkDirname(), locusFname)):
             sys.stderr.write('locus fasta file %s does not exist (no reads?)\n' % locusFname)
             return False
@@ -374,7 +350,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         if spadesKvals is not None:
             spadesArgv.extend(['-k', ','.join(spadesKvals)])
         spadesArgv.extend(spadesInputArgs)
-        spadesArgv.extend(['-o', '%s_spades' % locusName])
+        spadesArgv.extend(['-o', self.makeSpadesLocusDirname(locusName)])
         sys.stderr.write('%s\n' % ' '.join(spadesArgv))
         spadesProcess = subprocess.Popen(spadesArgv, cwd = self.makeWorkDirname())
         spadesReturncode = spadesProcess.wait()
@@ -383,7 +359,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             sys.stderr.write('spades process "%s" exited with %d\n' % (' '.join(spadesArgv), spadesReturncode))
 
     def assembleSpades(self, spadesCovCutoff=8, spadesKvals=None):
-        for locusName in self.locusNameSet:
+        for locusName in self.locusDict:
             self.assembleLocusSpades(locusName, spadesCovCutoff, spadesKvals)
         
     def exonerate(self):
@@ -393,7 +369,8 @@ class HybpiperAnalyser(HybseqAnalyser):
         self.checkTargets()
         try:
             self.setup()
-            self.distributeBwa()
+            self.mapReadsBwa()
+            self.distribute()
             self.assembleSpades()
             self.exonerate()
             self.makeTgz()
