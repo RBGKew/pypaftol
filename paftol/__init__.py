@@ -362,7 +362,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         for locusName in self.locusDict:
             self.assembleLocusSpades(locusName, spadesCovCutoff, spadesKvals)
         
-    def exonerate(self):
+    def orderContigsExonerate(self):
         pass
         
     def analyse(self):
@@ -372,7 +372,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             self.mapReadsBwa()
             self.distribute()
             self.assembleSpades()
-            self.exonerate()
+            self.orderContigsExonerate()
             self.makeTgz()
         finally:
             self.cleanup()
