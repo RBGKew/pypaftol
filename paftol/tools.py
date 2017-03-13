@@ -65,10 +65,12 @@ class ExonerateResult(object):
         tAseq = ''
         qPos = self.queryAlignmentStart
         tPos = self.targetAlignmentStart
+        sys.stderr.write('queryAlignmentSeq: %d, targetAlignmentSeq: %d\n' % (len(self.queryAlignmentSeq), len(self.targetAlignmentSeq)))
         for i in xrange(0, len(v), 3):
             vLabel = v[i]
             vQueryLength = int(v[1])
             vTargetLength = int(v[2])
+            sys.stderr.write('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (qPos, tPos, vLabel, vQueryLength, vTargetLength))
             if vLabel == 'M' or vLabel == 'S':
                 qAseq = qAseq + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
                 tAseq = tAseq + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
@@ -78,13 +80,15 @@ class ExonerateResult(object):
                         raise StandardError, 'cannot process nucleotide gaps with length not a multiple of 3'
                     qAseq = qAseq + '-' * (vTargetLength / 3)
                     tAseq = tAseq + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
-                else if vTargetLength == 0:
+                elif vTargetLength == 0:
                     qAseq = qAseq + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
                     tAseq = tAseq + '-' * (vQueryLength * 3)
             elif vLabel == '5' or vLabel == '3' or vLabel == 'I' or vLabel == 'F':
                 pass
             qPos = qPos + vQueryLength
-            aPos = aPos + vTargetLength
+            tPos = tPos + vTargetLength
+            sys.stderr.write('%d: %s\n' % (i, qAseq))
+            sys.stderr.write('%d: %s\n' % (i, tAseq))
         
     
     def __str__(self):
