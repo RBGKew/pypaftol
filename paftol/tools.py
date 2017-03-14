@@ -13,6 +13,7 @@ import Bio.Alphabet
 import Bio.Alphabet.IUPAC
 import Bio.Seq
 import Bio.SeqRecord
+import Bio.Align
 import Bio.SeqIO
 import Bio.AlignIO
 import Bio.Data.CodonTable
@@ -22,6 +23,52 @@ import Bio.Blast.NCBIXML
 
 verbose = 0
 
+
+def translateGapped(seq, table='Standard'):
+    """Translate a gapped sequence.
+
+All triplets in the sequence must either contain only non-gap symbols
+or only gap symbols. Runs of non-gap triplets are translated as per
+the specified translation table. Runs of gap symbol triplets are
+translated into as many single gap symbols. An exception is raised
+if the sequence contains triplets with both gap and non-gap symbols.
+"""
+    if not isinstance(seq.alphabet, Bio.Alphabet.Gapped):
+        return seq.translate(table=table)
+    ungappedAlphabet = seq.alphabet.alphabet
+    s = str(seq)
+    gapStart = None
+    gapList = []
+    for i in xrange(len(s)):
+        if s[i] == seq.alphabet.gap_char and gapStart is None:
+            gapStart = i
+        if s[i] != seq.alphabet.gap_char and gapStart is not None:
+            gapList.append((gapStart, i, ))
+            gapStart = None
+    if gapStart is not None:
+        gapList.append((gapStart, len(s), ))
+    # sys.stderr.write('gaplist: %s\n' % str(gapList))
+    t = ''
+    nongapStart = 0
+    for gapStart, gapEnd in gapList:
+        if (gapStart - nongapStart) % 3 != 0:
+            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, gapStart)
+        if (gapEnd - gapStart) % 3 != 0:
+            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd)
+        if nongapStart < gapStart:
+            ungappedSeq = seq[nongapStart:gapStart]
+            ungappedSeq.alphabet = ungappedAlphabet
+            t = t + str(ungappedSeq.translate(table))
+        t = t + seq.alphabet.gap_char * ((gapEnd - gapStart) / 3)
+        nongapStart = gapEnd
+    if nongapStart < len(seq):
+        if (len(seq) - nongapStart) % 3 != 0:
+            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq))
+        ungappedSeq = seq[nongapStart:]
+        ungappedSeq.alphabet = ungappedAlphabet
+        t = t + str(ungappedSeq.translate(table))
+    return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
+    
 
 class ExonerateResult(object):
 
@@ -35,6 +82,7 @@ class ExonerateResult(object):
     def __init__(self, querySeq, targetFname):
         self.querySeq = querySeq
         self.targetFname = targetFname
+        self.exonerateModel = None
         self.queryId = None
         self.queryDef = None
         self.queryAlignmentStart = None
@@ -60,36 +108,48 @@ class ExonerateResult(object):
         self.waterRelativeIdentity = None
 
     def proteinAlignment(self):
+        if self.exonerateModel != 'protein2genome':
+            raise StandardError, 'proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel
         v = self.vulgar.split()
-        qAseq = ''
-        tAseq = ''
-        qPos = self.queryAlignmentStart
-        tPos = self.targetAlignmentStart
-        sys.stderr.write('queryAlignmentSeq: %d, targetAlignmentSeq: %d\n' % (len(self.queryAlignmentSeq), len(self.targetAlignmentSeq)))
+        qAln = ''
+        tAln = ''
+        qPos = 0
+        tPos = 0
+        # sys.stderr.write('queryAlignmentSeq: %d, targetAlignmentSeq: %d\n' % (len(self.queryAlignmentSeq), len(self.targetAlignmentSeq)))
+        # sys.stderr.write('%s\n' % str(self.targetAlignmentSeq.seq))
         for i in xrange(0, len(v), 3):
             vLabel = v[i]
-            vQueryLength = int(v[1])
-            vTargetLength = int(v[2])
-            sys.stderr.write('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (qPos, tPos, vLabel, vQueryLength, vTargetLength))
+            vQueryLength = int(v[i + 1])
+            vTargetLength = int(v[i + 2])
+            # sys.stderr.write('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (qPos, tPos, vLabel, vQueryLength, vTargetLength))
             if vLabel == 'M' or vLabel == 'S':
-                qAseq = qAseq + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
-                tAseq = tAseq + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+                qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
+                tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
             elif vLabel == 'G':
                 if vQueryLength == 0:
                     if vTargetLength % 3 != 0:
                         raise StandardError, 'cannot process nucleotide gaps with length not a multiple of 3'
-                    qAseq = qAseq + '-' * (vTargetLength / 3)
-                    tAseq = tAseq + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+                    qAln = qAln + '-' * (vTargetLength / 3)
+                    tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
                 elif vTargetLength == 0:
-                    qAseq = qAseq + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
-                    tAseq = tAseq + '-' * (vQueryLength * 3)
+                    qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
+                    tAln = tAln + '-' * (vQueryLength * 3)
             elif vLabel == '5' or vLabel == '3' or vLabel == 'I' or vLabel == 'F':
                 pass
             qPos = qPos + vQueryLength
             tPos = tPos + vTargetLength
-            sys.stderr.write('%d: %s\n' % (i, qAseq))
-            sys.stderr.write('%d: %s\n' % (i, tAseq))
-        
+            # sys.stderr.write('%d: qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (i, qPos, tPos, vLabel, vQueryLength, vTargetLength))
+            # sys.stderr.write('qAln: %s\n' % qAln)
+            # sys.stderr.write('tAln: %s\n' % tAln)
+            # s = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+            # s3 = s[:(len(s) - len(s) % 3)]
+            # sys.stderr.write('tA_tr: %s%s\n' % (str(translateGapped(s3)), '' if len(s) == len(s3) else '.'))
+            # sys.stderr.write('\n')
+        qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
+        tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
+        tAlnProt = translateGapped(tAlnSeq)
+        return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnProt, id='%s_pep' % self.targetAlignmentSeq.id)])
     
     def __str__(self):
         return 'query: %s (%s -> %s), target: %s:%s (%s -> %s), query fragment %dnt' % (self.queryId, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
@@ -239,12 +299,13 @@ class RyoParser(object):
         exonerateResult.targetCdsLength = self.parseInt('targetCdsLength')
         exonerateResult.rawScore = self.parseInt('rawScore')
         exonerateResult.vulgar = self.parseString('vulgar')
+        exonerateResult.exonerateModel = self.exonerateModel
         if self.exonerateModel == 'protein2genome':
             # exonerateResult.queryCdsSeq = self.parseSeq('queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
             self.parseSeq('queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
             exonerateResult.queryCdsSeq = None
-            exonerateResult.queryAlignmentSeq = self.parseSeq('queryAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qaln'))
+            exonerateResult.queryAlignmentSeq = self.parseSeq('queryAlignment', Bio.Alphabet.IUPAC.protein, exonerateResult.makeSeqId('qaln'))
             exonerateResult.targetCdsSeq = self.parseSeq('targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('tcds'))
             exonerateResult.targetAlignmentSeq = self.parseSeq('targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('taln'))
         else:
@@ -254,6 +315,8 @@ class RyoParser(object):
             raise StandardError, 'malformed input: ryoEnd missing'
         return exonerateResult
 
+
+# FIXME: integrate this with parser (ideally make iterable like BioPython...)
 def findExonerateResultList(query, targetFname, exonerateModel, bestn, keepTmpFile=False):
     exonerateModelList = ['protein2genome']
     if exonerateModel not in exonerateModelList:
