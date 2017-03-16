@@ -20,6 +20,8 @@ import Bio.Data.CodonTable
 import Bio.Blast
 import Bio.Blast.NCBIXML
 
+import paftol
+
 
 verbose = 0
 
@@ -79,10 +81,10 @@ class ExonerateResult(object):
     rawScoreRe = re.compile('rawScore: ([0-9]+)')
     seqlineRe = re.compile('[ACGT]*')
 
-    def __init__(self, querySeq, targetFname):
+    def __init__(self, querySeq, targetFname, exonerateModel):
         self.querySeq = querySeq
         self.targetFname = targetFname
-        self.exonerateModel = None
+        self.exonerateModel = exonerateModel
         self.queryId = None
         self.queryDef = None
         self.queryAlignmentStart = None
@@ -222,19 +224,16 @@ class ExonerateResult(object):
         return('%s_%s_%s' % (self.queryId, self.targetId, seqType))
 
 
-class RyoParser(object):
+class ExonerateRunner(object):
     
     labelledLineRe = re.compile('([A-Za-z][A-Za-z0-9_]*): (.*)')
     seqStartRe = re.compile('seqStart (.*)')
     
-    def __init__(self, infile, querySeq, targetFname, exonerateModel):
-        self.infile = infile
-        self.querySeq = querySeq
-        self.targetFname = targetFname
-        self.exonerateModel = exonerateModel
-
-    def nextLine(self):
-        line = self.infile.readline()
+    def __init__(self):
+        pass
+        
+    def nextLine(self, f):
+        line = f.readline()
         if verbose > 3:
             sys.stderr.write('nextLine: %s\n' % line.strip())
         if line == '':
@@ -243,8 +242,8 @@ class RyoParser(object):
             line = line[:-1]
         return line
         
-    def parseString(self, label):
-        line = self.nextLine()
+    def parseString(self, f, label):
+        line = self.nextLine(f)
         m = self.labelledLineRe.match(line)
         if m is None:
             raise StandardError, 'malformed line (expected label %s): %s' % (label, line.strip())
@@ -252,113 +251,104 @@ class RyoParser(object):
             raise StandardError, 'expected label %s but got %s' % (label, m.group(1))
         return m.group(2).strip()
     
-    def parseInt(self, label):
-        s = self.parseString(label)
+    def parseInt(self, f, label):
+        s = self.parseString(f, label)
         if s == 'NA':
             return None
         return int(s)
     
-    def parseSeq(self, label, alphabet, seqId):
-        line = self.nextLine()
+    def parseSeq(self, f, label, alphabet, seqId):
+        line = self.nextLine(f)
         m = self.seqStartRe.match(line)
         if m is None:
             raise StandardError, 'malformed line (expected seqStart): %s' % line.strip()
         if m.group(1) != label:
             raise StandardError, 'expected sequence label %s but got %s' % (label, m.group(1))
         seq = ''
-        s = self.nextLine()
+        s = self.nextLine(f)
         while s != 'seqEnd':
             seq = seq + s
-            s = self.nextLine()
+            s = self.nextLine(f)
         return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq, alphabet), id=seqId)
     
-    def parse(self):
-        line = self.infile.readline()
+    def parseExonerateResult(self, f, exonerateResult):
+        line = f.readline()
         if line == '':
             return None
         if line.strip() != 'ryoStart':
             raise StandardError, 'malformed input: ryoStart missing, got %s instead' % line.strip()
-        exonerateResult = ExonerateResult(self.querySeq, self.targetFname)
-        exonerateResult.queryId = self.parseString('queryId')
+        exonerateResult.queryId = self.parseString(f, 'queryId')
         if exonerateResult.queryId != exonerateResult.querySeq.id:
             raise StandardError, 'result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId)
-        exonerateResult.queryDef = self.parseString('queryDef')
-        exonerateResult.queryAlignmentStart = self.parseInt('queryAlignmentStart')
-        exonerateResult.queryAlignmentEnd = self.parseInt('queryAlignmentEnd')
-        exonerateResult.queryAlignmentLength = self.parseInt('queryAlignmentLength')
-        exonerateResult.queryCdsStart = self.parseInt('queryCdsStart')
-        exonerateResult.queryCdsEnd = self.parseInt('queryCdsEnd')
-        exonerateResult.queryCdsLength = self.parseInt('queryCdsLength')
-        exonerateResult.targetId = self.parseString('targetId')
-        exonerateResult.targetDef = self.parseString('targetDef')
-        exonerateResult.targetAlignmentStart = self.parseInt('targetAlignmentStart')
-        exonerateResult.targetAlignmentEnd = self.parseInt('targetAlignmentEnd')
-        exonerateResult.targetAlignmentLength = self.parseInt('targetAlignmentLength')
-        exonerateResult.targetCdsStart = self.parseInt('targetCdsStart')
-        exonerateResult.targetCdsEnd = self.parseInt('targetCdsEnd')
-        exonerateResult.targetCdsLength = self.parseInt('targetCdsLength')
-        exonerateResult.rawScore = self.parseInt('rawScore')
-        exonerateResult.vulgar = self.parseString('vulgar')
-        exonerateResult.exonerateModel = self.exonerateModel
-        if self.exonerateModel == 'protein2genome':
-            # exonerateResult.queryCdsSeq = self.parseSeq('queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
+        exonerateResult.queryDef = self.parseString(f, 'queryDef')
+        exonerateResult.queryAlignmentStart = self.parseInt(f, 'queryAlignmentStart')
+        exonerateResult.queryAlignmentEnd = self.parseInt(f, 'queryAlignmentEnd')
+        exonerateResult.queryAlignmentLength = self.parseInt(f, 'queryAlignmentLength')
+        exonerateResult.queryCdsStart = self.parseInt(f, 'queryCdsStart')
+        exonerateResult.queryCdsEnd = self.parseInt(f, 'queryCdsEnd')
+        exonerateResult.queryCdsLength = self.parseInt(f, 'queryCdsLength')
+        exonerateResult.targetId = self.parseString(f, 'targetId')
+        exonerateResult.targetDef = self.parseString(f, 'targetDef')
+        exonerateResult.targetAlignmentStart = self.parseInt(f, 'targetAlignmentStart')
+        exonerateResult.targetAlignmentEnd = self.parseInt(f, 'targetAlignmentEnd')
+        exonerateResult.targetAlignmentLength = self.parseInt(f, 'targetAlignmentLength')
+        exonerateResult.targetCdsStart = self.parseInt(f, 'targetCdsStart')
+        exonerateResult.targetCdsEnd = self.parseInt(f, 'targetCdsEnd')
+        exonerateResult.targetCdsLength = self.parseInt(f, 'targetCdsLength')
+        exonerateResult.rawScore = self.parseInt(f, 'rawScore')
+        exonerateResult.vulgar = self.parseString(f, 'vulgar')
+        if exonerateResult.exonerateModel == 'protein2genome':
+            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
-            self.parseSeq('queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
+            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
             exonerateResult.queryCdsSeq = None
-            exonerateResult.queryAlignmentSeq = self.parseSeq('queryAlignment', Bio.Alphabet.IUPAC.protein, exonerateResult.makeSeqId('qaln'))
-            exonerateResult.targetCdsSeq = self.parseSeq('targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('tcds'))
-            exonerateResult.targetAlignmentSeq = self.parseSeq('targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('taln'))
+            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, exonerateResult.makeSeqId('qaln'))
+            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('tcds'))
+            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('taln'))
         else:
-            raise StandardError, 'unsupported exonerate model: %s' % exonerateModel
-        line = self.nextLine()
+            raise StandardError, 'unsupported exonerate model: %s' % exonerateResult.exonerateModel
+        line = self.nextLine(f)
         if line.strip() != 'ryoEnd':
             raise StandardError, 'malformed input: ryoEnd missing'
         return exonerateResult
 
-
-# FIXME: integrate this with parser (ideally make iterable like BioPython...)
-def findExonerateResultList(query, targetFname, exonerateModel, bestn, keepTmpFile=False):
-    exonerateModelList = ['protein2genome']
-    if exonerateModel not in exonerateModelList:
-        raise StandardError, 'unknown exonerate alignment model: %s' % exonerateModel
-    exonerateResultList = []
-    queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
-    try:
-        queryScratchFile = os.fdopen(queryScratchFd, 'w')
-        Bio.SeqIO.write(query, queryScratchFile, 'fasta')
-        queryScratchFile.close()
-        # FIXME: support multiple alignment models, currently protein2genome is hard-coded
-        exonerateArgv = [
-            'exonerate', '--model', exonerateModel, '--bestn', '%d' % bestn, '--verbose', '0', '--showalignment',
-            'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nqueryId: %qi\\nqueryDef: %qd\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
-        if verbose > 0:
-            sys.stderr.write('%s\n' % ' '.join(exonerateArgv))
-        p = subprocess.Popen(exonerateArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        pid = os.fork()
-        if pid == 0:
-            p.stdout.close()
-            # exonerate seems to be one of those stupid programs that don't read from stdin...
-            # p.stdin.write('%s\n' % querySr.format('fasta'))
+    def parse(self, querySeq, targetFname, exonerateModel, bestn):
+        queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
+        try:
+            queryScratchFile = os.fdopen(queryScratchFd, 'w')
+            Bio.SeqIO.write(querySeq, queryScratchFile, 'fasta')
+            queryScratchFile.close()
+            exonerateArgv = [
+                'exonerate', '--model', exonerateModel, '--bestn', '%d' % bestn, '--verbose', '0', '--showalignment',
+                'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nqueryId: %qi\\nqueryDef: %qd\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
+            if verbose > 0:
+                sys.stderr.write('%s\n' % ' '.join(exonerateArgv))
+            p = subprocess.Popen(exonerateArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            pid = os.fork()
+            if pid == 0:
+                p.stdout.close()
+                # exonerate seems to be one of those stupid programs that don't read from stdin...
+                # p.stdin.write('%s\n' % querySr.format('fasta'))
+                p.stdin.close()
+                os._exit(0)
             p.stdin.close()
-            os._exit(0)
-        p.stdin.close()
-        ryoParser = RyoParser(p.stdout, query, targetFname, exonerateModel)
-        exonerateResult = ryoParser.parse()
-        while exonerateResult is not None :
-            exonerateResultList.append(exonerateResult)
-            exonerateResult = ryoParser.parse()
-        p.stdout.close()
-        wPid, wExit = os.waitpid(pid, 0)
-        if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
-        if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
-        r = p.wait()
-        if r != 0:
-            raise StandardError, 'exonerate process exited with %d' % r
-    finally:
-        if keepTmpFile:
-            sys.stderr.write('not deleting query scratch file %s' % queryScratchFname)
-        else:
-            os.unlink(queryScratchFname)
-    return exonerateResultList
+            exonerateResultList = []
+            exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname, exonerateModel))
+            while exonerateResult is not None:
+                exonerateResultList.append(exonerateResult)
+                exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname, exonerateModel))
+            p.stdout.close()
+            wPid, wExit = os.waitpid(pid, 0)
+            if pid != wPid:
+                raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+            if wExit != 0:
+                raise StandardError, 'wait on forked process returned %d' % wExit
+            r = p.wait()
+            if r != 0:
+                raise StandardError, 'exonerate process exited with %d' % r
+        finally:
+            if paftol.keepTmp:
+                sys.stderr.write('not deleting query scratch file %s' % queryScratchFname)
+            else:
+                os.unlink(queryScratchFname)
+        return exonerateResultList

@@ -13,6 +13,7 @@ import Bio.Alphabet.IUPAC
 
 
 verbose = 0
+keepTmp = False
 
 
 def isSane(filename):
@@ -38,7 +39,6 @@ class HybseqAnalyser(object):
         self.workdirTgz = workdirTgz
         self.workDirname = workDirname
         self.tmpDirname = None
-        self.keepTmpDir = False
         # parameters for ensuring file names don't clash, e.g. because locus / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
         self.locusFnamePattern = 'locus-%s.fasta'
@@ -67,7 +67,7 @@ class HybseqAnalyser(object):
 
     def cleanupTmpdir(self):
         if self.tmpDirname is not None:
-            if self.keepTmpDir:
+            if keepTmp:
                 sys.stderr.write('not removing temporary directory %s\n' % self.tmpDirname)
             else:
                 shutil.rmtree(self.tmpDirname)
@@ -335,6 +335,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         return 'spades-%s' % locusName
             
     def assembleLocusSpades(self, locusName, spadesCovCutoff, spadesKvals):
+        # FIXME: should return file with contigs / scaffolds upon success, None otherwise
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
