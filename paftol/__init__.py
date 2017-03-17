@@ -11,6 +11,8 @@ import Bio.SeqIO
 import Bio.SeqIO.QualityIO
 import Bio.Alphabet.IUPAC
 
+import paftol.tools
+
 
 verbose = 0
 keepTmp = False
@@ -107,6 +109,7 @@ class HybseqAnalyser(object):
             # final destination and use that directly?
             shutil.move(os.path.join(self.tmpDirname, tmpTgz), self.workdirTgz)
 
+
 class SamAlignment(object):
     """Class to represent a SAM record.
 This class follows the naming and definitions of the SAMv1 spec. It is incomplete
@@ -126,6 +129,7 @@ class OrganismLocus(object):
     
     def __init__(self, organism, locus, seqRecord):
         self.organism = organism
+        self.locus = locus
         self.seqRecord = seqRecord
         self.samAlignmentList = []
         if locus.name in organism.organismLocusDict or organism.name in locus.organismLocusDict:
@@ -137,6 +141,8 @@ class OrganismLocus(object):
         self.samAlignmentList.append(samAlignment)
             
     def mapqSum(self):
+        if len(self.samAlignmentList) == 0:
+            return None
         return sum([a.mapq for a in self.samAlignmentList])
     
     def qnameSet(self):
@@ -174,6 +180,8 @@ class HybpiperAnalyser(HybseqAnalyser):
         self.bwaMinSeedLength = 19
         self.bwaScoreThreshold = 30
         self.bwaReseedTrigger = 1.5
+        self.spadesCovCutoff = 8
+        self.spadesKvalList = None
         self.initOrganismLocusDicts()
         
     def extractOrganismAndLocusNames(self, s):
@@ -202,6 +210,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             if locusName not in self.locusDict:
                 self.locusDict[locusName] = Locus(locusName)
             organismLocus = OrganismLocus(self.organismDict[organismName], self.locusDict[locusName], sr)
+        self.representativeOrganismLocusDict = None
 
     def setup(self):
         if self.targetsSourcePath is None:
@@ -254,6 +263,23 @@ class HybpiperAnalyser(HybseqAnalyser):
         if samtoolsReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
     
+    def setRepresentativeLoci(self):
+        """Roughly equivalent to "distribute targets" in HybPiper"""
+        self.representativeOrganismLocusDict = {}
+        for locusName in self.locusDict:
+            representativeOrganismLocus = None
+            maxMapqSum = None
+            for organismName in self.locusDict[locusName].organismLocusDict:
+                mapqSum = self.locusDict[locusName].organismLocusDict[organismName].mapqSum()
+                if representativeOrganismLocus is None or (mapqSum is not None and mapqSum > maxMapqSum):
+                    representativeOrganismLocus = self.locusDict[locusName].organismLocusDict[organismName]
+                    maxMapqSum = mapqSum
+            self.representativeOrganismLocusDict[locusName] = representativeOrganismLocus
+            if representativeOrganismLocus is None:
+                sys.stderr.write('represenative for %s: none\n' % locusName)
+            else:
+                sys.stderr.write('representative for %s: %s\n' % (representativeOrganismLocus.locus.name, representativeOrganismLocus.organism.name))
+    
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
@@ -299,7 +325,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             self.distributeSingle()
             
-    def assembleSpadesParallel(self, spadesCovCutoff=8, spadesKvals=None):
+    def assembleSpadesParallel(self):
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
@@ -307,9 +333,9 @@ class HybpiperAnalyser(HybseqAnalyser):
             spadesInputArgs = ['--12', '{}_interleaved.fasta']
         else:
             spadesInputArgs = ['-s', '{}.fasta']
-        parallelSpadesArgv = ['parallel', 'spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % spadesCovCutoff]
-        if spadesKvals is not None:
-            parallelSpadesArgv.extend(['-k', ','.join(spadesKvals)])
+        parallelSpadesArgv = ['parallel', 'spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
+        if self.spadesKvalList is not None:
+            parallelSpadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
         parallelSpadesArgv.extend(spadesInputArgs)
         parallelSpadesArgv.extend(['-o', '{}_spades'])
         # time parallel --eta spades.py --only-assembler --threads 1 --cov-cutoff 8 --12 {}/{}_interleaved.fasta -o {}/{}_spades :::: spades_genelist.txt > spades.log
@@ -331,10 +357,13 @@ class HybpiperAnalyser(HybseqAnalyser):
         if parallelSpadesReturncode != 0:
             raise StandardError, 'parallel spades process exited with %d' % parallelSpadesReturncode
         
-    def makeSpadesLocusDirname(self, locusName):
+    def makeLocusDirname(self, locusName):
         return 'spades-%s' % locusName
+    
+    def makeLocusDirPath(self, locusName):
+        return os.path.join(self.makeWorkDirname(), self.makeLocusDirname(locusName))
             
-    def assembleLocusSpades(self, locusName, spadesCovCutoff, spadesKvals):
+    def assembleLocusSpades(self, locusName):
         # FIXME: should return file with contigs / scaffolds upon success, None otherwise
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
@@ -347,24 +376,39 @@ class HybpiperAnalyser(HybseqAnalyser):
         if not os.path.exists(os.path.join(self.makeWorkDirname(), locusFname)):
             sys.stderr.write('locus fasta file %s does not exist (no reads?)\n' % locusFname)
             return False
-        spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % spadesCovCutoff]
-        if spadesKvals is not None:
-            spadesArgv.extend(['-k', ','.join(spadesKvals)])
+        spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
+        if self.spadesKvalList is not None:
+            spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
         spadesArgv.extend(spadesInputArgs)
-        spadesArgv.extend(['-o', self.makeSpadesLocusDirname(locusName)])
+        spadesArgv.extend(['-o', self.makeLocusDirname(locusName)])
         sys.stderr.write('%s\n' % ' '.join(spadesArgv))
         spadesProcess = subprocess.Popen(spadesArgv, cwd = self.makeWorkDirname())
         spadesReturncode = spadesProcess.wait()
         if spadesReturncode != 0:
             # raise StandardError, 'spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode)
             sys.stderr.write('spades process "%s" exited with %d\n' % (' '.join(spadesArgv), spadesReturncode))
+        spadesScaffoldFname = os.path.join(self.makeLocusDirPath(locusName), 'scaffolds.fasta')
+        # sys.stderr.write('spadesScaffoldFname: %s\n' % spadesScaffoldFname)
+        if os.path.exists(spadesScaffoldFname):
+            spadesScaffoldList = list(Bio.SeqIO.parse(spadesScaffoldFname, 'fasta'))
+            # sys.stderr.write('spadesScaffoldFname: %s, %d scaffolds\n' % (spadesScaffoldFname, len(spadesScaffoldList)))
+        else:
+            spadesScaffoldList = None
+            # sys.stderr.write('spadesScaffoldFname: %s, no scaffolds\n' % spadesScaffoldFname)
+        return spadesScaffoldList                    
 
-    def assembleSpades(self, spadesCovCutoff=8, spadesKvals=None):
-        for locusName in self.locusDict:
-            self.assembleLocusSpades(locusName, spadesCovCutoff, spadesKvals)
+    def orderContigsExonerate(self, locusName, scaffoldList):
+        if self.representativeOrganismLocusDict is None:
+            raise StandardError, 'illegal state: no represesentative loci'
+        if self.representativeOrganismLocusDict[locusName] is None:
+            raise StandardError, 'no representative for locus %s' % locusName
+        scaffoldFname = os.path.join(self.makeLocusDirPath(locusName), '%s-scaffolds.fasta' % locusName)
+        Bio.SeqIO.write(scaffoldList, scaffoldFname, 'fasta')
+        exonerateRunner = paftol.tools.ExonerateRunner()
+        # FIXME: need to translate query
+        exonerateResultList = exonerateRunner.parse(self.representativeOrganismLocusDict[locusName].seqRecord, scaffoldFname, 'protein2genome', len(scaffoldList))
+        sys.stderr.write('%d scaffolds, %d exonerate results\n' % (len(scaffoldList), len(exonerateResultList)))
         
-    def orderContigsExonerate(self):
-        pass
         
     def analyse(self):
         self.checkTargets()
@@ -372,7 +416,15 @@ class HybpiperAnalyser(HybseqAnalyser):
             self.setup()
             self.mapReadsBwa()
             self.distribute()
-            self.assembleSpades()
+            self.setRepresentativeLoci()
+            for locusName in self.locusDict:
+                os.mkdir(self.makeLocusDirPath(locusName))
+                spadesScaffoldList = self.assembleLocusSpades(locusName)
+                if spadesScaffoldList is None:
+                    sys.stderr.write('locus %s: no spades scaffolds\n' % locusName)
+                else:
+                    sys.stderr.write('locus %s: %d spades scaffolds\n' % (locusName, len(spadesScaffoldList)))
+                    self.orderContigsExonerate(locusName, spadesScaffoldList)
             self.orderContigsExonerate()
             self.makeTgz()
         finally:
