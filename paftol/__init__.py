@@ -30,6 +30,14 @@ def isSane(filename):
         return False
     return True
 
+            
+def cmpExonerateResultByQueryAlignmentStart(e0, e1):
+    if e0.queryAlignmentStart < e1.queryAlignmentStart:
+        return -1
+    elif e0.queryAlignmentStart > e1.queryAlignmentStart:
+        return 1
+    return 0
+
     
 class HybseqAnalyser(object):
     
@@ -182,6 +190,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         self.bwaReseedTrigger = 1.5
         self.spadesCovCutoff = 8
         self.spadesKvalList = None
+        self.exoneratePercentIdentityThreshold = 65.0
         self.initOrganismLocusDicts()
         
     def extractOrganismAndLocusNames(self, s):
@@ -395,20 +404,62 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             spadesScaffoldList = None
             # sys.stderr.write('spadesScaffoldFname: %s, no scaffolds\n' % spadesScaffoldFname)
-        return spadesScaffoldList                    
+        return spadesScaffoldList
+    
+    def translateLocus(self, locusDna):
+        # FIXME: add support for locus specific translation table setting
+        l = len(locusDna) - (len(locusDna) % 3)
+        if l < len(locusDna):
+            sys.stderr.write('locus %s: length %d is not an integer multiple of 3 -- not a CDS?\n' % (locusDna.id, len(locusDna)))
+        locusProtein = Bio.SeqRecord.SeqRecord(locusDna.seq[:l].translate(), id='%s-pep' % locusDna.id, description='%s, translated' % locusDna.description)
+        return locusProtein
 
-    def orderContigsExonerate(self, locusName, scaffoldList):
+    def exonerateContigs(self, locusName, scaffoldList):
         if self.representativeOrganismLocusDict is None:
             raise StandardError, 'illegal state: no represesentative loci'
         if self.representativeOrganismLocusDict[locusName] is None:
             raise StandardError, 'no representative for locus %s' % locusName
+        locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
         scaffoldFname = os.path.join(self.makeLocusDirPath(locusName), '%s-scaffolds.fasta' % locusName)
         Bio.SeqIO.write(scaffoldList, scaffoldFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
         # FIXME: need to translate query
-        exonerateResultList = exonerateRunner.parse(self.representativeOrganismLocusDict[locusName].seqRecord, scaffoldFname, 'protein2genome', len(scaffoldList))
+        exonerateResultList = exonerateRunner.parse(locusProtein, scaffoldFname, 'protein2genome', len(scaffoldList))
         sys.stderr.write('%d scaffolds, %d exonerate results\n' % (len(scaffoldList), len(exonerateResultList)))
+        exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
+        for exonerateResult in exonerateResultList:
+            sys.stderr.write('  %s\n' % str(exonerateResult))
+        return exonerateResultList
+    
+    def filterByPercentIdentity(self, exonerateResultList):
+        return [e for e in exonerateResultList if e.percentIdentity >= self.exoneratePercentIdentityThreshold]
+    
+    def filterByContainment(self, exonerateResultList):
         
+        def isContainedWithTiebreak(exonerateResult, other):
+            if not other.containsQueryAlignmentRange(exonerateResult):
+                return False
+            if not exonerateResult.containsQueryAlignmentRange(other):
+                return True
+            # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
+            if exonerateResult.targetId is None:
+                raise StandardError, 'cannot break tie when exonerateResult.targetId is None'
+            if other.targetId is None:
+                raise StandardError, 'cannot break tie when other.targetId is None'
+            if exonerateResult.targetId < other.targetId:
+                return False
+            elif other.targetId < exonerateResult.targetId:
+                return True
+            raise StandardError, 'cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other))
+            
+        nonContainedExonerateResultList = []
+        for exonerateResult in exonerateResultList:
+            isContained = False
+            for other in exonerateResultList:
+                isContained = isContained or ((exonerateResult is not other) and isContainedWithTiebreak(exonerateResult, other))
+            if not isContained:
+                nonContainedExonerateResultList.append(exonerateResult)
+        return nonContainedExonerateResultList
         
     def analyse(self):
         self.checkTargets()
@@ -424,8 +475,12 @@ class HybpiperAnalyser(HybseqAnalyser):
                     sys.stderr.write('locus %s: no spades scaffolds\n' % locusName)
                 else:
                     sys.stderr.write('locus %s: %d spades scaffolds\n' % (locusName, len(spadesScaffoldList)))
-                    self.orderContigsExonerate(locusName, spadesScaffoldList)
-            self.orderContigsExonerate()
+                    exonerateResultList = self.exonerateContigs(locusName, spadesScaffoldList)
+                    sys.stderr.write('locus %s: %d exonerate results\n' % (locusName, len(exonerateResultList)))
+                    exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
+                    sys.stderr.write('locus %s: %d sufficiently close exonerate results\n' % (locusName, len(exonerateResultList)))
+                    exonerateResultList = self.filterByContainment(exonerateResultList)
+                    sys.stderr.write('locus %s: %d non-contained exonerate results\n' % (locusName, len(exonerateResultList)))
             self.makeTgz()
         finally:
             self.cleanup()

@@ -72,6 +72,13 @@ if the sequence contains triplets with both gap and non-gap symbols.
     return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
     
 
+def ascendingRange(rangeStart, rangeEnd):
+    if rangeStart > rangeEnd:
+        return rangeEnd, rangeStart
+    else:
+        return rangeStart, rangeEnd
+    
+    
 class ExonerateResult(object):
 
     queryRe = re.compile('Query: ([^ ]+)( (.*))?')
@@ -81,12 +88,13 @@ class ExonerateResult(object):
     rawScoreRe = re.compile('rawScore: ([0-9]+)')
     seqlineRe = re.compile('[ACGT]*')
 
-    def __init__(self, querySeq, targetFname, exonerateModel):
+    def __init__(self, querySeq, targetFname):
         self.querySeq = querySeq
         self.targetFname = targetFname
-        self.exonerateModel = exonerateModel
+        self.exonerateModel = None
         self.queryId = None
         self.queryDef = None
+        self.queryStrand = None
         self.queryAlignmentStart = None
         self.queryAlignmentEnd = None
         self.queryAlignmentLength = None
@@ -95,6 +103,7 @@ class ExonerateResult(object):
         self.queryCdsLength = None
         self.targetId = None
         self.targetDef = None
+        self.targetStrand = None
         self.targetAlignmentStart = None
         self.targetAlignmentEnd = None
         self.targetAlignmentLength = None
@@ -102,15 +111,35 @@ class ExonerateResult(object):
         self.targetCdsEnd = None
         self.targetCdsLength = None
         self.rawScore = None
+        self.percentIdentity = None
+        self.percentSimilarity = None
+        self.equivalencedTotal = None
+        self.equivalencedIdentity = None
+        self.equivalencedSimilarity = None
+        self.equivalencedMismatches = None
         self.queryAlignmentSeq = None
         self.queryCdsSeq = None
         self.targetAlignmentSeq = None
         self.targetCdsSeq = None
         self.genomicFragment = None
-        self.waterRelativeIdentity = None
-
+    
+    def queryAlignmentOverlap(self, other):
+        selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
+        otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
+        if selfQas > otherQae or selfQae < otherQas:
+            return None
+        return max(selfQas, otherQas), min(selfQae, otherQae)
+        
+    def containsQueryAlignmentRange(self, other):
+        selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
+        otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
+        return selfQas <= otherQas and selfQae >= otherQae
+    
+    def overlapsQueryAlignmentRange(self, other):
+        return self.queryAlignmentOverlap(other) is not None
+    
     def proteinAlignment(self):
-        if self.exonerateModel != 'protein2genome':
+        if self.exonerateModel != 'protein2genome:local':
             raise StandardError, 'proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel
         v = self.vulgar.split()
         qAln = ''
@@ -154,7 +183,7 @@ class ExonerateResult(object):
         return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnProt, id='%s_pep' % self.targetAlignmentSeq.id)])
     
     def __str__(self):
-        return 'query: %s (%s -> %s), target: %s:%s (%s -> %s), query fragment %dnt' % (self.queryId, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
+        return '%s, query: %s %s(%s -> %s), target: %s:%s %s(%s -> %s), query fragment %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
 
     def isEmpty(self):
         return self.queryId is None
@@ -183,8 +212,9 @@ class ExonerateResult(object):
             'targetId',
             'targetAlignmentStart', 'targetAlignmentEnd', 'targetAlignmentLength',
             'targetCdsStart', 'targetCdsEnd', 'targetCdsLength',
-            'rawScore',
-            'targetCdsSeqLength', 'genomicFragmentLength', 'waterRelativeIdentity']
+            'rawScore','percentIdentity','percentSimilarity',
+            'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
+            'targetCdsSeqLength', 'genomicFragmentLength']
         csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
         csvDictWriter.writeheader()
         return csvDictWriter
@@ -209,9 +239,14 @@ class ExonerateResult(object):
         d['targetCdsEnd'] = self.targetCdsEnd
         d['targetCdsLength'] = self.targetCdsLength
         d['rawScore'] = self.rawScore
+        d['percentIdentity'] = self.percentIdentity
+        d['percentSimilarity'] = self.percentSimilarity
+        d['equivalencedTotal'] = self.equivalencedTotal
+        d['equivalencedIdentity'] = self.equivalencedIdentity
+        d['equivalencedSimilarity'] = self.equivalencedSimilarity
+        d['equivalencedMismatches'] = self.equivalencedMismatches
         d['targetCdsSeqLength'] = None if self.targetCdsSeq is None else len(self.targetCdsSeq)
         d['genomicFragmentLength'] = None if self.genomicFragment is None else len(self.genomicFragment)
-        d['waterRelativeIdentity'] = None if self.waterRelativeIdentity is None else self.waterRelativeIdentity
         csvDictWriter.writerow(d)
 
     def isQueryReversed(self):
@@ -257,6 +292,12 @@ class ExonerateRunner(object):
             return None
         return int(s)
     
+    def parseFloat(self, f, label):
+        s = self.parseString(f, label)
+        if s == 'NA':
+            return None
+        return float(s)
+    
     def parseSeq(self, f, label, alphabet, seqId):
         line = self.nextLine(f)
         m = self.seqStartRe.match(line)
@@ -277,10 +318,12 @@ class ExonerateRunner(object):
             return None
         if line.strip() != 'ryoStart':
             raise StandardError, 'malformed input: ryoStart missing, got %s instead' % line.strip()
+        exonerateResult.exonerateModel = self.parseString(f, 'exonerateModel')
         exonerateResult.queryId = self.parseString(f, 'queryId')
         if exonerateResult.queryId != exonerateResult.querySeq.id:
             raise StandardError, 'result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId)
         exonerateResult.queryDef = self.parseString(f, 'queryDef')
+        exonerateResult.queryStrand = self.parseString(f, 'queryStrand')
         exonerateResult.queryAlignmentStart = self.parseInt(f, 'queryAlignmentStart')
         exonerateResult.queryAlignmentEnd = self.parseInt(f, 'queryAlignmentEnd')
         exonerateResult.queryAlignmentLength = self.parseInt(f, 'queryAlignmentLength')
@@ -289,6 +332,7 @@ class ExonerateRunner(object):
         exonerateResult.queryCdsLength = self.parseInt(f, 'queryCdsLength')
         exonerateResult.targetId = self.parseString(f, 'targetId')
         exonerateResult.targetDef = self.parseString(f, 'targetDef')
+        exonerateResult.targetStrand = self.parseString(f, 'targetStrand')
         exonerateResult.targetAlignmentStart = self.parseInt(f, 'targetAlignmentStart')
         exonerateResult.targetAlignmentEnd = self.parseInt(f, 'targetAlignmentEnd')
         exonerateResult.targetAlignmentLength = self.parseInt(f, 'targetAlignmentLength')
@@ -296,8 +340,14 @@ class ExonerateRunner(object):
         exonerateResult.targetCdsEnd = self.parseInt(f, 'targetCdsEnd')
         exonerateResult.targetCdsLength = self.parseInt(f, 'targetCdsLength')
         exonerateResult.rawScore = self.parseInt(f, 'rawScore')
+        exonerateResult.percentIdentity = self.parseFloat(f, 'percentIdentity')
+        exonerateResult.percentSimilarity = self.parseFloat(f, 'percentSimilarity')
+        exonerateResult.equivalencedTotal = self.parseInt(f, 'equivalencedTotal')
+        exonerateResult.equivalencedIdentity = self.parseInt(f, 'equivalencedIdentity')
+        exonerateResult.equivalencedSimilarity = self.parseInt(f, 'equivalencedSimilarity')
+        exonerateResult.equivalencedMismatches = self.parseInt(f, 'equivalencedMismatches')
         exonerateResult.vulgar = self.parseString(f, 'vulgar')
-        if exonerateResult.exonerateModel == 'protein2genome':
+        if exonerateResult.exonerateModel == 'protein2genome:local':
             # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
             self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
@@ -320,7 +370,7 @@ class ExonerateRunner(object):
             queryScratchFile.close()
             exonerateArgv = [
                 'exonerate', '--model', exonerateModel, '--bestn', '%d' % bestn, '--verbose', '0', '--showalignment',
-                'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nqueryId: %qi\\nqueryDef: %qd\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
+                'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nexonerateModel: %m\\nqueryId: %qi\\nqueryDef: %qd\\nqueryStrand: %qS\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetStrand: %tS\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\npercentIdentity: %pi\\npercentSimilarity: %ps\\nequivalencedTotal: %et\\nequivalencedIdentity: %ei\\nequivalencedSimilarity: %es\\nequivalencedMismatches: %em\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
             if verbose > 0:
                 sys.stderr.write('%s\n' % ' '.join(exonerateArgv))
             p = subprocess.Popen(exonerateArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -333,10 +383,10 @@ class ExonerateRunner(object):
                 os._exit(0)
             p.stdin.close()
             exonerateResultList = []
-            exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname, exonerateModel))
+            exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname))
             while exonerateResult is not None:
                 exonerateResultList.append(exonerateResult)
-                exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname, exonerateModel))
+                exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname))
             p.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
