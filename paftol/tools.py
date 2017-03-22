@@ -124,6 +124,7 @@ class ExonerateResult(object):
         self.genomicFragment = None
     
     def queryAlignmentOverlap(self, other):
+        # FIXME: check whether self and other pertain to same query (also for containment)?
         selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
         otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
         if selfQas > otherQae or selfQae < otherQas:

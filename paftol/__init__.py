@@ -396,15 +396,15 @@ class HybpiperAnalyser(HybseqAnalyser):
         if spadesReturncode != 0:
             # raise StandardError, 'spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode)
             sys.stderr.write('spades process "%s" exited with %d\n' % (' '.join(spadesArgv), spadesReturncode))
-        spadesScaffoldFname = os.path.join(self.makeLocusDirPath(locusName), 'scaffolds.fasta')
-        # sys.stderr.write('spadesScaffoldFname: %s\n' % spadesScaffoldFname)
-        if os.path.exists(spadesScaffoldFname):
-            spadesScaffoldList = list(Bio.SeqIO.parse(spadesScaffoldFname, 'fasta'))
-            # sys.stderr.write('spadesScaffoldFname: %s, %d scaffolds\n' % (spadesScaffoldFname, len(spadesScaffoldList)))
+        spadesContigFname = os.path.join(self.makeLocusDirPath(locusName), 'contigs.fasta')
+        # sys.stderr.write('spadesContigFname: %s\n' % spadesContigFname)
+        if os.path.exists(spadesContigFname):
+            spadesContigList = list(Bio.SeqIO.parse(spadesContigFname, 'fasta'))
+            # sys.stderr.write('spadesContigFname: %s, %d contigs\n' % (spadesContigFname, len(spadesContigList)))
         else:
-            spadesScaffoldList = None
-            # sys.stderr.write('spadesScaffoldFname: %s, no scaffolds\n' % spadesScaffoldFname)
-        return spadesScaffoldList
+            spadesContigList = None
+            # sys.stderr.write('spadesContigFname: %s, no contigs\n' % spadesContigFname)
+        return spadesContigList
     
     def translateLocus(self, locusDna):
         # FIXME: add support for locus specific translation table setting
@@ -414,18 +414,18 @@ class HybpiperAnalyser(HybseqAnalyser):
         locusProtein = Bio.SeqRecord.SeqRecord(locusDna.seq[:l].translate(), id='%s-pep' % locusDna.id, description='%s, translated' % locusDna.description)
         return locusProtein
 
-    def exonerateContigs(self, locusName, scaffoldList):
+    def exonerateContigs(self, locusName, contigList):
         if self.representativeOrganismLocusDict is None:
             raise StandardError, 'illegal state: no represesentative loci'
         if self.representativeOrganismLocusDict[locusName] is None:
             raise StandardError, 'no representative for locus %s' % locusName
         locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
-        scaffoldFname = os.path.join(self.makeLocusDirPath(locusName), '%s-scaffolds.fasta' % locusName)
-        Bio.SeqIO.write(scaffoldList, scaffoldFname, 'fasta')
+        contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
+        Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
         # FIXME: need to translate query
-        exonerateResultList = exonerateRunner.parse(locusProtein, scaffoldFname, 'protein2genome', len(scaffoldList))
-        sys.stderr.write('%d scaffolds, %d exonerate results\n' % (len(scaffoldList), len(exonerateResultList)))
+        exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
+        sys.stderr.write('%d contigs, %d exonerate results\n' % (len(contigList), len(exonerateResultList)))
         exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
         for exonerateResult in exonerateResultList:
             sys.stderr.write('  %s\n' % str(exonerateResult))
@@ -460,6 +460,16 @@ class HybpiperAnalyser(HybseqAnalyser):
             if not isContained:
                 nonContainedExonerateResultList.append(exonerateResult)
         return nonContainedExonerateResultList
+    
+    def filterByOverlap(self, exonerateResultList):
+        nonOverlappingExonerateResultList = []
+        for exonerateResult in exonerateResultList:
+            for other in exonerateResultList:
+                if exonerateResult is not other:
+                    if exonerateResult.overlapsQueryAlignmentRange(other):
+                        sys.stderr.write('  overlap found: %s, %s\n' % (str(exonerateResult), str(other)))
+            nonOverlappingExonerateResultList.append(exonerateResult)
+        return nonOverlappingExonerateResultList
         
     def analyse(self):
         self.checkTargets()
@@ -468,19 +478,24 @@ class HybpiperAnalyser(HybseqAnalyser):
             self.mapReadsBwa()
             self.distribute()
             self.setRepresentativeLoci()
+            reconstructedLocusDict = {}
             for locusName in self.locusDict:
                 os.mkdir(self.makeLocusDirPath(locusName))
-                spadesScaffoldList = self.assembleLocusSpades(locusName)
-                if spadesScaffoldList is None:
-                    sys.stderr.write('locus %s: no spades scaffolds\n' % locusName)
+                spadesContigList = self.assembleLocusSpades(locusName)
+                if spadesContigList is None:
+                    sys.stderr.write('locus %s: no spades contigs\n' % locusName)
+                    reconstructedLocusDict[locusName] = None
                 else:
-                    sys.stderr.write('locus %s: %d spades scaffolds\n' % (locusName, len(spadesScaffoldList)))
-                    exonerateResultList = self.exonerateContigs(locusName, spadesScaffoldList)
+                    sys.stderr.write('locus %s: %d spades contigs\n' % (locusName, len(spadesContigList)))
+                    exonerateResultList = self.exonerateContigs(locusName, spadesContigList)
                     sys.stderr.write('locus %s: %d exonerate results\n' % (locusName, len(exonerateResultList)))
                     exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
                     sys.stderr.write('locus %s: %d sufficiently close exonerate results\n' % (locusName, len(exonerateResultList)))
                     exonerateResultList = self.filterByContainment(exonerateResultList)
                     sys.stderr.write('locus %s: %d non-contained exonerate results\n' % (locusName, len(exonerateResultList)))
+                    exonerateResultList = self.filterByOverlap(exonerateResultList)
+                    sys.stderr.write('locus %s: %d non-overlapping exonerate results\n' % (locusName, len(exonerateResultList)))
+                    # TODO: concatenate and 'exonerate' to remove introns (?)
             self.makeTgz()
         finally:
             self.cleanup()
