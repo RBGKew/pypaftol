@@ -413,23 +413,6 @@ class HybpiperAnalyser(HybseqAnalyser):
             sys.stderr.write('locus %s: length %d is not an integer multiple of 3 -- not a CDS?\n' % (locusDna.id, len(locusDna)))
         locusProtein = Bio.SeqRecord.SeqRecord(locusDna.seq[:l].translate(), id='%s-pep' % locusDna.id, description='%s, translated' % locusDna.description)
         return locusProtein
-
-    def exonerateContigs(self, locusName, contigList):
-        if self.representativeOrganismLocusDict is None:
-            raise StandardError, 'illegal state: no represesentative loci'
-        if self.representativeOrganismLocusDict[locusName] is None:
-            raise StandardError, 'no representative for locus %s' % locusName
-        locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
-        contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
-        Bio.SeqIO.write(contigList, contigFname, 'fasta')
-        exonerateRunner = paftol.tools.ExonerateRunner()
-        # FIXME: need to translate query
-        exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
-        sys.stderr.write('%d contigs, %d exonerate results\n' % (len(contigList), len(exonerateResultList)))
-        exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
-        for exonerateResult in exonerateResultList:
-            sys.stderr.write('  %s\n' % str(exonerateResult))
-        return exonerateResultList
     
     def filterByPercentIdentity(self, exonerateResultList):
         return [e for e in exonerateResultList if e.percentIdentity >= self.exoneratePercentIdentityThreshold]
@@ -470,6 +453,50 @@ class HybpiperAnalyser(HybseqAnalyser):
                         sys.stderr.write('  overlap found: %s, %s\n' % (str(exonerateResult), str(other)))
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
+    
+    def filterExonerateResultList(self, locusName, exonerateResultList):
+        sys.stderr.write('locus %s: %d exonerate results\n' % (locusName, len(exonerateResultList)))
+        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
+        sys.stderr.write('locus %s: %d sufficiently close exonerate results\n' % (locusName, len(exonerateResultList)))
+        exonerateResultList = self.filterByContainment(exonerateResultList)
+        sys.stderr.write('locus %s: %d non-contained exonerate results\n' % (locusName, len(exonerateResultList)))
+        exonerateResultList = self.filterByOverlap(exonerateResultList)
+        sys.stderr.write('locus %s: %d non-overlapping exonerate results\n' % (locusName, len(exonerateResultList)))
+        return exonerateResultList
+    
+    def reconstructCds(self, locusName):
+        if self.representativeOrganismLocusDict is None:
+            raise StandardError, 'illegal state: no represesentative loci'
+        if self.representativeOrganismLocusDict[locusName] is None:
+            raise StandardError, 'no representative for locus %s' % locusName
+        os.mkdir(self.makeLocusDirPath(locusName))
+        contigList = self.assembleLocusSpades(locusName)
+        if contigList is None:
+            sys.stderr.write('locus %s: no spades contigs\n' % locusName)
+            return None
+        sys.stderr.write('locus %s: %d spades contigs\n' % (locusName, len(contigList)))
+        locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
+        contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
+        Bio.SeqIO.write(contigList, contigFname, 'fasta')
+        exonerateRunner = paftol.tools.ExonerateRunner()
+        exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
+        sys.stderr.write('%d contigs, %d exonerate results\n' % (len(contigList), len(exonerateResultList)))
+        exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
+        for exonerateResult in exonerateResultList:
+            if exonerateResult.targetStrand == '-':
+                exonerateResult.reverseComplementTarget()
+        filteredExonerateResultList = self.filterExonerateResultList(locusName, exonerateResultList)
+        supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % locusName)
+        supercontigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-supercontig.fasta' % locusName)
+        Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
+        supercontigErList = exonerateRunner.parse(locusProtein, supercontigFname, 'protein2genome', len(contigList))
+        # not filtering for percent identity to locus again, as that is already done
+        if self.reverseFastq is not None:
+            readsSpec = '%s, %s' % (self.forwardFastq, self.reverseFastq)
+        else :
+            readsSpec = self.forwardFastq
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=locusName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
+        return splicedSupercontig
         
     def analyse(self):
         self.checkTargets()
@@ -478,24 +505,13 @@ class HybpiperAnalyser(HybseqAnalyser):
             self.mapReadsBwa()
             self.distribute()
             self.setRepresentativeLoci()
-            reconstructedLocusDict = {}
+            reconstructedCdsDict = {}
             for locusName in self.locusDict:
-                os.mkdir(self.makeLocusDirPath(locusName))
-                spadesContigList = self.assembleLocusSpades(locusName)
-                if spadesContigList is None:
-                    sys.stderr.write('locus %s: no spades contigs\n' % locusName)
-                    reconstructedLocusDict[locusName] = None
-                else:
-                    sys.stderr.write('locus %s: %d spades contigs\n' % (locusName, len(spadesContigList)))
-                    exonerateResultList = self.exonerateContigs(locusName, spadesContigList)
-                    sys.stderr.write('locus %s: %d exonerate results\n' % (locusName, len(exonerateResultList)))
-                    exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-                    sys.stderr.write('locus %s: %d sufficiently close exonerate results\n' % (locusName, len(exonerateResultList)))
-                    exonerateResultList = self.filterByContainment(exonerateResultList)
-                    sys.stderr.write('locus %s: %d non-contained exonerate results\n' % (locusName, len(exonerateResultList)))
-                    exonerateResultList = self.filterByOverlap(exonerateResultList)
-                    sys.stderr.write('locus %s: %d non-overlapping exonerate results\n' % (locusName, len(exonerateResultList)))
-                    # TODO: concatenate and 'exonerate' to remove introns (?)
+                reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
+                sys.stderr.write('reconstructedCds[%s]: type = %s\n%s\n' % (locusName, type(reconstructedCdsDict[locusName]), reconstructedCdsDict[locusName]))
             self.makeTgz()
+            if self.outFname is not None:
+                Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], self.outFname, 'fasta')
+            return reconstructedCdsDict
         finally:
             self.cleanup()

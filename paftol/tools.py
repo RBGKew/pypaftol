@@ -34,6 +34,13 @@ or only gap symbols. Runs of non-gap triplets are translated as per
 the specified translation table. Runs of gap symbol triplets are
 translated into as many single gap symbols. An exception is raised
 if the sequence contains triplets with both gap and non-gap symbols.
+    
+@param seq: sequence to be translated
+@type seq: C{Bio.Seq.Seq}
+@param table: translation table, passed to BioPython C{translate} method
+@type table: C{int} or C{String} (any type suitable for C{translate})
+@return: translated sequence
+@rtype: C{Bio.Seq.Seq}
 """
     if not isinstance(seq.alphabet, Bio.Alphabet.Gapped):
         return seq.translate(table=table)
@@ -73,6 +80,14 @@ if the sequence contains triplets with both gap and non-gap symbols.
     
 
 def ascendingRange(rangeStart, rangeEnd):
+    """Get start and end into ascending order by switching them if necessary.
+@param rangeStart: the start of the range
+@type rangeStart: C{int}
+@param rangeEnd: the end of the range
+@type rangeEnd: C{int}
+@return: range in ascending order
+@rtype: C{tuple} of length 2
+"""
     if rangeStart > rangeEnd:
         return rangeEnd, rangeStart
     else:
@@ -80,7 +95,76 @@ def ascendingRange(rangeStart, rangeEnd):
     
     
 class ExonerateResult(object):
+    """Hold results from running C{exonerate}.
 
+Many attributes correspond to conversions provided by C{exonerate}'s
+roll your own (ryo) formatting facility.
+
+@ivar querySeq:
+@type querySeq: C{Bio.SeqRecord.SeqRecord}
+@ivar targetFname:
+@type targetFname: C{String}
+@ivar exonerateModel:
+@type exonerateModel: C{String}
+@ivar queryId:
+@type queryId: C{String}
+@ivar queryDef:
+@type queryDef: C{String}
+@ivar queryStrand:
+@type queryStrand: C{String}
+@ivar queryAlignmentStart:
+@type queryAlignmentStart: C{int}
+@ivar queryAlignmentEnd:
+@type queryAlignmentEnd: C{int}
+@ivar queryAlignmentLength:
+@type queryAlignmentLength: C{int}
+@ivar queryCdsStart:
+@type queryCdsStart: C{int}
+@ivar queryCdsEnd:
+@type queryCdsEnd: C{int}
+@ivar queryCdsLength:
+@type queryCdsLength: C{int}
+@ivar targetId:
+@type targetId: C{String}
+@ivar targetDef:
+@type targetDef: C{String}
+@ivar targetStrand:
+@type targetStrand: C{String}
+@ivar targetAlignmentStart:
+@type targetAlignmentStart: C{int}
+@ivar targetAlignmentEnd:
+@type targetAlignmentEnd: C{int}
+@ivar targetAlignmentLength:
+@type targetAlignmentLength: C{int}
+@ivar targetCdsStart:
+@type targetCdsStart: C{int}
+@ivar targetCdsEnd:
+@type targetCdsEnd: C{int}
+@ivar targetCdsLength:
+@type targetCdsLength: C{int}
+@ivar rawScore:
+@type rawScore: C{int}
+@ivar percentIdentity:
+@type percentIdentity: C{float}
+@ivar percentSimilarity:
+@type percentSimilarity: C{float}
+@ivar equivalencedTotal:
+@type equivalencedTotal: C{int}
+@ivar equivalencedIdentity:
+@type equivalencedIdentity: C{int}
+@ivar equivalencedSimilarity:
+@type equivalencedSimilarity: C{int}
+@ivar equivalencedMismatches:
+@type equivalencedMismatches: C{int}
+@ivar queryAlignmentSeq:
+@type queryAlignmentSeq: C{Bio.SeqRecord.SeqRecord}
+@ivar queryCdsSeq:
+@type queryCdsSeq: C{Bio.SeqRecord.SeqRecord}
+@ivar targetAlignmentSeq:
+@type targetAlignmentSeq: C{Bio.SeqRecord.SeqRecord}
+@ivar targetCdsSeq:
+@type targetCdsSeq: C{Bio.SeqRecord.SeqRecord}
+    """
     queryRe = re.compile('Query: ([^ ]+)( (.*))?')
     targetRe = re.compile('Target: ([^ ]+)( (.*))?')
     queryRangeRe = re.compile('Query range: ([0-9]+) -> ([0-9]+)')
@@ -121,7 +205,17 @@ class ExonerateResult(object):
         self.queryCdsSeq = None
         self.targetAlignmentSeq = None
         self.targetCdsSeq = None
-        self.genomicFragment = None
+        
+    def reverseComplementTarget(self):
+        if self.targetStrand not in '+-':
+            raise StandardError, 'cannot reverse complement strand with orientation "%s"' % self.targetStrand
+        if self.targetAlignmentSeq is not None:
+            self.targetAlignmentSeq = self.targetAlignmentSeq.reverse_complement(id=True, name=True, description=True)
+            self.targetAlignmentStart, self.targetAlignmentEnd = self.targetAlignmentEnd, self.targetAlignmentStart
+        if self.targetCdsSeq is not None:
+            self.targetCdsSeq = self.targetCdsSeq.reverse_complement(id=True, name=True, description=True)
+            self.targetCdsStart, self.targetCdsEnd = self.targetCdsEnd, self.targetCdsStart
+        self.targetStrand = '+' if self.targetStrand == '-' else '-'
     
     def queryAlignmentOverlap(self, other):
         # FIXME: check whether self and other pertain to same query (also for containment)?
@@ -215,7 +309,7 @@ class ExonerateResult(object):
             'targetCdsStart', 'targetCdsEnd', 'targetCdsLength',
             'rawScore','percentIdentity','percentSimilarity',
             'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
-            'targetCdsSeqLength', 'genomicFragmentLength']
+            'targetCdsSeqLength']
         csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
         csvDictWriter.writeheader()
         return csvDictWriter
@@ -247,7 +341,6 @@ class ExonerateResult(object):
         d['equivalencedSimilarity'] = self.equivalencedSimilarity
         d['equivalencedMismatches'] = self.equivalencedMismatches
         d['targetCdsSeqLength'] = None if self.targetCdsSeq is None else len(self.targetCdsSeq)
-        d['genomicFragmentLength'] = None if self.genomicFragment is None else len(self.genomicFragment)
         csvDictWriter.writerow(d)
 
     def isQueryReversed(self):
