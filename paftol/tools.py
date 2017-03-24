@@ -100,69 +100,69 @@ class ExonerateResult(object):
 Many attributes correspond to conversions provided by C{exonerate}'s
 roll your own (ryo) formatting facility.
 
-@ivar querySeq:
+@ivar querySeq: query sequence (first free parameter to C{exonerate})
 @type querySeq: C{Bio.SeqRecord.SeqRecord}
-@ivar targetFname:
+@ivar targetFname: name of a FASTA file of sequences to be scanned
 @type targetFname: C{String}
-@ivar exonerateModel:
+@ivar exonerateModel: alignment model, currently only C{protein2genome:local} is really supported
 @type exonerateModel: C{String}
-@ivar queryId:
+@ivar queryId: query ID (C{%qi} conversion)
 @type queryId: C{String}
-@ivar queryDef:
+@ivar queryDef: query definition (C{%qd} conversion)
 @type queryDef: C{String}
-@ivar queryStrand:
+@ivar queryStrand: query strand (C{%qS} conversion)
 @type queryStrand: C{String}
-@ivar queryAlignmentStart:
+@ivar queryAlignmentStart: query alignment start (C{%qab} conversion)
 @type queryAlignmentStart: C{int}
-@ivar queryAlignmentEnd:
+@ivar queryAlignmentEnd: query alignment end (C{%qae} conversion)
 @type queryAlignmentEnd: C{int}
-@ivar queryAlignmentLength:
+@ivar queryAlignmentLength: query alignment length (C{%qal} conversion)
 @type queryAlignmentLength: C{int}
-@ivar queryCdsStart:
+@ivar queryCdsStart: query coding sequence start (C{%qcb} conversion)
 @type queryCdsStart: C{int}
-@ivar queryCdsEnd:
+@ivar queryCdsEnd: query coding sequence end (C{%qce} conversion)
 @type queryCdsEnd: C{int}
-@ivar queryCdsLength:
+@ivar queryCdsLength: query coding sequence length (C{%qcl} conversion)
 @type queryCdsLength: C{int}
-@ivar targetId:
+@ivar targetId: target ID (C{%ti} conversion)
 @type targetId: C{String}
-@ivar targetDef:
+@ivar targetDef: target definition (C{%td} conversion)
 @type targetDef: C{String}
-@ivar targetStrand:
+@ivar targetStrand: target strand (C{%tS} conversion)
 @type targetStrand: C{String}
-@ivar targetAlignmentStart:
+@ivar targetAlignmentStart: target alignment start (C{%tab} conversion)
 @type targetAlignmentStart: C{int}
-@ivar targetAlignmentEnd:
+@ivar targetAlignmentEnd: target alignment end (C{%tae} conversion)
 @type targetAlignmentEnd: C{int}
-@ivar targetAlignmentLength:
+@ivar targetAlignmentLength: target alignment length (C{%tal} conversion)
 @type targetAlignmentLength: C{int}
-@ivar targetCdsStart:
+@ivar targetCdsStart: target coding sequence start (C{%tcb} conversion)
 @type targetCdsStart: C{int}
-@ivar targetCdsEnd:
+@ivar targetCdsEnd: target coding sequence end (C{%tce} conversion)
 @type targetCdsEnd: C{int}
-@ivar targetCdsLength:
+@ivar targetCdsLength: target coding sequence length (C{%tcl} conversion)
 @type targetCdsLength: C{int}
-@ivar rawScore:
+@ivar rawScore: raw score (C{%s} conversion)
 @type rawScore: C{int}
-@ivar percentIdentity:
+@ivar percentIdentity: percent identity (C{%pi} conversion)
 @type percentIdentity: C{float}
-@ivar percentSimilarity:
+@ivar percentSimilarity: percent similarity (C{%ps} conversion)
 @type percentSimilarity: C{float}
-@ivar equivalencedTotal:
+@ivar equivalencedTotal: equivalenced total (C{%et} conversion)
 @type equivalencedTotal: C{int}
-@ivar equivalencedIdentity:
+@ivar equivalencedIdentity: equivalenced identity (C{%ei} conversion)
 @type equivalencedIdentity: C{int}
-@ivar equivalencedSimilarity:
+@ivar equivalencedSimilarity: equivalenced similarity (C{%es} conversion)
 @type equivalencedSimilarity: C{int}
-@ivar equivalencedMismatches:
+@ivar equivalencedMismatches: equivalenced mismatched (C{%em} conversion)
 @type equivalencedMismatches: C{int}
-@ivar queryAlignmentSeq:
+@ivar queryAlignmentSeq: query alignment sequence (C{%qas} conversion)
 @type queryAlignmentSeq: C{Bio.SeqRecord.SeqRecord}
-@ivar queryCdsSeq:
+@ivar queryCdsSeq: query coding sequence (C{%qcs} conversion)
 @type queryCdsSeq: C{Bio.SeqRecord.SeqRecord}
-@ivar targetAlignmentSeq:
+@ivar targetAlignmentSeq: target alignment sequence (C{%tas} conversion)
 @type targetAlignmentSeq: C{Bio.SeqRecord.SeqRecord}
-@ivar targetCdsSeq:
+@ivar targetCdsSeq: target coding sequence (C{%tcs} conversion)
 @type targetCdsSeq: C{Bio.SeqRecord.SeqRecord}
     """
     queryRe = re.compile('Query: ([^ ]+)( (.*))?')
@@ -207,6 +207,10 @@ roll your own (ryo) formatting facility.
         self.targetCdsSeq = None
         
     def reverseComplementTarget(self):
+        """Reverse complement target sequences, switching them from reverse to forward direction or vice versa.
+
+Ranges and strand orientations are changed accordingly.
+"""
         if self.targetStrand not in '+-':
             raise StandardError, 'cannot reverse complement strand with orientation "%s"' % self.targetStrand
         if self.targetAlignmentSeq is not None:
@@ -218,6 +222,14 @@ roll your own (ryo) formatting facility.
         self.targetStrand = '+' if self.targetStrand == '-' else '-'
     
     def queryAlignmentOverlap(self, other):
+        """Find overlap between query alignment range in this and another exonerate result.
+
+Ranges are canonicalised to be ascending, therefore returned ranges are ascending too.
+@param other: the other exonerate result
+@type other: L{ExonerateResult}
+@return: the range of the overlap if any, or else C{None}
+@rtype: C{tuple} of length 2
+"""
         # FIXME: check whether self and other pertain to same query (also for containment)?
         selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
         otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
@@ -226,14 +238,32 @@ roll your own (ryo) formatting facility.
         return max(selfQas, otherQas), min(selfQae, otherQae)
         
     def containsQueryAlignmentRange(self, other):
+        """Determine whether the query alignment range in this result completely contains the range in another result.
+        
+@param other: the other exonerate result
+@type other: L{ExonerateResult}
+@return: C{True} if this result's alignment range fully contains that in C{other}, else C{False}
+@rtype: C{bool}
+"""
         selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
         otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
         return selfQas <= otherQas and selfQae >= otherQae
     
     def overlapsQueryAlignmentRange(self, other):
+        """Determine whether the query alignment range in this result overlaps with the range in another result.
+        
+@param other: the other exonerate result
+@type other: L{ExonerateResult}
+@return: C{True} if this result's query alignment range overlaps with that in C{other}, else C{False}
+@rtype: C{bool}
+"""
         return self.queryAlignmentOverlap(other) is not None
     
     def proteinAlignment(self):
+        """Construct an alignment of the protein query and target sequences in this result.
+@return: the protein sequence alignment
+@rtype: C{Bio.Align.MultipleSeqAlignment}
+"""
         if self.exonerateModel != 'protein2genome:local':
             raise StandardError, 'proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel
         v = self.vulgar.split()
@@ -278,12 +308,25 @@ roll your own (ryo) formatting facility.
         return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnProt, id='%s_pep' % self.targetAlignmentSeq.id)])
     
     def __str__(self):
+        """String representation of this C{ExonerateResult} instance.
+
+@return: string representation
+@rtype: C{String}
+"""
         return '%s, query: %s %s(%s -> %s), target: %s:%s %s(%s -> %s), query fragment %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
 
     def isEmpty(self):
+        """Check whether this result has actually been populated by running C{exonerate}.
+@return: C{True} if this result is populated
+@rtype: C{bool}
+"""
         return self.queryId is None
         
     def writeAllSeqs(self, f):
+        """Write all C{SeqRecord} type attributes to a FASTA file.
+
+@param f: the file to write the sequences to
+"""
         seqList = []
         if self.querySeq is not None:
             seqList.append(self.querySeq)
@@ -297,63 +340,20 @@ roll your own (ryo) formatting facility.
             seqList.append(self.targetCdsSeq)
         Bio.SeqIO.write(seqList, f, 'fasta')
 
-    def makeCsvDictWriter(self, csvfile):
-        # FIXME: add columns for all attributes
-        csvFieldnames = [
-            'querySeqId', 'genomeName', 'querySeqLength',
-            'queryId',
-            'queryAlignmentStart', 'queryAlignmentEnd', 'queryAlignmentLength',
-            'queryCdsStart', 'queryCdsEnd', 'queryCdsLength',
-            'targetId',
-            'targetAlignmentStart', 'targetAlignmentEnd', 'targetAlignmentLength',
-            'targetCdsStart', 'targetCdsEnd', 'targetCdsLength',
-            'rawScore','percentIdentity','percentSimilarity',
-            'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
-            'targetCdsSeqLength']
-        csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
-        csvDictWriter.writeheader()
-        return csvDictWriter
-
-    def writeCsvStats(self, csvDictWriter):
-        d = {}
-        d['querySeqId'] = None if self.querySeq is None else self.querySeq.id
-        d['targetFname'] = self.targetFname
-        d['querySeqLength'] = None if self.querySeq is None else len(self.querySeq)
-        d['queryId'] = self.queryId
-        d['queryAlignmentStart'] = self.queryAlignmentStart
-        d['queryAlignmentEnd'] = self.queryAlignmentEnd
-        d['queryAlignmentLength'] = self.queryAlignmentLength
-        d['queryCdsStart'] = self.queryCdsStart
-        d['queryCdsEnd'] = self.queryCdsEnd
-        d['queryCdsLength'] = self.queryCdsLength
-        d['targetId'] = self.targetId
-        d['targetAlignmentStart'] = self.targetAlignmentStart
-        d['targetAlignmentEnd'] = self.targetAlignmentEnd
-        d['targetAlignmentLength'] = self.targetAlignmentLength
-        d['targetCdsStart'] = self.targetCdsStart
-        d['targetCdsEnd'] = self.targetCdsEnd
-        d['targetCdsLength'] = self.targetCdsLength
-        d['rawScore'] = self.rawScore
-        d['percentIdentity'] = self.percentIdentity
-        d['percentSimilarity'] = self.percentSimilarity
-        d['equivalencedTotal'] = self.equivalencedTotal
-        d['equivalencedIdentity'] = self.equivalencedIdentity
-        d['equivalencedSimilarity'] = self.equivalencedSimilarity
-        d['equivalencedMismatches'] = self.equivalencedMismatches
-        d['targetCdsSeqLength'] = None if self.targetCdsSeq is None else len(self.targetCdsSeq)
-        csvDictWriter.writerow(d)
-
     def isQueryReversed(self):
+        """Determine whether the query is in reverse orientation.
+"""
         return self.queryAlignmentStart > self.queryAlignmentEnd
 
     def isTargetReversed(self):
+        """Determine whether the target is in reverse orientation.
+"""
         return self.targetAlignmentStart > self.targetAlignmentEnd
-
-    def makeSeqId(self, seqType):
-        return('%s_%s_%s' % (self.queryId, self.targetId, seqType))
 
 
 class ExonerateRunner(object):
+    """Run C{exonerate} and construct L{ExonerateResult} instances on that basis.
+"""
     
     labelledLineRe = re.compile('([A-Za-z][A-Za-z0-9_]*): (.*)')
     seqStartRe = re.compile('seqStart (.*)')
@@ -405,6 +405,9 @@ class ExonerateRunner(object):
             seq = seq + s
             s = self.nextLine(f)
         return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq, alphabet), id=seqId)
+
+    def makeSeqId(self, exonerateResult, seqType):
+        return('%s_%s_%s' % (self.queryId, self.targetId, seqType))
     
     def parseExonerateResult(self, f, exonerateResult):
         line = f.readline()
@@ -442,13 +445,13 @@ class ExonerateRunner(object):
         exonerateResult.equivalencedMismatches = self.parseInt(f, 'equivalencedMismatches')
         exonerateResult.vulgar = self.parseString(f, 'vulgar')
         if exonerateResult.exonerateModel == 'protein2genome:local':
-            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
+            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
-            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('qcds'))
+            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'qcds'))
             exonerateResult.queryCdsSeq = None
-            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, exonerateResult.makeSeqId('qaln'))
-            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('tcds'))
-            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, exonerateResult.makeSeqId('taln'))
+            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateresult, 'qaln'))
+            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'tcds'))
+            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'taln'))
         else:
             raise StandardError, 'unsupported exonerate model: %s' % exonerateResult.exonerateModel
         line = self.nextLine(f)
@@ -457,6 +460,19 @@ class ExonerateRunner(object):
         return exonerateResult
 
     def parse(self, querySeq, targetFname, exonerateModel, bestn):
+        """Run C{exonerate} and return a C{list} of C{ExonerateResult}s.
+
+@param querySeq: the query sequence
+@type querySeq: C{Bio.SeqRecord.SeqRecord}
+@param targetFname: the name of the FASTA sequence file containing the targets
+@type targetFname: C{String}
+@param exonerateModel: the alignment model
+@type exonerateModel: C{String}
+@param bestn: max. number of hits
+@type bestn: C{int}
+@return: list of results
+@rtype: C{list} of L{ExonerateResult}
+"""
         queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
         try:
             queryScratchFile = os.fdopen(queryScratchFd, 'w')
@@ -496,3 +512,86 @@ class ExonerateRunner(object):
             else:
                 os.unlink(queryScratchFname)
         return exonerateResultList
+
+    
+class ExonerateCsvDictWriter(object):
+    """Write CSV files containing stats from L{ExonerateResult} instances.
+"""
+
+    csvFieldnames = [
+        'querySeqId', 'genomeName', 'querySeqLength',
+        'queryId',
+        'queryAlignmentStart', 'queryAlignmentEnd', 'queryAlignmentLength',
+        'queryCdsStart', 'queryCdsEnd', 'queryCdsLength',
+        'targetId',
+        'targetAlignmentStart', 'targetAlignmentEnd', 'targetAlignmentLength',
+        'targetCdsStart', 'targetCdsEnd', 'targetCdsLength',
+        'rawScore','percentIdentity','percentSimilarity',
+        'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
+        'targetCdsSeqLength']
+
+    def __init__(self, csvfile):
+        """Create an L{ExonerateCsvDictWriter}.
+        
+The C{csvfile} parameter may either be a string containing the name of
+the CSV file to be written, or a file like object. If it's a string,
+the file will be opened for writing, thus erasing any previous
+content.
+
+@param csvfile: The file to write to
+@type csvfile: C{String} or file like
+"""
+        if isinstance(csvfile, types.StringType):
+            self.csvfile = open(csvfile, 'w')
+            self.csvDictWriter = csv.DictWriter(self.csvfile, self.csvFieldnames)
+        else:
+            self.csvfile = None
+            self.csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
+        self.csvDictWriter.writeheader()
+        
+    def close(self):
+        """Close this writer.
+
+If the underlying file was opened at construction of this instance, it
+is closed. If a file like object was passed in at construction, it's
+the caller's responsibility to close it.
+"""
+        if self.csvfile is not None:
+            self.csvfile.close()
+        self.csvfile = None
+        self.csvDictWriter = None
+
+    def writeCsvStats(self, exonerateResult):
+        """Write a CSV row containing data from an C{ExonerateResult} instance.
+
+@param exonerateResult: the instance from which to take the row's content
+"""
+        if self.csvDictWriter is None:
+            raise StandardError, 'illegal state: no DictWriter (close called previously?)'
+        d = {}
+        d['querySeqId'] = None if exonerateResult.querySeq is None else exonerateResult.querySeq.id
+        d['targetFname'] = exonerateResult.targetFname
+        d['querySeqLength'] = None if exonerateResult.querySeq is None else len(exonerateResult.querySeq)
+        d['queryId'] = exonerateResult.queryId
+        d['queryAlignmentStart'] = exonerateResult.queryAlignmentStart
+        d['queryAlignmentEnd'] = exonerateResult.queryAlignmentEnd
+        d['queryAlignmentLength'] = exonerateResult.queryAlignmentLength
+        d['queryCdsStart'] = exonerateResult.queryCdsStart
+        d['queryCdsEnd'] = exonerateResult.queryCdsEnd
+        d['queryCdsLength'] = exonerateResult.queryCdsLength
+        d['targetId'] = exonerateResult.targetId
+        d['targetAlignmentStart'] = exonerateResult.targetAlignmentStart
+        d['targetAlignmentEnd'] = exonerateResult.targetAlignmentEnd
+        d['targetAlignmentLength'] = exonerateResult.targetAlignmentLength
+        d['targetCdsStart'] = exonerateResult.targetCdsStart
+        d['targetCdsEnd'] = exonerateResult.targetCdsEnd
+        d['targetCdsLength'] = exonerateResult.targetCdsLength
+        d['rawScore'] = exonerateResult.rawScore
+        d['percentIdentity'] = exonerateResult.percentIdentity
+        d['percentSimilarity'] = exonerateResult.percentSimilarity
+        d['equivalencedTotal'] = exonerateResult.equivalencedTotal
+        d['equivalencedIdentity'] = exonerateResult.equivalencedIdentity
+        d['equivalencedSimilarity'] = exonerateResult.equivalencedSimilarity
+        d['equivalencedMismatches'] = exonerateResult.equivalencedMismatches
+        d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(self.targetCdsSeq)
+        self.csvDictWriter.writerow(d)
