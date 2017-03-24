@@ -1,5 +1,6 @@
 import sys
 import argparse
+import logging
 
 import paftol
 
@@ -11,7 +12,6 @@ def runHybseq(argNamespace):
 
 def runHybpiper(argNamespace):
     hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
-    # sys.stderr.write('bwaMinSeedLength: %s, bwaScoreThreshold: %s, bwaReseedTrigger: %s\n' % (str(argNamespace.bwaMinSeedLength), str(argNamespace.bwaScoreThreshold), str(argNamespace.bwaReseedTrigger)))
     if argNamespace.bwaMinSeedLength is not None:
         hybpiperAnalyser.bwaMinSeedLength = argNamespace.bwaMinSeedLength
     if argNamespace.bwaScoreThreshold is not None:
@@ -58,11 +58,20 @@ def addHybpiperParser(subparsers):
 def showArgs(args):
     print args
 
+
 def paftoolsMain():
+    logging.basicConfig(format='%(levelname)s: %(funcName)s: %(message)s')
+    # logger = logging.getLogger(__name__)
     p = argparse.ArgumentParser(description='paftools -- tools for the Plant and Fungal Trees of Life (PAFTOL) project')
+    p.add_argument('--loglevel', help='set logging level [DEBUG, INFO, WARNING, EROR, CRITICAL]')
     subparsers = p.add_subparsers(title='paftools subcommands')
     addDevParser(subparsers)
     addHybseqParser(subparsers)
     addHybpiperParser(subparsers)
     args = p.parse_args()
+    if args.loglevel is not None:
+        loglevel = getattr(logging, args.loglevel.upper(), None)
+        if loglevel is None:
+            raise ValueError, 'invalid log level: %s' % args.loglevel
+        logging.getLogger().setLevel(loglevel)
     args.func(args)

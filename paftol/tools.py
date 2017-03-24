@@ -7,6 +7,7 @@ import os.path
 import subprocess
 import csv
 import tempfile
+import logging
 
 import Bio
 import Bio.Alphabet
@@ -23,7 +24,7 @@ import Bio.Blast.NCBIXML
 import paftol
 
 
-verbose = 0
+logger = logging.getLogger(__name__)
 
 
 def translateGapped(seq, table='Standard'):
@@ -56,7 +57,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
             gapStart = None
     if gapStart is not None:
         gapList.append((gapStart, len(s), ))
-    # sys.stderr.write('gaplist: %s\n' % str(gapList))
+    # logger.debug('gaplist: %s', str(gapList))
     t = ''
     nongapStart = 0
     for gapStart, gapEnd in gapList:
@@ -271,13 +272,13 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         tAln = ''
         qPos = 0
         tPos = 0
-        # sys.stderr.write('queryAlignmentSeq: %d, targetAlignmentSeq: %d\n' % (len(self.queryAlignmentSeq), len(self.targetAlignmentSeq)))
-        # sys.stderr.write('%s\n' % str(self.targetAlignmentSeq.seq))
+        # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
+        # logger.debug('%s', str(self.targetAlignmentSeq.seq))
         for i in xrange(0, len(v), 3):
             vLabel = v[i]
             vQueryLength = int(v[i + 1])
             vTargetLength = int(v[i + 2])
-            # sys.stderr.write('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (qPos, tPos, vLabel, vQueryLength, vTargetLength))
+            # logger.debug('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', qPos, tPos, vLabel, vQueryLength, vTargetLength)
             if vLabel == 'M' or vLabel == 'S':
                 qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
                 tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
@@ -294,13 +295,12 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
                 pass
             qPos = qPos + vQueryLength
             tPos = tPos + vTargetLength
-            # sys.stderr.write('%d: qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d\n' % (i, qPos, tPos, vLabel, vQueryLength, vTargetLength))
-            # sys.stderr.write('qAln: %s\n' % qAln)
-            # sys.stderr.write('tAln: %s\n' % tAln)
+            # logger.debug('%d: qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', i, qPos, tPos, vLabel, vQueryLength, vTargetLength)
+            # logger.debug('qAln: %s', qAln)
+            # logger.debug('tAln: %s', tAln)
             # s = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
             # s3 = s[:(len(s) - len(s) % 3)]
-            # sys.stderr.write('tA_tr: %s%s\n' % (str(translateGapped(s3)), '' if len(s) == len(s3) else '.'))
-            # sys.stderr.write('\n')
+            # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
         qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
         tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
@@ -316,16 +316,25 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         return '%s, query: %s %s(%s -> %s), target: %s:%s %s(%s -> %s), query fragment %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
 
     def isEmpty(self):
-        """Check whether this result has actually been populated by running C{exonerate}.
+        """Check whether this result has actually been populated with material from running C{exonerate}.
+
+The the C{query} and C{targetFname} attributes may be populated and
+such an empty instance can be used to indicate that scanning the
+target file with the query resulted in no hits. This is useful for
+recording the fact that no hits were found in a CSV file written with
+a L{ExonerateCsvDictWriter}.
+
 @return: C{True} if this result is populated
 @rtype: C{bool}
-"""
+
+        """
         return self.queryId is None
         
     def writeAllSeqs(self, f):
         """Write all C{SeqRecord} type attributes to a FASTA file.
 
 @param f: the file to write the sequences to
+@type f: C{file} (or file-like that is suitable for C{Bio.SeqIO.write})
 """
         seqList = []
         if self.querySeq is not None:
@@ -363,8 +372,7 @@ class ExonerateRunner(object):
         
     def nextLine(self, f):
         line = f.readline()
-        if verbose > 3:
-            sys.stderr.write('nextLine: %s\n' % line.strip())
+        # logger.debug('%s', line.strip())
         if line == '':
             raise StandardError, 'unexpected EOF'
         if line[-1] == '\n':
@@ -407,7 +415,7 @@ class ExonerateRunner(object):
         return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq, alphabet), id=seqId)
 
     def makeSeqId(self, exonerateResult, seqType):
-        return('%s_%s_%s' % (self.queryId, self.targetId, seqType))
+        return('%s_%s_%s' % (exonerateResult.queryId, exonerateResult.targetId, seqType))
     
     def parseExonerateResult(self, f, exonerateResult):
         line = f.readline()
@@ -445,13 +453,13 @@ class ExonerateRunner(object):
         exonerateResult.equivalencedMismatches = self.parseInt(f, 'equivalencedMismatches')
         exonerateResult.vulgar = self.parseString(f, 'vulgar')
         if exonerateResult.exonerateModel == 'protein2genome:local':
-            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'qcds'))
+            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
-            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'qcds'))
+            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
             exonerateResult.queryCdsSeq = None
-            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateresult, 'qaln'))
-            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'tcds'))
-            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateresult, 'taln'))
+            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateResult, 'qaln'))
+            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
+            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
         else:
             raise StandardError, 'unsupported exonerate model: %s' % exonerateResult.exonerateModel
         line = self.nextLine(f)
@@ -481,8 +489,7 @@ class ExonerateRunner(object):
             exonerateArgv = [
                 'exonerate', '--model', exonerateModel, '--bestn', '%d' % bestn, '--verbose', '0', '--showalignment',
                 'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nexonerateModel: %m\\nqueryId: %qi\\nqueryDef: %qd\\nqueryStrand: %qS\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetStrand: %tS\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\npercentIdentity: %pi\\npercentSimilarity: %ps\\nequivalencedTotal: %et\\nequivalencedIdentity: %ei\\nequivalencedSimilarity: %es\\nequivalencedMismatches: %em\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
-            if verbose > 0:
-                sys.stderr.write('%s\n' % ' '.join(exonerateArgv))
+            logger.debug('%s', ' '.join(exonerateArgv))
             p = subprocess.Popen(exonerateArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             pid = os.fork()
             if pid == 0:
@@ -508,7 +515,7 @@ class ExonerateRunner(object):
                 raise StandardError, 'exonerate process exited with %d' % r
         finally:
             if paftol.keepTmp:
-                sys.stderr.write('not deleting query scratch file %s' % queryScratchFname)
+                logger.warning('not deleting query scratch file %s', queryScratchFname)
             else:
                 os.unlink(queryScratchFname)
         return exonerateResultList

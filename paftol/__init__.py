@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import shutil
 import multiprocessing
+import logging
 
 import Bio
 import Bio.SeqIO
@@ -14,7 +15,8 @@ import Bio.Alphabet.IUPAC
 import paftol.tools
 
 
-verbose = 0
+logger = logging.getLogger(__name__)
+
 keepTmp = False
 
 
@@ -78,7 +80,7 @@ class HybseqAnalyser(object):
     def cleanupTmpdir(self):
         if self.tmpDirname is not None:
             if keepTmp:
-                sys.stderr.write('not removing temporary directory %s\n' % self.tmpDirname)
+                logger.warning('not removing temporary directory %s', self.tmpDirname)
             else:
                 shutil.rmtree(self.tmpDirname)
             self.tmpDirname = None
@@ -86,7 +88,7 @@ class HybseqAnalyser(object):
     def makeWorkDirname(self):
         if self.tmpDirname is None:
             raise StandardError, 'illegal state: no temporary directory and hence no working directory'
-        # sys.stderr.write('tmpDirname = %s, workDirname = %s\n' % (self.tmpDirname, self.workDirname))
+        # logger.debug('tmpDirname = %s, workDirname = %s', self.tmpDirname, self.workDirname)
         return os.path.join(self.tmpDirname, self.workDirname)
     
     def makeTargetsFname(self, absolutePath=False):
@@ -232,8 +234,7 @@ class HybpiperAnalyser(HybseqAnalyser):
     
     def bwaIndexReference(self):
         bwaIndexArgv = ['bwa', 'index', self.makeTargetsFname(True)]
-        if verbose:
-            sys.stderr.write('%s\n' % ' '.join(bwaIndexArgv))
+        logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
     def mapReadsBwa(self):
@@ -244,13 +245,13 @@ class HybpiperAnalyser(HybseqAnalyser):
         # bwa parameters for tweaking considerations: -k, -r, -T
         bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.makeTargetsFname()] + fastqArgs
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
-        sys.stderr.write('%s\n' % ' '.join(bwaArgv))
+        logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
-        sys.stderr.write('%s\n' % ' '.join(samtoolsArgv))
+        logger.debug('%s', ' '.join(samtoolsArgv))
         samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
         samLine = samtoolsProcess.stdout.readline()
         while samLine != '':
-            # sys.stderr.write(samLine)
+            # logger.debug(samLine)
             if samLine[0] != '@':
                 samAlignment = SamAlignment(samLine)
                 organismName, locusName = self.extractOrganismAndLocusNames(samAlignment.rname)
@@ -285,9 +286,9 @@ class HybpiperAnalyser(HybseqAnalyser):
                     maxMapqSum = mapqSum
             self.representativeOrganismLocusDict[locusName] = representativeOrganismLocus
             if representativeOrganismLocus is None:
-                sys.stderr.write('represenative for %s: none\n' % locusName)
+                logger.debug('represenative for %s: none', locusName)
             else:
-                sys.stderr.write('representative for %s: %s\n' % (representativeOrganismLocus.locus.name, representativeOrganismLocus.organism.name))
+                logger.debug('representative for %s: %s', representativeOrganismLocus.locus.name, representativeOrganismLocus.organism.name)
     
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
@@ -297,7 +298,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             for locus in self.locusDict.values():
                 if readName in locus.qnameSet():
                     f = open(self.makeLocusFname(locus.name, True), 'a')
-                    sys.stderr.write('appending to %s\n' % f.name)
+                    logger.debug('appending to %s', f.name)
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                     f.close()
         fForward.close()
@@ -348,7 +349,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         parallelSpadesArgv.extend(spadesInputArgs)
         parallelSpadesArgv.extend(['-o', '{}_spades'])
         # time parallel --eta spades.py --only-assembler --threads 1 --cov-cutoff 8 --12 {}/{}_interleaved.fasta -o {}/{}_spades :::: spades_genelist.txt > spades.log
-        sys.stderr.write('%s\n' % ' '.join(parallelSpadesArgv))
+        logger.debug('%s', ' '.join(parallelSpadesArgv))
         parallelSpadesProcess = subprocess.Popen(parallelSpadesArgv, stdin=subprocess.PIPE, cwd = self.makeWorkDirname())
         pid = os.fork()
         if pid == 0:
@@ -383,34 +384,34 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             spadesInputArgs = ['-s', locusFname]
         if not os.path.exists(os.path.join(self.makeWorkDirname(), locusFname)):
-            sys.stderr.write('locus fasta file %s does not exist (no reads?)\n' % locusFname)
+            logger.debug('locus fasta file %s does not exist (no reads?)', locusFname)
             return False
         spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
         if self.spadesKvalList is not None:
             spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
         spadesArgv.extend(spadesInputArgs)
         spadesArgv.extend(['-o', self.makeLocusDirname(locusName)])
-        sys.stderr.write('%s\n' % ' '.join(spadesArgv))
+        logger.debug('%s', ' '.join(spadesArgv))
         spadesProcess = subprocess.Popen(spadesArgv, cwd = self.makeWorkDirname())
         spadesReturncode = spadesProcess.wait()
         if spadesReturncode != 0:
             # raise StandardError, 'spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode)
-            sys.stderr.write('spades process "%s" exited with %d\n' % (' '.join(spadesArgv), spadesReturncode))
+            logger.warning('spades process "%s" exited with %d', ' '.join(spadesArgv), spadesReturncode)
         spadesContigFname = os.path.join(self.makeLocusDirPath(locusName), 'contigs.fasta')
-        # sys.stderr.write('spadesContigFname: %s\n' % spadesContigFname)
+        # logger.debug('spadesContigFname: %s', spadesContigFname)
         if os.path.exists(spadesContigFname):
             spadesContigList = list(Bio.SeqIO.parse(spadesContigFname, 'fasta'))
-            # sys.stderr.write('spadesContigFname: %s, %d contigs\n' % (spadesContigFname, len(spadesContigList)))
+            # logger.debug('spadesContigFname: %s, %d contigs', spadesContigFname, len(spadesContigList))
         else:
             spadesContigList = None
-            # sys.stderr.write('spadesContigFname: %s, no contigs\n' % spadesContigFname)
+            # logger.debug('spadesContigFname: %s, no contigs', spadesContigFname)
         return spadesContigList
     
     def translateLocus(self, locusDna):
         # FIXME: add support for locus specific translation table setting
         l = len(locusDna) - (len(locusDna) % 3)
         if l < len(locusDna):
-            sys.stderr.write('locus %s: length %d is not an integer multiple of 3 -- not a CDS?\n' % (locusDna.id, len(locusDna)))
+            logger.warning('locus %s: length %d is not an integer multiple of 3 -- not a CDS?', locusDna.id, len(locusDna))
         locusProtein = Bio.SeqRecord.SeqRecord(locusDna.seq[:l].translate(), id='%s-pep' % locusDna.id, description='%s, translated' % locusDna.description)
         return locusProtein
     
@@ -450,18 +451,18 @@ class HybpiperAnalyser(HybseqAnalyser):
             for other in exonerateResultList:
                 if exonerateResult is not other:
                     if exonerateResult.overlapsQueryAlignmentRange(other):
-                        sys.stderr.write('  overlap found: %s, %s\n' % (str(exonerateResult), str(other)))
+                        logger.debug('overlap found: %s, %s', str(exonerateResult), str(other))
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
     
     def filterExonerateResultList(self, locusName, exonerateResultList):
-        sys.stderr.write('locus %s: %d exonerate results\n' % (locusName, len(exonerateResultList)))
+        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
         exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-        sys.stderr.write('locus %s: %d sufficiently close exonerate results\n' % (locusName, len(exonerateResultList)))
+        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
-        sys.stderr.write('locus %s: %d non-contained exonerate results\n' % (locusName, len(exonerateResultList)))
+        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
         exonerateResultList = self.filterByOverlap(exonerateResultList)
-        sys.stderr.write('locus %s: %d non-overlapping exonerate results\n' % (locusName, len(exonerateResultList)))
+        logger.debug('locus %s: %d non-overlapping exonerate results', locusName, len(exonerateResultList))
         return exonerateResultList
     
     def reconstructCds(self, locusName):
@@ -472,15 +473,15 @@ class HybpiperAnalyser(HybseqAnalyser):
         os.mkdir(self.makeLocusDirPath(locusName))
         contigList = self.assembleLocusSpades(locusName)
         if contigList is None:
-            sys.stderr.write('locus %s: no spades contigs\n' % locusName)
+            logger.warning('locus %s: no spades contigs', locusName)
             return None
-        sys.stderr.write('locus %s: %d spades contigs\n' % (locusName, len(contigList)))
+        logger.debug('locus %s: %d spades contigs', locusName, len(contigList))
         locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
         contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
         exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
-        sys.stderr.write('%d contigs, %d exonerate results\n' % (len(contigList), len(exonerateResultList)))
+        logger.debug('%d contigs, %d exonerate results', len(contigList), len(exonerateResultList))
         exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
         for exonerateResult in exonerateResultList:
             if exonerateResult.targetStrand == '-':
@@ -508,7 +509,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             reconstructedCdsDict = {}
             for locusName in self.locusDict:
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
-                sys.stderr.write('reconstructedCds[%s]: type = %s\n%s\n' % (locusName, type(reconstructedCdsDict[locusName]), reconstructedCdsDict[locusName]))
+                logger.debug('reconstructedCds[%s]: type = %s\n%s', locusName, type(reconstructedCdsDict[locusName]), reconstructedCdsDict[locusName])
             self.makeTgz()
             if self.outFname is not None:
                 Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], self.outFname, 'fasta')
