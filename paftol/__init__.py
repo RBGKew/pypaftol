@@ -43,9 +43,8 @@ def cmpExonerateResultByQueryAlignmentStart(e0, e1):
     
 class HybseqAnalyser(object):
     
-    def __init__(self, targetsSourcePath, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
+    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
         self.targetsSourcePath = targetsSourcePath
-        self.outFname = outFname
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
         self.workdirTgz = workdirTgz
@@ -56,7 +55,7 @@ class HybseqAnalyser(object):
         self.locusFnamePattern = 'locus-%s.fasta'
     
     def __str__(self):
-        return 'HybseqAnalyser(targetsSourcePath=%s, outFname=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.outFname), repr(self.forwardFastq), repr(self.reverseFastq))
+        return 'HybseqAnalyser(targetsSourcePath=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.forwardFastq), repr(self.reverseFastq))
         
     def checkTargets(self):
         # FIXME: merge with __init__()?
@@ -184,8 +183,8 @@ class HybpiperAnalyser(HybseqAnalyser):
     
     organismLocusRe = re.compile('([^-]+)-([^-]+)')
     
-    def __init__(self, targetsSourcePath, outFname, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
-        super(HybpiperAnalyser, self).__init__(targetsSourcePath, outFname, forwardFastq, reverseFastq, workdirTgz, workDirname)
+    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
+        super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
         self.bwaNumThreads = 1
         self.bwaMinSeedLength = 19
         self.bwaScoreThreshold = 30
@@ -445,6 +444,19 @@ class HybpiperAnalyser(HybseqAnalyser):
                 nonContainedExonerateResultList.append(exonerateResult)
         return nonContainedExonerateResultList
     
+    def filterExonerateResultList(self, locusName, exonerateResultList):
+        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
+        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
+        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
+        exonerateResultList = self.filterByContainment(exonerateResultList)
+        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
+        return exonerateResultList
+ 
+    # query:   gattacatgactcga
+    # contig1: gattacatga
+    # contig2:      ca--actcga
+    # trim contig2 because it has (more) gaps in the overlap region??
+    # compute consensus -- along overlapping regions, or along entire query?
     def filterByOverlap(self, exonerateResultList):
         nonOverlappingExonerateResultList = []
         for exonerateResult in exonerateResultList:
@@ -454,16 +466,6 @@ class HybpiperAnalyser(HybseqAnalyser):
                         logger.debug('overlap found: %s, %s', str(exonerateResult), str(other))
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
-    
-    def filterExonerateResultList(self, locusName, exonerateResultList):
-        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
-        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
-        exonerateResultList = self.filterByContainment(exonerateResultList)
-        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
-        exonerateResultList = self.filterByOverlap(exonerateResultList)
-        logger.debug('locus %s: %d non-overlapping exonerate results', locusName, len(exonerateResultList))
-        return exonerateResultList
     
     def reconstructCds(self, locusName):
         if self.representativeOrganismLocusDict is None:
@@ -498,7 +500,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             readsSpec = self.forwardFastq
         splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=locusName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
         return splicedSupercontig
-        
+
     def analyse(self):
         self.checkTargets()
         try:
@@ -509,10 +511,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             reconstructedCdsDict = {}
             for locusName in self.locusDict:
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
-                logger.debug('reconstructedCds[%s]: type = %s\n%s', locusName, type(reconstructedCdsDict[locusName]), reconstructedCdsDict[locusName])
             self.makeTgz()
-            if self.outFname is not None:
-                Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], self.outFname, 'fasta')
             return reconstructedCdsDict
         finally:
             self.cleanup()

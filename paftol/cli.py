@@ -2,16 +2,23 @@ import sys
 import argparse
 import logging
 
+import Bio
+import Bio.SeqIO
+
 import paftol
 
 
 def runHybseq(argNamespace):
-    hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
+    """Experimental.
+"""
+    hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     sys.stderr.write('%s\n' % str(hybseqAnalyser))
 
 
 def runHybpiper(argNamespace):
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.outfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
+    """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
+"""
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     if argNamespace.bwaMinSeedLength is not None:
         hybpiperAnalyser.bwaMinSeedLength = argNamespace.bwaMinSeedLength
     if argNamespace.bwaScoreThreshold is not None:
@@ -19,8 +26,12 @@ def runHybpiper(argNamespace):
     if argNamespace.bwaReseedTrigger is not None:
         hybpiperAnalyser.bwaReseedTrigger = argNamespace.bwaReseedTrigger
     hybpiperAnalyser.keepTmpDir = True
-    hybpiperAnalyser.analyse()
-
+    reconstructedCdsDict = hybpiperAnalyser.analyse()
+    if argNamespace.outfile is not None:
+        Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+    else:
+        Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+        
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev')
@@ -60,10 +71,12 @@ def showArgs(args):
 
 
 def paftoolsMain():
-    logging.basicConfig(format='%(levelname)s: %(funcName)s: %(message)s')
+    """Entry point for the C{paftools} script.
+"""
+    logging.basicConfig(format='%(levelname)s: %(module)s:%(lineno)d, %(funcName)s: %(message)s')
     # logger = logging.getLogger(__name__)
     p = argparse.ArgumentParser(description='paftools -- tools for the Plant and Fungal Trees of Life (PAFTOL) project')
-    p.add_argument('--loglevel', help='set logging level [DEBUG, INFO, WARNING, EROR, CRITICAL]')
+    p.add_argument('--loglevel', help='set logging level [DEBUG, INFO, WARNING, ERROR, CRITICAL]')
     subparsers = p.add_subparsers(title='paftools subcommands')
     addDevParser(subparsers)
     addHybseqParser(subparsers)
