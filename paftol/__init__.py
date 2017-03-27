@@ -24,7 +24,7 @@ def isSane(filename):
     """Check whether a file name is sane, in the sense that it does not contain any "funny" characters"""
     if filename == '':
         return False
-    funnyCharRe = re.compile('/ ;,$#')
+    funnyCharRe = re.compile('\t/ ;,$#')
     m = funnyCharRe.search(filename)
     if m is not None:
         return False
@@ -33,16 +33,33 @@ def isSane(filename):
     return True
 
             
-def cmpExonerateResultByQueryAlignmentStart(e0, e1):
-    if e0.queryAlignmentStart < e1.queryAlignmentStart:
+def cmpExonerateResultByQueryAlignmentStart(e1, e2):
+    """Comparator function for sorting C{ExonerateResult}s by query alignment start.
+
+@param e1: first exonerate result
+@type e1: C{ExonerateResult}
+@param e2: second exonerate result
+@type e2: C{ExonerateResult}
+@return: one of -1, 0 or 1
+@rtype: C{int}
+"""
+    if e1.queryAlignmentStart < e2.queryAlignmentStart:
         return -1
-    elif e0.queryAlignmentStart > e1.queryAlignmentStart:
+    elif e1.queryAlignmentStart > e2.queryAlignmentStart:
         return 1
     return 0
 
-    
+
+# FIXME: use abc for this class?
 class HybseqAnalyser(object):
+    """Base class for HybSeq analysers.
     
+Instances of this class take a FASTA file of target locus sequences
+and FASTQ files (one or two, for single / paired end, respectively),
+and provide methods for running analyses to reconstruct sequences of
+the target loci.
+"""
+
     def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
         self.targetsSourcePath = targetsSourcePath
         self.forwardFastq = forwardFastq
@@ -135,6 +152,12 @@ to provide fields required for HybSeq analysis only."""
 
 
 class OrganismLocus(object):
+    """Represent a locus in an organism.
+    
+The main content of instances of this class is a C{SeqRecord}
+containing the sequence of the locus in the organism, thus
+facilitating handling of multiple loci and multiple organisms.
+"""
     
     def __init__(self, organism, locus, seqRecord):
         self.organism = organism
@@ -160,6 +183,8 @@ class OrganismLocus(object):
 
 
 class Organism(object):
+    """Represent an organism (in the GenBank / NCBI sense of the term).
+"""
     
     def __init__(self, name):
         self.name = name
@@ -167,6 +192,8 @@ class Organism(object):
 
 
 class Locus(object):
+    """Represent a locus.
+"""
     
     def __init__(self, name):
         self.name = name
@@ -180,6 +207,9 @@ class Locus(object):
     
 
 class HybpiperAnalyser(HybseqAnalyser):
+    """L{HybSeqAnalyser} subclass that implements an analysis process
+close to the HybPiper pipeline.
+"""
     
     organismLocusRe = re.compile('([^-]+)-([^-]+)')
     
@@ -237,6 +267,8 @@ class HybpiperAnalyser(HybseqAnalyser):
         subprocess.check_call(bwaIndexArgv)
         
     def mapReadsBwa(self):
+        """Map reads to locus sequences (from multiple organisms possibly).
+"""
         self.bwaIndexReference()
         fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
         if self.reverseFastq is not None:
@@ -273,7 +305,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
     
     def setRepresentativeLoci(self):
-        """Roughly equivalent to "distribute targets" in HybPiper"""
+        """Roughly equivalent to "distribute targets" in HybPiper."""
         self.representativeOrganismLocusDict = {}
         for locusName in self.locusDict:
             representativeOrganismLocus = None
