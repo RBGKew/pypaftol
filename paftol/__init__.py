@@ -142,13 +142,15 @@ This class follows the naming and definitions of the SAMv1 spec. It is incomplet
 to provide fields required for Hyb-Seq analysis only.
 
 @ivar qname: SAM query name (C{QNAME}), read or read pair ID
-@type qname: C{String}
+@type qname: C{str}
 @ivar rname: SAM reference name (C{RNAME})
-@type rname: C{String}
+@type rname: C{str}
 @ivar mapq: SAM mapping quality (C{MAPQ})
 @type mapq: C{int}
+@ivar cigar: SAM CIGAR string (unexpanded) (C{CIGAR})
+@type mapq: C{str}
 @ivar seq: SAM query (read) sequence (C{SEQ})
-@type seq: C{String}
+@type seq: C{str}
 """
     
     def __init__(self, samLine):
@@ -158,6 +160,7 @@ to provide fields required for Hyb-Seq analysis only.
         self.qname = w[0]
         self.rname = w[2]
         self.mapq = int(w[4])
+        self.cigar = w[5]
         self.seq = w[9]
 
 
@@ -203,7 +206,7 @@ class Organism(object):
     """Represent an organism (in the GenBank / NCBI sense of the term).
     
 @ivar name: this organism's name
-@type name: C{String}
+@type name: C{str}
 @ivar organismLocusDict: dictionary of loci in this organism
 @type organismLocusDict: C{dict} of C{OrganismLocus} instances with locus names as keys
 """
@@ -217,7 +220,7 @@ class Locus(object):
     """Represent a locus.
 
 @ivar name: the name of this locus
-@type name: C{String}
+@type name: C{str}
 @ivar organismLocusDict: dictionary of organisms with this locus
 @type organismLocusDict: C{dict} of C{OrganismLocus} instances with organism names as keys
 """
