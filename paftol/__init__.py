@@ -52,7 +52,7 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
 
 # FIXME: use abc for this class?
 class HybseqAnalyser(object):
-    """Base class for HybSeq analysers.
+    """Base class for Hybseq analysers.
     
 Instances of this class take a FASTA file of target locus sequences
 and FASTQ files (one or two, for single / paired end, respectively),
@@ -139,7 +139,17 @@ the target loci.
 class SamAlignment(object):
     """Class to represent a SAM record.
 This class follows the naming and definitions of the SAMv1 spec. It is incomplete
-to provide fields required for HybSeq analysis only."""
+to provide fields required for Hyb-Seq analysis only.
+
+@ivar qname: SAM query name (C{QNAME}), read or read pair ID
+@type qname: C{String}
+@ivar rname: SAM reference name (C{RNAME})
+@type rname: C{String}
+@ivar mapq: SAM mapping quality (C{MAPQ})
+@type mapq: C{int}
+@ivar seq: SAM query (read) sequence (C{SEQ})
+@type seq: C{String}
+"""
     
     def __init__(self, samLine):
         if samLine[-1] == '\n':
@@ -157,6 +167,13 @@ class OrganismLocus(object):
 The main content of instances of this class is a C{SeqRecord}
 containing the sequence of the locus in the organism, thus
 facilitating handling of multiple loci and multiple organisms.
+
+@ivar organism: the organism
+@type organism: C{Organism}
+@ivar locus: the locus 
+@type locus: C{Locus}
+@ivar seqRecord: the sequence of this organism at this locus
+@type seqRecord: C{Bio.SeqRecord.SeqRecord}
 """
     
     def __init__(self, organism, locus, seqRecord):
@@ -184,6 +201,11 @@ facilitating handling of multiple loci and multiple organisms.
 
 class Organism(object):
     """Represent an organism (in the GenBank / NCBI sense of the term).
+    
+@ivar name: this organism's name
+@type name: C{String}
+@ivar organismLocusDict: dictionary of loci in this organism
+@type organismLocusDict: C{dict} of C{OrganismLocus} instances with locus names as keys
 """
     
     def __init__(self, name):
@@ -193,6 +215,11 @@ class Organism(object):
 
 class Locus(object):
     """Represent a locus.
+
+@ivar name: the name of this locus
+@type name: C{String}
+@ivar organismLocusDict: dictionary of organisms with this locus
+@type organismLocusDict: C{dict} of C{OrganismLocus} instances with organism names as keys
 """
     
     def __init__(self, name):
@@ -207,10 +234,28 @@ class Locus(object):
     
 
 class HybpiperAnalyser(HybseqAnalyser):
-    """L{HybSeqAnalyser} subclass that implements an analysis process
+    """L{HybseqAnalyser} subclass that implements an analysis process
 close to the HybPiper pipeline.
+
+Some parameters to BWA and SPAdes can be controlled via instance
+variables as documented below. Defaults of these parameters correspond
+to the defaults provided by BWA and SPAdes, respectively (at the time
+of developing this).
+
+@ivar bwaNumThreads: BWA number of threads (C{-t} option)
+@type bwaNumThreads: C{int}
+@ivar bwaMinSeedLength: BWA minimum seed length (C{-k} option)
+@type bwaMinSeedLength: C{int}
+@ivar bwaScoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
+@type bwaScoreThreshold: C{int}
+@ivar bwaReseedTrigger: BWA re-seed trigger (C{-r} option)
+@type bwaScoreThreshold: C{float}
+@ivar spadesCovCutoff: SPAdes coverage cutoff (C{--cov-cutoff} option)
+@type spadesCovCutoff: C{int}
+@ivar spadesKvalList: SPAdes oligomer length value list (C{-k} option)
+@type spadesKvalList: C{list} of C{int}, or C{None}
 """
-    
+
     organismLocusRe = re.compile('([^-]+)-([^-]+)')
     
     def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
