@@ -70,6 +70,7 @@ the target loci.
         # parameters for ensuring file names don't clash, e.g. because locus / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
         self.locusFnamePattern = 'locus-%s.fasta'
+        self.allowInvalidBases = False
     
     def __str__(self):
         return 'HybseqAnalyser(targetsSourcePath=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.forwardFastq), repr(self.reverseFastq))
@@ -77,9 +78,10 @@ the target loci.
     def checkTargets(self):
         # FIXME: merge with __init__()?
         for targetSr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta', alphabet = Bio.Alphabet.IUPAC.ambiguous_dna):
-            setDiff = set(str(targetSr.seq).lower()) - set('acgt')
-            if len(setDiff) != 0:
-                raise StandardError, 'target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff))
+            if not self.allowInvalidBases:
+                setDiff = set(str(targetSr.seq).lower()) - set('acgt')
+                if len(setDiff) != 0:
+                    raise StandardError, 'target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff))
 
     def isPaired(self):
         return self.reverseFastq is not None
@@ -298,9 +300,11 @@ of developing this).
             if locusName not in self.locusDict:
                 self.locusDict[locusName] = Locus(locusName)
             organismLocus = OrganismLocus(self.organismDict[organismName], self.locusDict[locusName], sr)
+        logger.info('%s organisms, %s loci' % (len(self.organismDict), len(self.locusDict)))
         self.representativeOrganismLocusDict = None
 
     def setup(self):
+        logger.debug('setting up')
         if self.targetsSourcePath is None:
             raise StandardError, 'illegal state: cannot set up with targetsSourcePath = None'
         self.setupTmpdir()
@@ -317,6 +321,7 @@ of developing this).
     def mapReadsBwa(self):
         """Map reads to locus sequences (from multiple organisms possibly).
 """
+        logger.debug('mapping reads to locus sequences')
         self.bwaIndexReference()
         fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
         if self.reverseFastq is not None:
@@ -464,7 +469,7 @@ of developing this).
             spadesInputArgs = ['-s', locusFname]
         if not os.path.exists(os.path.join(self.makeWorkDirname(), locusFname)):
             logger.debug('locus fasta file %s does not exist (no reads?)', locusFname)
-            return False
+            return None
         spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
         if self.spadesKvalList is not None:
             spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
@@ -523,14 +528,6 @@ of developing this).
             if not isContained:
                 nonContainedExonerateResultList.append(exonerateResult)
         return nonContainedExonerateResultList
-    
-    def filterExonerateResultList(self, locusName, exonerateResultList):
-        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
-        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
-        exonerateResultList = self.filterByContainment(exonerateResultList)
-        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
-        return exonerateResultList
  
     # query:   gattacatgactcga
     # contig1: gattacatga
@@ -547,7 +544,16 @@ of developing this).
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
     
+    def filterExonerateResultList(self, locusName, exonerateResultList):
+        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
+        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
+        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
+        exonerateResultList = self.filterByContainment(exonerateResultList)
+        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
+        return exonerateResultList
+    
     def reconstructCds(self, locusName):
+        logger.debug('reconstructing CDS for locus %s', locusName)
         if self.representativeOrganismLocusDict is None:
             raise StandardError, 'illegal state: no represesentative loci'
         if self.representativeOrganismLocusDict[locusName] is None:
@@ -557,6 +563,9 @@ of developing this).
         if contigList is None:
             logger.warning('locus %s: no spades contigs', locusName)
             return None
+        if len(contigList) == 0:
+            logger.warning('locus %s: empty contig list', locusName)
+            return None
         logger.debug('locus %s: %d spades contigs', locusName, len(contigList))
         locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
         contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
@@ -564,15 +573,26 @@ of developing this).
         exonerateRunner = paftol.tools.ExonerateRunner()
         exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
         logger.debug('%d contigs, %d exonerate results', len(contigList), len(exonerateResultList))
+        if len(exonerateResultList) == 0:
+            logger.warning('locus %s: no exonerate results from %d contigs', locusName, len(contigList))
         exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
         for exonerateResult in exonerateResultList:
             if exonerateResult.targetStrand == '-':
                 exonerateResult.reverseComplementTarget()
         filteredExonerateResultList = self.filterExonerateResultList(locusName, exonerateResultList)
+        if len(filteredExonerateResultList) == 0:
+            logger.warning('locus %s: no exonerate results left after filtering', locusName)
+            return None
         supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % locusName)
+        if len(supercontig) == 0:
+            logger.warning('locus %s: empty supercontig', locusName)
+            return None
         supercontigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-supercontig.fasta' % locusName)
         Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
         supercontigErList = exonerateRunner.parse(locusProtein, supercontigFname, 'protein2genome', len(contigList))
+        if len(supercontigErList) == 0:
+            logger.warning('locus %s: no exonerate results from supercontig', locusName)
+            return None
         # not filtering for percent identity to locus again, as that is already done
         if self.reverseFastq is not None:
             readsSpec = '%s, %s' % (self.forwardFastq, self.reverseFastq)
@@ -591,7 +611,7 @@ of developing this).
             reconstructedCdsDict = {}
             for locusName in self.locusDict:
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
-            self.makeTgz()
             return reconstructedCdsDict
         finally:
+            self.makeTgz()
             self.cleanup()
