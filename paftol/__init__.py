@@ -568,6 +568,10 @@ of developing this).
             return None
         logger.debug('locus %s: %d spades contigs', locusName, len(contigList))
         locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
+        setDiff = set(str(locusProtein.seq).lower()) - set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        if len(setDiff) > 0:
+            logger.warning('locus %s: invalid amino acids %s' % (locusName, ', '.join(setDiff)))
+            return None
         contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
