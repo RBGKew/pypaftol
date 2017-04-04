@@ -313,7 +313,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 @return: string representation
 @rtype: C{String}
 """
-        return '%s, query: %s %s(%s -> %s), target: %s:%s %s(%s -> %s), query fragment %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
+        return '%s, query: %s %s(%d -> %d), target: %s:%s %s(%d -> %d), target CDS %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
 
     def isEmpty(self):
         """Check whether this result has actually been populated with material from running C{exonerate}.

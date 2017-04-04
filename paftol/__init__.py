@@ -509,6 +509,12 @@ of developing this).
                 return False
             if not exonerateResult.containsQueryAlignmentRange(other):
                 return True
+            # prefer shorter target alignment length (fewer gaps)
+            if exonerateResult.targetAlignmentLength < other.targetAlignmentLength:
+                return False
+            # FIXME: resolving tie by arbitrarily preferring target start position
+            if exonerateResult.targetAlignmentStart < other.targetAlignmentStart:
+                return False
             # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
             if exonerateResult.targetId is None:
                 raise StandardError, 'cannot break tie when exonerateResult.targetId is None'
