@@ -328,7 +328,7 @@ of developing this).
             fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
         # bwa parameters for tweaking considerations: -k, -r, -T
         bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.makeTargetsFname()] + fastqArgs
-        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4']
+        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
         logger.debug('%s', ' '.join(samtoolsArgv))
