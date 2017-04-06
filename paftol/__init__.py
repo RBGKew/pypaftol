@@ -6,6 +6,7 @@ import subprocess
 import shutil
 import multiprocessing
 import logging
+import csv
 
 import Bio
 import Bio.SeqIO
@@ -202,6 +203,20 @@ facilitating handling of multiple loci and multiple organisms.
     def qnameSet(self):
         # FIXME: may have to trim away "/1", "/2"?
         return set([a.qname for a in self.samAlignmentList])
+    
+    def makeCsvDictWriter(self, csvfile):
+        csvFieldnames = ['organism', 'locus', 'seqLength', 'numSamAlignments']
+        csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
+        csvDictWriter.writeheader()
+        return csvDictWriter
+    
+    def writeCsvRow(self, csvDictWriter):
+        d = {}
+        d['organism'] = self.organism.name
+        d['locus'] = self.locus.name
+        d['seqLength'] = len(self.seqRecord)
+        d['numSamAlignments'] = len(self.samAlignmentList)
+        csvDictWriter.writerow(d)
 
 
 class Organism(object):
@@ -271,6 +286,7 @@ of developing this).
         self.bwaReseedTrigger = 1.5
         self.spadesCovCutoff = 8
         self.spadesKvalList = None
+        self.statsFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
         self.initOrganismLocusDicts()
         
@@ -512,9 +528,14 @@ of developing this).
             # prefer shorter target alignment length (fewer gaps)
             if exonerateResult.targetAlignmentLength < other.targetAlignmentLength:
                 return False
+            elif exonerateResult.targetAlignmentLength > other.targetAlignmentLength:
+                return True
+            # subsequent tie breaking is arbitrary and intended to yield consistent results only
             # FIXME: resolving tie by arbitrarily preferring target start position
             if exonerateResult.targetAlignmentStart < other.targetAlignmentStart:
                 return False
+            elif exonerateResult.targetAlignmentStart > other.targetAlignmentStart:
+                return True
             # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
             if exonerateResult.targetId is None:
                 raise StandardError, 'cannot break tie when exonerateResult.targetId is None'
@@ -621,6 +642,14 @@ of developing this).
             reconstructedCdsDict = {}
             for locusName in self.locusDict:
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
+            if self.statsFilename is not None:
+                # FIXME: makeCsvDictWriter really ought to be a class method
+                csvFile = open(self.statsFilename, 'w')
+                csvDictWriter = OrganismLocus(None, None, None).makeCsvDictWriter(csvFile)
+                for organismName in self.organismDict:
+                    for locusName in self.organismDict[organismName]:
+                        self.organismDict[organismName][locusName].writeCsvRow(csvDictWriter)
+                csvfile.close()
             return reconstructedCdsDict
         finally:
             self.makeTgz()
