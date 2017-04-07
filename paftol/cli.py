@@ -25,6 +25,8 @@ def runHybpiper(argNamespace):
         hybpiperAnalyser.bwaScoreThreshold = argNamespace.bwaScoreThreshold
     if argNamespace.bwaReseedTrigger is not None:
         hybpiperAnalyser.bwaReseedTrigger = argNamespace.bwaReseedTrigger
+    if argNamespace.csv is not None:
+        hybpiperAnalyser.statsCsvFilename = argNamespace.csv
     hybpiperAnalyser.allowInvalidBases = argNamespace.allowInvalidBases
     hybpiperAnalyser.keepTmpDir = True
     reconstructedCdsDict = hybpiperAnalyser.analyse()
@@ -62,6 +64,7 @@ def addHybpiperParser(subparsers):
     p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
     p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
+    p.add_argument('--csv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')

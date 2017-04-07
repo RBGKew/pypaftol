@@ -204,7 +204,8 @@ facilitating handling of multiple loci and multiple organisms.
         # FIXME: may have to trim away "/1", "/2"?
         return set([a.qname for a in self.samAlignmentList])
     
-    def makeCsvDictWriter(self, csvfile):
+    @staticmethod
+    def makeCsvDictWriter(csvfile):
         csvFieldnames = ['organism', 'locus', 'seqLength', 'numSamAlignments']
         csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
         csvDictWriter.writeheader()
@@ -216,6 +217,7 @@ facilitating handling of multiple loci and multiple organisms.
         d['locus'] = self.locus.name
         d['seqLength'] = len(self.seqRecord)
         d['numSamAlignments'] = len(self.samAlignmentList)
+        logger.debug('writing CSV row: %s, %s', self.organism.name, self.locus.name)
         csvDictWriter.writerow(d)
 
 
@@ -286,7 +288,7 @@ of developing this).
         self.bwaReseedTrigger = 1.5
         self.spadesCovCutoff = 8
         self.spadesKvalList = None
-        self.statsFilename = None
+        self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
         self.initOrganismLocusDicts()
         
@@ -642,14 +644,13 @@ of developing this).
             reconstructedCdsDict = {}
             for locusName in self.locusDict:
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
-            if self.statsFilename is not None:
-                # FIXME: makeCsvDictWriter really ought to be a class method
-                csvFile = open(self.statsFilename, 'w')
-                csvDictWriter = OrganismLocus(None, None, None).makeCsvDictWriter(csvFile)
+            if self.statsCsvFilename is not None:
+                csvFile = open(self.statsCsvFilename, 'w')
+                csvDictWriter = OrganismLocus.makeCsvDictWriter(csvFile)
                 for organismName in self.organismDict:
-                    for locusName in self.organismDict[organismName]:
-                        self.organismDict[organismName][locusName].writeCsvRow(csvDictWriter)
-                csvfile.close()
+                    for locusName in self.organismDict[organismName].organismLocusDict:
+                        self.organismDict[organismName].organismLocusDict[locusName].writeCsvRow(csvDictWriter)
+                csvFile.close()
             return reconstructedCdsDict
         finally:
             self.makeTgz()
