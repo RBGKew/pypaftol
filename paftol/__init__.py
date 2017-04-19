@@ -33,7 +33,7 @@ def isSane(filename):
         return False
     return True
 
-            
+
 def cmpExonerateResultByQueryAlignmentStart(e1, e2):
     """Comparator function for sorting C{ExonerateResult}s by query alignment start.
 
@@ -55,10 +55,10 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
 class HybseqAnalyser(object):
     """Base class for Hybseq analysers.
     
-Instances of this class take a FASTA file of target locus sequences
+Instances of this class take a FASTA file of target PAFTOL gene sequences
 and FASTQ files (one or two, for single / paired end, respectively),
 and provide methods for running analyses to reconstruct sequences of
-the target loci.
+the target genes.
 """
 
     def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
@@ -68,16 +68,16 @@ the target loci.
         self.workdirTgz = workdirTgz
         self.workDirname = workDirname
         self.tmpDirname = None
-        # parameters for ensuring file names don't clash, e.g. because locus / organism name is same as targets basename etc.
+        # parameters for ensuring file names don't clash, e.g. because paftolGene / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
-        self.locusFnamePattern = 'locus-%s.fasta'
+        self.geneFnamePattern = 'gene-%s.fasta'
         self.allowInvalidBases = False
     
     def __str__(self):
         return 'HybseqAnalyser(targetsSourcePath=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.forwardFastq), repr(self.reverseFastq))
         
     def checkTargets(self):
-        # FIXME: merge with __init__()?
+        # FIXME: merge with __init__()? parsing is redundant with HybpiperAnalyser.initPaftolTargetDicts too
         for targetSr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta', alphabet = Bio.Alphabet.IUPAC.ambiguous_dna):
             if not self.allowInvalidBases:
                 setDiff = set(str(targetSr.seq).lower()) - set('acgt')
@@ -116,12 +116,12 @@ the target loci.
         else:
             return self.targetsFname
 
-    def makeLocusFname(self, locusName, absolutePath=False):
-        locusFname = self.locusFnamePattern % locusName
+    def makeGeneFname(self, geneName, absolutePath=False):
+        geneFname = self.geneFnamePattern % geneName
         if absolutePath:
-            return os.path.join(self.makeWorkDirname(), locusFname)
+            return os.path.join(self.makeWorkDirname(), geneFname)
         else:
-            return locusFname
+            return geneFname
         
     def makeTgz(self):
         if self.workdirTgz is not None:
@@ -193,28 +193,28 @@ to provide fields required for Hyb-Seq analysis only.
 
 
 class PaftolTarget(object):
-    """Represent a locus in an organism.
+    """Represent a PAFTOL target, specific to an organism (i.e. species, specimen etc.).
     
 The main content of instances of this class is a C{SeqRecord}
-containing the sequence of the locus in the organism, thus
-facilitating handling of multiple loci and multiple organisms.
+containing the sequence of the gene in the organism, thus
+facilitating handling of multiple genes and multiple organisms.
 
 @ivar organism: the organism
 @type organism: C{Organism}
-@ivar locus: the locus 
-@type locus: C{Locus}
-@ivar seqRecord: the sequence of this organism at this locus
+@ivar paftolGene: the PAFTOL gene 
+@type paftolGene: C{PaftolGene}
+@ivar seqRecord: the sequence of this gene in this organism
 @type seqRecord: C{Bio.SeqRecord.SeqRecord}
 """
-    def __init__(self, organism, locus, seqRecord):
+    def __init__(self, organism, paftolGene, seqRecord):
         self.organism = organism
-        self.locus = locus
+        self.paftolGene = paftolGene
         self.seqRecord = seqRecord
         self.samAlignmentList = []
-        if locus.name in organism.paftolTargetDict or organism.name in locus.paftolTargetDict:
-            raise StandardError, 'duplicate organism/locus: organism = %s, locus = %s, seqId = %s' % (organism.name, locus.name, seqRecord.id)
-        organism.paftolTargetDict[locus.name] = self
-        locus.paftolTargetDict[organism.name] = self
+        if paftolGene.name in organism.paftolTargetDict or organism.name in paftolGene.paftolTargetDict:
+            raise StandardError, 'duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id)
+        organism.paftolTargetDict[paftolGene.name] = self
+        paftolGene.paftolTargetDict[organism.name] = self
         
     def addSamAlignment(self, samAlignment):
         self.samAlignmentList.append(samAlignment)
@@ -230,7 +230,7 @@ facilitating handling of multiple loci and multiple organisms.
     
     @staticmethod
     def makeCsvDictWriter(csvfile):
-        csvFieldnames = ['organism', 'locus', 'seqLength', 'numSamAlignments']
+        csvFieldnames = ['organism', 'gene', 'seqLength', 'numSamAlignments']
         csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
         csvDictWriter.writeheader()
         return csvDictWriter
@@ -238,10 +238,10 @@ facilitating handling of multiple loci and multiple organisms.
     def writeCsvRow(self, csvDictWriter):
         d = {}
         d['organism'] = self.organism.name
-        d['locus'] = self.locus.name
+        d['gene'] = self.paftolGene.name
         d['seqLength'] = len(self.seqRecord)
         d['numSamAlignments'] = len(self.samAlignmentList)
-        logger.debug('writing CSV row: %s, %s', self.organism.name, self.locus.name)
+        logger.debug('writing CSV row: %s, %s', self.organism.name, self.paftolGene.name)
         csvDictWriter.writerow(d)
 
 
@@ -250,8 +250,8 @@ class Organism(object):
     
 @ivar name: this organism's name
 @type name: C{str}
-@ivar paftolTargetDict: dictionary of loci in this organism
-@type paftolTargetDict: C{dict} of C{PaftolTarget} instances with locus names as keys
+@ivar paftolTargetDict: dictionary of genes in this organism
+@type paftolTargetDict: C{dict} of C{PaftolTarget} instances with PAFTOL gene names as keys
 """
     
     def __init__(self, name):
@@ -259,14 +259,20 @@ class Organism(object):
         self.paftolTargetDict = {}
 
 
-class Locus(object):
-    """Represent a locus.
+class PaftolGene(object):
+    """Represent a PAFTOL gene.
+    
+This class does not represent genes in terms of intron / exon models
+and other features. Its main purpose is to contain a collection of
+PAFTOL targets, i.e. sequences found for this gene in various
+organisms.
 
-@ivar name: the name of this locus
+@ivar name: the name of this PAFTOL gene
 @type name: C{str}
-@ivar paftolTargetDict: dictionary of organisms with this locus
+@ivar paftolTargetDict: dictionary of organisms with this PAFTOL gene
 @type paftolTargetDict: C{dict} of C{PaftolTarget} instances with organism names as keys
-"""
+
+    """
     
     def __init__(self, name):
         self.name = name
@@ -277,7 +283,43 @@ class Locus(object):
         for paftolTarget in self.paftolTargetDict.values():
             s = s | paftolTarget.qnameSet()
         return s
+
+
+class PaftolTargetSet(object):
+
+    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
     
+    def __init__(self):
+        self.paftolGeneDict = {}
+        self.organismDict = {}
+        self.fastaFname = None
+        
+    def extractOrganismAndGeneNames(self, s):
+        m = self.paftolTargetRe.match(s)
+        if m is not None:
+            organismName = m.group(1)
+            geneName = m.group(2)
+        else:
+            organismName = 'unknown'
+            geneName = s
+        return organismName, geneName
+    
+    def readFasta(self, fastaFname):
+        self.paftolGeneDict = {}
+        self.organismDict = {}
+        self.fastaFname = fastaFname
+        for sr in Bio.SeqIO.parse(fastaFname, 'fasta'):
+            organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
+            if not isSane(organismName):
+                raise StandardError, 'bad organism name: %s' % organismName
+            if not isSane(geneName):
+                raise StandardError, 'bad gene name: %s' % geneName
+            if organismName not in self.organismDict:
+                self.organismDict[organismName] = Organism(organismName)
+            if geneName not in self.paftolGeneDict:
+                self.paftolGeneDict[geneName] = PaftolGene(geneName)
+            paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
+
 
 class HybpiperAnalyser(HybseqAnalyser):
     """L{HybseqAnalyser} subclass that implements an analysis process
@@ -301,8 +343,6 @@ of developing this).
 @ivar spadesKvalList: SPAdes oligomer length value list (C{-k} option)
 @type spadesKvalList: C{list} of C{int}, or C{None}
 """
-
-    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
     
     def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
         super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
@@ -316,33 +356,12 @@ of developing this).
         self.exoneratePercentIdentityThreshold = 65.0
         self.initPaftolTargetDicts()
         
-    def extractOrganismAndLocusNames(self, s):
-        m = self.paftolTargetRe.match(s)
-        if m is not None:
-            organismName = m.group(1)
-            locusName = m.group(2)
-        else:
-            organismName = 'unknown'
-            locusName = s
-        return organismName, locusName
-        
     def initPaftolTargetDicts(self):
         if self.targetsSourcePath is None:
-            raise StandardError, 'illegal state: cannot init organism and locus dicts with targetsSourcePath = None'
-        self.locusDict = {}
-        self.organismDict = {}
-        for sr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta'):
-            organismName, locusName = self.extractOrganismAndLocusNames(sr.id)
-            if not isSane(organismName):
-                raise StandardError, 'bad organism name: %s' % organismName
-            if not isSane(locusName):
-                raise StandardError, 'bad locus name: %s' % locusName
-            if organismName not in self.organismDict:
-                self.organismDict[organismName] = Organism(organismName)
-            if locusName not in self.locusDict:
-                self.locusDict[locusName] = Locus(locusName)
-            paftolTarget = PaftolTarget(self.organismDict[organismName], self.locusDict[locusName], sr)
-        logger.info('%s organisms, %s loci' % (len(self.organismDict), len(self.locusDict)))
+            raise StandardError, 'illegal state: cannot init organism and gene dicts with targetsSourcePath = None'
+        self.paftolTargetSet = PaftolTargetSet()
+        self.paftolTargetSet.readFasta(self.targetsSourcePath)
+        logger.info('%s organisms, %s genes' % (len(self.paftolTargetSet.organismDict), len(self.paftolTargetSet.paftolGeneDict)))
         self.representativePaftolTargetDict = None
 
     def setup(self):
@@ -361,9 +380,9 @@ of developing this).
         subprocess.check_call(bwaIndexArgv)
         
     def mapReadsBwa(self):
-        """Map reads to locus sequences (from multiple organisms possibly).
+        """Map reads to gene sequences (from multiple organisms possibly).
 """
-        logger.debug('mapping reads to locus sequences')
+        logger.debug('mapping reads to gene sequences')
         self.bwaIndexReference()
         fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
         if self.reverseFastq is not None:
@@ -380,14 +399,14 @@ of developing this).
             # logger.debug(samLine)
             if samLine[0] != '@':
                 samAlignment = SamAlignment(samLine)
-                organismName, locusName = self.extractOrganismAndLocusNames(samAlignment.rname)
-                if organismName not in self.organismDict:
+                organismName, geneName = self.paftolTargetSet.extractOrganismAndGeneNames(samAlignment.rname)
+                if organismName not in self.paftolTargetSet.organismDict:
                     raise StandardError, 'unknown organism: %s' % organismName
-                if locusName not in self.locusDict:
-                    raise standardError, 'unknown locus: %s' % locusName
-                if locusName not in self.organismDict[organismName].paftolTargetDict:
-                    raise StandardError, 'no entry for locus %s in organism %s' % (locusName, organismName)
-                paftolTarget = self.organismDict[organismName].paftolTargetDict[locusName]
+                if geneName not in self.paftolTargetSet.paftolGeneDict:
+                    raise standardError, 'unknown gene: %s' % geneName
+                if geneName not in self.paftolTargetSet.organismDict[organismName].paftolTargetDict:
+                    raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
+                paftolTarget = self.paftolTargetSet.organismDict[organismName].paftolTargetDict[geneName]
                 paftolTarget.addSamAlignment(samAlignment)
             samLine = samtoolsProcess.stdout.readline()
         bwaProcess.stdout.close()
@@ -399,31 +418,31 @@ of developing this).
         if samtoolsReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
     
-    def setRepresentativeLoci(self):
+    def setRepresentativeGenes(self):
         """Roughly equivalent to "distribute targets" in HybPiper."""
         self.representativePaftolTargetDict = {}
-        for locusName in self.locusDict:
+        for geneName in self.paftolTargetSet.paftolGeneDict:
             representativePaftolTarget = None
             maxMapqSum = None
-            for organismName in self.locusDict[locusName].paftolTargetDict:
-                mapqSum = self.locusDict[locusName].paftolTargetDict[organismName].mapqSum()
+            for organismName in self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
+                mapqSum = self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mapqSum()
                 if representativePaftolTarget is None or (mapqSum is not None and mapqSum > maxMapqSum):
-                    representativePaftolTarget = self.locusDict[locusName].paftolTargetDict[organismName]
+                    representativePaftolTarget = self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
                     maxMapqSum = mapqSum
-            self.representativePaftolTargetDict[locusName] = representativePaftolTarget
+            self.representativePaftolTargetDict[geneName] = representativePaftolTarget
             if representativePaftolTarget is None:
-                logger.debug('represenative for %s: none', locusName)
+                logger.debug('represenative for %s: none', geneName)
             else:
-                logger.debug('representative for %s: %s', representativePaftolTarget.locus.name, representativePaftolTarget.organism.name)
+                logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
     
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
-            for locus in self.locusDict.values():
-                if readName in locus.qnameSet():
-                    f = open(self.makeLocusFname(locus.name, True), 'a')
+            for paftolGene in self.paftolTargetSet.paftolGeneDict.values():
+                if readName in paftolGene.qnameSet():
+                    f = open(self.makeGeneFname(paftolGene.name, True), 'a')
                     logger.debug('appending to %s', f.name)
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                     f.close()
@@ -443,9 +462,9 @@ of developing this).
             revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
             if readName != revReadTitle.split()[0]:
                 raise StandardError, 'paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle)
-            for locus in self.locusDict.values():
-                if readName in locus.qnameSet():
-                    f = open(self.makeLocusFname(locus.name, True), 'a')
+            for paftolGene in self.paftolTargetSet.paftolGeneDict.values():
+                if readName in paftolGene.qnameSet():
+                    f = open(self.makeGeneFname(paftolGene.name, True), 'a')
                     f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                     f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
                     f.close()
@@ -462,6 +481,11 @@ of developing this).
             self.distributeSingle()
             
     def assembleSpadesParallel(self):
+        """OBSOLETE -- Run SPAdes assemblies using GNU parallel, as the
+original HybPiper implementation does.
+
+Replaced by L{assembleGeneSpades} and no longer maintained / functional.
+"""
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
@@ -479,8 +503,8 @@ of developing this).
         parallelSpadesProcess = subprocess.Popen(parallelSpadesArgv, stdin=subprocess.PIPE, cwd = self.makeWorkDirname())
         pid = os.fork()
         if pid == 0:
-            for locusName in self.locusNameSet:
-                parallelSpadesProcess.stdin.write('%s\n' % locusName)
+            for geneName in self.geneNameSet:
+                parallelSpadesProcess.stdin.write('%s\n' % geneName)
             parallelSpadesProcess.stdin.close()
             os._exit(0)
         parallelSpadesProcess.stdin.close()
@@ -493,37 +517,37 @@ of developing this).
         if parallelSpadesReturncode != 0:
             raise StandardError, 'parallel spades process exited with %d' % parallelSpadesReturncode
         
-    def makeLocusDirname(self, locusName):
-        return 'spades-%s' % locusName
+    def makeGeneDirname(self, geneName):
+        return 'spades-%s' % geneName
     
-    def makeLocusDirPath(self, locusName):
-        return os.path.join(self.makeWorkDirname(), self.makeLocusDirname(locusName))
+    def makeGeneDirPath(self, geneName):
+        return os.path.join(self.makeWorkDirname(), self.makeGeneDirname(geneName))
             
-    def assembleLocusSpades(self, locusName):
+    def assembleGeneSpades(self, geneName):
         # FIXME: should return file with contigs / scaffolds upon success, None otherwise
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
-        locusFname = self.makeLocusFname(locusName)
+        geneFname = self.makeGeneFname(geneName)
         if self.isPaired():
-            spadesInputArgs = ['--12', locusFname]
+            spadesInputArgs = ['--12', geneFname]
         else:
-            spadesInputArgs = ['-s', locusFname]
-        if not os.path.exists(os.path.join(self.makeWorkDirname(), locusFname)):
-            logger.debug('locus fasta file %s does not exist (no reads?)', locusFname)
+            spadesInputArgs = ['-s', geneFname]
+        if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
+            logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
             return None
         spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
         if self.spadesKvalList is not None:
             spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
         spadesArgv.extend(spadesInputArgs)
-        spadesArgv.extend(['-o', self.makeLocusDirname(locusName)])
+        spadesArgv.extend(['-o', self.makeGeneDirname(geneName)])
         logger.debug('%s', ' '.join(spadesArgv))
         spadesProcess = subprocess.Popen(spadesArgv, cwd = self.makeWorkDirname())
         spadesReturncode = spadesProcess.wait()
         if spadesReturncode != 0:
             # raise StandardError, 'spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode)
             logger.warning('spades process "%s" exited with %d', ' '.join(spadesArgv), spadesReturncode)
-        spadesContigFname = os.path.join(self.makeLocusDirPath(locusName), 'contigs.fasta')
+        spadesContigFname = os.path.join(self.makeGeneDirPath(geneName), 'contigs.fasta')
         # logger.debug('spadesContigFname: %s', spadesContigFname)
         if os.path.exists(spadesContigFname):
             spadesContigList = list(Bio.SeqIO.parse(spadesContigFname, 'fasta'))
@@ -533,13 +557,13 @@ of developing this).
             # logger.debug('spadesContigFname: %s, no contigs', spadesContigFname)
         return spadesContigList
     
-    def translateLocus(self, locusDna):
-        # FIXME: add support for locus specific translation table setting
-        l = len(locusDna) - (len(locusDna) % 3)
-        if l < len(locusDna):
-            logger.warning('locus %s: length %d is not an integer multiple of 3 -- not a CDS?', locusDna.id, len(locusDna))
-        locusProtein = Bio.SeqRecord.SeqRecord(locusDna.seq[:l].translate(), id='%s-pep' % locusDna.id, description='%s, translated' % locusDna.description)
-        return locusProtein
+    def translateGene(self, geneDna):
+        # FIXME: add support for gene specific translation table setting
+        l = len(geneDna) - (len(geneDna) % 3)
+        if l < len(geneDna):
+            logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?', geneDna.id, len(geneDna))
+        geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s-pep' % geneDna.id, description='%s, translated' % geneDna.description)
+        return geneProtein
     
     def filterByPercentIdentity(self, exonerateResultList):
         return [e for e in exonerateResultList if e.percentIdentity >= self.exoneratePercentIdentityThreshold]
@@ -598,69 +622,69 @@ of developing this).
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
     
-    def filterExonerateResultList(self, locusName, exonerateResultList):
-        logger.debug('locus %s: %d exonerate results', locusName, len(exonerateResultList))
+    def filterExonerateResultList(self, geneName, exonerateResultList):
+        logger.debug('gene %s: %d exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-        logger.debug('locus %s: %d sufficiently close exonerate results', locusName, len(exonerateResultList))
+        logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
-        logger.debug('locus %s: %d non-contained exonerate results', locusName, len(exonerateResultList))
+        logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
         return exonerateResultList
     
-    def reconstructCds(self, locusName):
-        logger.debug('reconstructing CDS for locus %s', locusName)
+    def reconstructCds(self, geneName):
+        logger.debug('reconstructing CDS for gene %s', geneName)
         if self.representativePaftolTargetDict is None:
-            raise StandardError, 'illegal state: no represesentative loci'
-        if self.representativePaftolTargetDict[locusName] is None:
-            raise StandardError, 'no representative for locus %s' % locusName
-        os.mkdir(self.makeLocusDirPath(locusName))
-        contigList = self.assembleLocusSpades(locusName)
+            raise StandardError, 'illegal state: no represesentative genes'
+        if self.representativePaftolTargetDict[geneName] is None:
+            raise StandardError, 'no representative for gene %s' % geneName
+        os.mkdir(self.makeGeneDirPath(geneName))
+        contigList = self.assembleGeneSpades(geneName)
         if contigList is None:
-            logger.warning('locus %s: no spades contigs', locusName)
+            logger.warning('gene %s: no spades contigs', geneName)
             return None
         if len(contigList) == 0:
-            logger.warning('locus %s: empty contig list', locusName)
+            logger.warning('gene %s: empty contig list', geneName)
             return None
-        logger.debug('locus %s: %d spades contigs', locusName, len(contigList))
-        locusProtein = self.translateLocus(self.representativePaftolTargetDict[locusName].seqRecord)
+        logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
+        geneProtein = self.translateGene(self.representativePaftolTargetDict[geneName].seqRecord)
         aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
         # allow stop translation
         aminoAcidSet.add('*')
-        setDiff = set(str(locusProtein.seq).lower()) - aminoAcidSet
+        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
         if len(setDiff) > 0:
-            logger.warning('locus %s: invalid amino acids %s' % (locusName, ', '.join(setDiff)))
+            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
             return None
-        contigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-contigs.fasta' % locusName)
+        contigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-contigs.fasta' % geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
-        exonerateResultList = exonerateRunner.parse(locusProtein, contigFname, 'protein2genome', len(contigList))
+        exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', len(contigList))
         logger.debug('%d contigs, %d exonerate results', len(contigList), len(exonerateResultList))
         if len(exonerateResultList) == 0:
-            logger.warning('locus %s: no exonerate results from %d contigs', locusName, len(contigList))
+            logger.warning('gene %s: no exonerate results from %d contigs', geneName, len(contigList))
         exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
         for exonerateResult in exonerateResultList:
             if exonerateResult.targetStrand == '-':
                 exonerateResult.reverseComplementTarget()
         logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
-        filteredExonerateResultList = self.filterExonerateResultList(locusName, exonerateResultList)
+        filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList)
         if len(filteredExonerateResultList) == 0:
-            logger.warning('locus %s: no exonerate results left after filtering', locusName)
+            logger.warning('gene %s: no exonerate results left after filtering', geneName)
             return None
-        supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % locusName)
+        supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % geneName)
         if len(supercontig) == 0:
-            logger.warning('locus %s: empty supercontig', locusName)
+            logger.warning('gene %s: empty supercontig', geneName)
             return None
-        supercontigFname = os.path.join(self.makeLocusDirPath(locusName), '%s-supercontig.fasta' % locusName)
+        supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
         Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
-        supercontigErList = exonerateRunner.parse(locusProtein, supercontigFname, 'protein2genome', len(contigList))
+        supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', len(contigList))
         if len(supercontigErList) == 0:
-            logger.warning('locus %s: no exonerate results from supercontig', locusName)
+            logger.warning('gene %s: no exonerate results from supercontig', geneName)
             return None
-        # not filtering for percent identity to locus again, as that is already done
+        # not filtering for percent identity to gene again, as that is already done
         if self.reverseFastq is not None:
             readsSpec = '%s, %s' % (self.forwardFastq, self.reverseFastq)
         else :
             readsSpec = self.forwardFastq
-        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=locusName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
         return splicedSupercontig
     
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
@@ -679,16 +703,16 @@ of developing this).
             self.setup()
             self.mapReadsBwa()
             self.distribute()
-            self.setRepresentativeLoci()
+            self.setRepresentativeGenes()
             reconstructedCdsDict = {}
-            for locusName in self.locusDict:
-                reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
+            for geneName in self.paftolTargetSet.paftolGeneDict:
+                reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
             if self.statsCsvFilename is not None:
                 csvFile = open(self.statsCsvFilename, 'w')
                 csvDictWriter = PaftolTarget.makeCsvDictWriter(csvFile)
-                for organismName in self.organismDict:
-                    for locusName in self.organismDict[organismName].paftolTargetDict:
-                        self.organismDict[organismName].paftolTargetDict[locusName].writeCsvRow(csvDictWriter)
+                for organismName in self.paftolTargetSet.organismDict:
+                    for geneName in self.paftolTargetSet.organismDict[organismName].paftolTargetDict:
+                        self.paftolTargetSet.organismDict[organismName].paftolTargetDict[geneName].writeCsvRow(csvDictWriter)
                 csvFile.close()
             return reconstructedCdsDict
         finally:
