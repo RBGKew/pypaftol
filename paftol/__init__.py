@@ -283,6 +283,23 @@ organisms.
         for paftolTarget in self.paftolTargetDict.values():
             s = s | paftolTarget.qnameSet()
         return s
+    
+    
+class ReferenceGenome(object):
+    """Represent a reference genome, provided via FASTA and GenBank files (possibly both).
+
+@ivar name: the name of this reference genome
+@type name: C{str}
+@ivar fastaFname: name of FASTA file containing the sequences of this genome
+@type fastaFname: C{str}
+@ivar genbankFname: name of GenBank file containing the sequences of this genome
+@type genbankFname: C{str}
+"""
+    
+    def __init__(self, name, fastaFname, genbankFname):
+        self.name = name
+        self.fastaFname = fastaFname
+        self.genbankFname = genbankFname
 
 
 class PaftolTargetSet(object):
@@ -293,6 +310,9 @@ class PaftolTargetSet(object):
         self.paftolGeneDict = {}
         self.organismDict = {}
         self.fastaFname = None
+        
+    def makeFastaId(organismName, geneName):
+        return '%s-%s' % (organismName, geneName)
         
     def extractOrganismAndGeneNames(self, s):
         m = self.paftolTargetRe.match(s)
@@ -319,6 +339,24 @@ class PaftolTargetSet(object):
             if geneName not in self.paftolGeneDict:
                 self.paftolGeneDict[geneName] = PaftolGene(geneName)
             paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
+            
+    def writeFasta(self, fastaFname):
+        srList = []
+        for organism in self.organismDict.values():
+            for paftolTarget in organism.paftolTargetDict.values():
+                srList.append(paftolTarget.seqRecord)
+        Bio.SeqIO.write(srList, fastaFname, 'fasta')
+        
+    def addSamAlignment(self, samAlignment):
+        organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
+        if organismName not in self.organismDict:
+            raise StandardError, 'unknown organism: %s' % organismName
+        if geneName not in self.paftolGeneDict:
+            raise standardError, 'unknown gene: %s' % geneName
+        if geneName not in self.organismDict[organismName].paftolTargetDict:
+            raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
+        paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
+        paftolTarget.addSamAlignment(samAlignment)
 
 
 class HybpiperAnalyser(HybseqAnalyser):
@@ -374,21 +412,24 @@ of developing this).
     def cleanup(self):
         self.cleanupTmpdir()
     
-    def bwaIndexReference(self):
-        bwaIndexArgv = ['bwa', 'index', self.makeTargetsFname(True)]
+    def bwaIndexReference(self, referenceFname):
+        bwaIndexArgv = ['bwa', 'index', referenceFname]
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
+        
+    def makeBwaMemArgv(self, referenceFname, fastqArgs):
+        return ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, referenceFname] + fastqArgs
         
     def mapReadsBwa(self):
         """Map reads to gene sequences (from multiple organisms possibly).
 """
         logger.debug('mapping reads to gene sequences')
-        self.bwaIndexReference()
+        self.bwaIndexReference(self.makeTargetsFname(True))
         fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
         if self.reverseFastq is not None:
             fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
         # bwa parameters for tweaking considerations: -k, -r, -T
-        bwaArgv = ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, self.makeTargetsFname()] + fastqArgs
+        bwaArgv = self.makeBwaMemArgv(self.makeTargetsFname(), fastqArgs)
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
@@ -399,15 +440,7 @@ of developing this).
             # logger.debug(samLine)
             if samLine[0] != '@':
                 samAlignment = SamAlignment(samLine)
-                organismName, geneName = self.paftolTargetSet.extractOrganismAndGeneNames(samAlignment.rname)
-                if organismName not in self.paftolTargetSet.organismDict:
-                    raise StandardError, 'unknown organism: %s' % organismName
-                if geneName not in self.paftolTargetSet.paftolGeneDict:
-                    raise standardError, 'unknown gene: %s' % geneName
-                if geneName not in self.paftolTargetSet.organismDict[organismName].paftolTargetDict:
-                    raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
-                paftolTarget = self.paftolTargetSet.organismDict[organismName].paftolTargetDict[geneName]
-                paftolTarget.addSamAlignment(samAlignment)
+                self.paftolTargetSet.addSamAlignment(samAlignment)
             samLine = samtoolsProcess.stdout.readline()
         bwaProcess.stdout.close()
         samtoolsProcess.stdout.close()
