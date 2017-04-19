@@ -156,6 +156,8 @@ to provide fields required for Hyb-Seq analysis only.
 @type seq: C{str}
 """
     
+    cigarElementRe = re.compile('([0-9]+)([MIDNSHP=X])')
+    
     def __init__(self, samLine):
         if samLine[-1] == '\n':
             samLine = samLine[:-1]
@@ -165,6 +167,29 @@ to provide fields required for Hyb-Seq analysis only.
         self.mapq = int(w[4])
         self.cigar = w[5]
         self.seq = w[9]
+    
+    def expandedCigar(self):
+        if self.cigar is None:
+            return None
+        e = ''
+        c = self.cigar
+        while c != '':
+            m = self.cigarElementRe.match(c)
+            if m is None:
+                raise StandardError, 'malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c)
+            e = e + (m.group(2) * int(m.group(1)))
+            c = c[len(m.group()):]
+        return e
+    
+    def numCigarMatches(self):
+        e = self.expandedCigar()
+        if e is None:
+            return None
+        if e.count('=') > 0:
+            logger.warning('found sequence match ("=") characters, unimplemented')
+        if e.count('X') > 0:
+            logger.warning('found sequence mismatch ("X") characters, unimplemented')
+        return e.count('M')
 
 
 class OrganismLocus(object):
@@ -181,7 +206,6 @@ facilitating handling of multiple loci and multiple organisms.
 @ivar seqRecord: the sequence of this organism at this locus
 @type seqRecord: C{Bio.SeqRecord.SeqRecord}
 """
-    
     def __init__(self, organism, locus, seqRecord):
         self.organism = organism
         self.locus = locus
@@ -564,12 +588,13 @@ of developing this).
     # trim contig2 because it has (more) gaps in the overlap region??
     # compute consensus -- along overlapping regions, or along entire query?
     def filterByOverlap(self, exonerateResultList):
+        logger.warning('scanning for overlaps but not resolving them, pending development of concept')
         nonOverlappingExonerateResultList = []
         for exonerateResult in exonerateResultList:
             for other in exonerateResultList:
                 if exonerateResult is not other:
                     if exonerateResult.overlapsQueryAlignmentRange(other):
-                        logger.debug('overlap found: %s, %s', str(exonerateResult), str(other))
+                        logger.warning('overlap found, but not resolved: %s, %s', str(exonerateResult), str(other))
             nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
     
@@ -612,6 +637,7 @@ of developing this).
         for exonerateResult in exonerateResultList:
             if exonerateResult.targetStrand == '-':
                 exonerateResult.reverseComplementTarget()
+        logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
         filteredExonerateResultList = self.filterExonerateResultList(locusName, exonerateResultList)
         if len(filteredExonerateResultList) == 0:
             logger.warning('locus %s: no exonerate results left after filtering', locusName)
@@ -633,6 +659,16 @@ of developing this).
             readsSpec = self.forwardFastq
         splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=locusName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
         return splicedSupercontig
+    
+    # ideas for hybrid / consensus sequence for (multiple) re-mapping
+    # reference CDS:     atgtac------catacagaagagacgtga
+    # reconstructed CDS:    cactcatttcat---gga
+    # "consensus"        atgCACTCAATTCAT   GGAgagacgtga
+    # principe: Where reconstructed symbol is available, use that in preference.
+    #   * gap in reference: use symbols from reconstructed (must be non-gap if pairwise alignment)
+    #   * gap in reconstructed: skip symbols from reference
+    #   * ends / portions with no alignment to reconstructed: fill in from reference
+    # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
     def analyse(self):
         self.checkTargets()
