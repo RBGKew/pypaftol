@@ -192,7 +192,7 @@ to provide fields required for Hyb-Seq analysis only.
         return e.count('M')
 
 
-class OrganismLocus(object):
+class PaftolTarget(object):
     """Represent a locus in an organism.
     
 The main content of instances of this class is a C{SeqRecord}
@@ -211,10 +211,10 @@ facilitating handling of multiple loci and multiple organisms.
         self.locus = locus
         self.seqRecord = seqRecord
         self.samAlignmentList = []
-        if locus.name in organism.organismLocusDict or organism.name in locus.organismLocusDict:
+        if locus.name in organism.paftolTargetDict or organism.name in locus.paftolTargetDict:
             raise StandardError, 'duplicate organism/locus: organism = %s, locus = %s, seqId = %s' % (organism.name, locus.name, seqRecord.id)
-        organism.organismLocusDict[locus.name] = self
-        locus.organismLocusDict[organism.name] = self
+        organism.paftolTargetDict[locus.name] = self
+        locus.paftolTargetDict[organism.name] = self
         
     def addSamAlignment(self, samAlignment):
         self.samAlignmentList.append(samAlignment)
@@ -250,13 +250,13 @@ class Organism(object):
     
 @ivar name: this organism's name
 @type name: C{str}
-@ivar organismLocusDict: dictionary of loci in this organism
-@type organismLocusDict: C{dict} of C{OrganismLocus} instances with locus names as keys
+@ivar paftolTargetDict: dictionary of loci in this organism
+@type paftolTargetDict: C{dict} of C{PaftolTarget} instances with locus names as keys
 """
     
     def __init__(self, name):
         self.name = name
-        self.organismLocusDict = {}
+        self.paftolTargetDict = {}
 
 
 class Locus(object):
@@ -264,18 +264,18 @@ class Locus(object):
 
 @ivar name: the name of this locus
 @type name: C{str}
-@ivar organismLocusDict: dictionary of organisms with this locus
-@type organismLocusDict: C{dict} of C{OrganismLocus} instances with organism names as keys
+@ivar paftolTargetDict: dictionary of organisms with this locus
+@type paftolTargetDict: C{dict} of C{PaftolTarget} instances with organism names as keys
 """
     
     def __init__(self, name):
         self.name = name
-        self.organismLocusDict = {}
+        self.paftolTargetDict = {}
 
     def qnameSet(self):
         s = set()
-        for organismLocus in self.organismLocusDict.values():
-            s = s | organismLocus.qnameSet()
+        for paftolTarget in self.paftolTargetDict.values():
+            s = s | paftolTarget.qnameSet()
         return s
     
 
@@ -302,7 +302,7 @@ of developing this).
 @type spadesKvalList: C{list} of C{int}, or C{None}
 """
 
-    organismLocusRe = re.compile('([^-]+)-([^-]+)')
+    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
     
     def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
         super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
@@ -314,10 +314,10 @@ of developing this).
         self.spadesKvalList = None
         self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
-        self.initOrganismLocusDicts()
+        self.initPaftolTargetDicts()
         
     def extractOrganismAndLocusNames(self, s):
-        m = self.organismLocusRe.match(s)
+        m = self.paftolTargetRe.match(s)
         if m is not None:
             organismName = m.group(1)
             locusName = m.group(2)
@@ -326,7 +326,7 @@ of developing this).
             locusName = s
         return organismName, locusName
         
-    def initOrganismLocusDicts(self):
+    def initPaftolTargetDicts(self):
         if self.targetsSourcePath is None:
             raise StandardError, 'illegal state: cannot init organism and locus dicts with targetsSourcePath = None'
         self.locusDict = {}
@@ -341,9 +341,9 @@ of developing this).
                 self.organismDict[organismName] = Organism(organismName)
             if locusName not in self.locusDict:
                 self.locusDict[locusName] = Locus(locusName)
-            organismLocus = OrganismLocus(self.organismDict[organismName], self.locusDict[locusName], sr)
+            paftolTarget = PaftolTarget(self.organismDict[organismName], self.locusDict[locusName], sr)
         logger.info('%s organisms, %s loci' % (len(self.organismDict), len(self.locusDict)))
-        self.representativeOrganismLocusDict = None
+        self.representativePaftolTargetDict = None
 
     def setup(self):
         logger.debug('setting up')
@@ -385,10 +385,10 @@ of developing this).
                     raise StandardError, 'unknown organism: %s' % organismName
                 if locusName not in self.locusDict:
                     raise standardError, 'unknown locus: %s' % locusName
-                if locusName not in self.organismDict[organismName].organismLocusDict:
+                if locusName not in self.organismDict[organismName].paftolTargetDict:
                     raise StandardError, 'no entry for locus %s in organism %s' % (locusName, organismName)
-                organismLocus = self.organismDict[organismName].organismLocusDict[locusName]
-                organismLocus.addSamAlignment(samAlignment)
+                paftolTarget = self.organismDict[organismName].paftolTargetDict[locusName]
+                paftolTarget.addSamAlignment(samAlignment)
             samLine = samtoolsProcess.stdout.readline()
         bwaProcess.stdout.close()
         samtoolsProcess.stdout.close()
@@ -401,20 +401,20 @@ of developing this).
     
     def setRepresentativeLoci(self):
         """Roughly equivalent to "distribute targets" in HybPiper."""
-        self.representativeOrganismLocusDict = {}
+        self.representativePaftolTargetDict = {}
         for locusName in self.locusDict:
-            representativeOrganismLocus = None
+            representativePaftolTarget = None
             maxMapqSum = None
-            for organismName in self.locusDict[locusName].organismLocusDict:
-                mapqSum = self.locusDict[locusName].organismLocusDict[organismName].mapqSum()
-                if representativeOrganismLocus is None or (mapqSum is not None and mapqSum > maxMapqSum):
-                    representativeOrganismLocus = self.locusDict[locusName].organismLocusDict[organismName]
+            for organismName in self.locusDict[locusName].paftolTargetDict:
+                mapqSum = self.locusDict[locusName].paftolTargetDict[organismName].mapqSum()
+                if representativePaftolTarget is None or (mapqSum is not None and mapqSum > maxMapqSum):
+                    representativePaftolTarget = self.locusDict[locusName].paftolTargetDict[organismName]
                     maxMapqSum = mapqSum
-            self.representativeOrganismLocusDict[locusName] = representativeOrganismLocus
-            if representativeOrganismLocus is None:
+            self.representativePaftolTargetDict[locusName] = representativePaftolTarget
+            if representativePaftolTarget is None:
                 logger.debug('represenative for %s: none', locusName)
             else:
-                logger.debug('representative for %s: %s', representativeOrganismLocus.locus.name, representativeOrganismLocus.organism.name)
+                logger.debug('representative for %s: %s', representativePaftolTarget.locus.name, representativePaftolTarget.organism.name)
     
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
@@ -608,9 +608,9 @@ of developing this).
     
     def reconstructCds(self, locusName):
         logger.debug('reconstructing CDS for locus %s', locusName)
-        if self.representativeOrganismLocusDict is None:
+        if self.representativePaftolTargetDict is None:
             raise StandardError, 'illegal state: no represesentative loci'
-        if self.representativeOrganismLocusDict[locusName] is None:
+        if self.representativePaftolTargetDict[locusName] is None:
             raise StandardError, 'no representative for locus %s' % locusName
         os.mkdir(self.makeLocusDirPath(locusName))
         contigList = self.assembleLocusSpades(locusName)
@@ -621,8 +621,11 @@ of developing this).
             logger.warning('locus %s: empty contig list', locusName)
             return None
         logger.debug('locus %s: %d spades contigs', locusName, len(contigList))
-        locusProtein = self.translateLocus(self.representativeOrganismLocusDict[locusName].seqRecord)
-        setDiff = set(str(locusProtein.seq).lower()) - set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        locusProtein = self.translateLocus(self.representativePaftolTargetDict[locusName].seqRecord)
+        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        # allow stop translation
+        aminoAcidSet.add('*')
+        setDiff = set(str(locusProtein.seq).lower()) - aminoAcidSet
         if len(setDiff) > 0:
             logger.warning('locus %s: invalid amino acids %s' % (locusName, ', '.join(setDiff)))
             return None
@@ -682,10 +685,10 @@ of developing this).
                 reconstructedCdsDict[locusName] = self.reconstructCds(locusName)
             if self.statsCsvFilename is not None:
                 csvFile = open(self.statsCsvFilename, 'w')
-                csvDictWriter = OrganismLocus.makeCsvDictWriter(csvFile)
+                csvDictWriter = PaftolTarget.makeCsvDictWriter(csvFile)
                 for organismName in self.organismDict:
-                    for locusName in self.organismDict[organismName].organismLocusDict:
-                        self.organismDict[organismName].organismLocusDict[locusName].writeCsvRow(csvDictWriter)
+                    for locusName in self.organismDict[organismName].paftolTargetDict:
+                        self.organismDict[organismName].paftolTargetDict[locusName].writeCsvRow(csvDictWriter)
                 csvFile.close()
             return reconstructedCdsDict
         finally:
