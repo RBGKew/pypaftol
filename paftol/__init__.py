@@ -284,6 +284,80 @@ organisms.
             s = s | paftolTarget.qnameSet()
         return s
     
+
+class PaftolTargetSet(object):
+
+    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
+    
+    def __init__(self):
+        self.paftolGeneDict = {}
+        self.organismDict = {}
+        
+    def makeFastaId(organismName, geneName):
+        return '%s-%s' % (organismName, geneName)
+        
+    def extractOrganismAndGeneNames(self, s):
+        m = self.paftolTargetRe.match(s)
+        if m is not None:
+            organismName = m.group(1)
+            geneName = m.group(2)
+        else:
+            organismName = 'unknown'
+            geneName = s
+        return organismName, geneName
+    
+    def readFasta(self, fastaHandle):
+        self.paftolGeneDict = {}
+        self.organismDict = {}
+        for sr in Bio.SeqIO.parse(fastaHandle, 'fasta'):
+            organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
+            if not isSane(organismName):
+                raise StandardError, 'bad organism name: %s' % organismName
+            if not isSane(geneName):
+                raise StandardError, 'bad gene name: %s' % geneName
+            if organismName not in self.organismDict:
+                self.organismDict[organismName] = Organism(organismName)
+            if geneName not in self.paftolGeneDict:
+                self.paftolGeneDict[geneName] = PaftolGene(geneName)
+            paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
+            
+    def writeFasta(self, fastaHandle):
+        srList = []
+        for organism in self.organismDict.values():
+            for paftolTarget in organism.paftolTargetDict.values():
+                srList.append(paftolTarget.seqRecord)
+        Bio.SeqIO.write(srList, fastaHandle, 'fasta')
+        
+    def addSamAlignment(self, samAlignment):
+        organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
+        if organismName not in self.organismDict:
+            raise StandardError, 'unknown organism: %s' % organismName
+        if geneName not in self.paftolGeneDict:
+            raise standardError, 'unknown gene: %s' % geneName
+        if geneName not in self.organismDict[organismName].paftolTargetDict:
+            raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
+        paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
+        paftolTarget.addSamAlignment(samAlignment)
+    
+    
+class ReferenceGene(object):
+    
+    def __init__(self, geneId, referenceGenome, seqRecord, geneFeature, mrnaFeature=None, cdsFeature=None):
+        self.geneId = geneId
+        self.referenceGenome = referenceGenome
+        self.seqRecord = seqRecord
+        self.geneFeature = geneFeature
+        self.mrnaFeature = mrnaFeature
+        self.cdsFeature = cdsFeature
+        
+    def getSequenceId(self):
+        return self.seqRecord.id.split('.')[0]
+        
+    def containsHsp(self, hspAccession, hsp):
+        if self.getSequenceId() != hspAccession:
+            return False
+        return self.geneFeature.location.start <= hsp.sbjct_start and self.geneFeature.location.end >= hsp.sbjct_end
+                
     
 class ReferenceGenome(object):
     """Represent a reference genome, provided via FASTA and GenBank files (possibly both).
@@ -300,63 +374,103 @@ class ReferenceGenome(object):
         self.name = name
         self.fastaFname = fastaFname
         self.genbankFname = genbankFname
-
-
-class PaftolTargetSet(object):
-
-    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
-    
-    def __init__(self):
-        self.paftolGeneDict = {}
-        self.organismDict = {}
-        self.fastaFname = None
+        self.geneList = None
         
-    def makeFastaId(organismName, geneName):
-        return '%s-%s' % (organismName, geneName)
+    def scanGenesAth(self):
+        if self.genbankFname is None:
+            raise StandardError, 'no GenBank file name, cannot scan genes (ath method)'
+        mrnaFeatureDict = {}
+        cdsFeatureDict = {}
+        self.geneList = []
+        geneDict = {}
+        for seqRecord in Bio.SeqIO.parse(self.genbankFname, 'genbank'):
+            for seqFeature in seqRecord.features:
+                if seqFeature.type == 'gene':
+                    # CHECKME: just presuming that locus_tag qualifier will always be present and have exactly one value
+                    geneId = seqFeature.qualifiers['locus_tag'][0]
+                    if geneId in geneDict:
+                        raise StandardError, 'duplicate gene id: %s' % geneId
+                    gene = ReferenceGene(geneId, self, seqRecord, seqFeature)
+                    self.geneList.append(gene)
+                    geneDict[geneId] = gene
+        # somewhat clumsy to re-scan GenBank file for additional features...
+        for seqRecord in Bio.SeqIO.parse(self.genbankFname, 'genbank'):
+            for seqFeature in seqRecord.features:
+                if seqFeature.type == 'mRNA':
+                    geneId = seqFeature.qualifiers['locus_tag'][0]
+                    if geneId in geneDict:
+                        gene = geneDict[geneId]
+                        if gene.mrnaFeature is not None:
+                            sys.stderr.write('gene %s: duplicate mRNA feature, ignoring\n' % geneId)
+                        else:
+                            gene.mrnaFeature = seqFeature
+                elif seqFeature.type == 'CDS':
+                    geneId = seqFeature.qualifiers['locus_tag'][0]
+                    if geneId in geneDict:
+                        gene = geneDict[geneId]
+                        if gene.cdsFeature is not None:
+                            sys.stderr.write('gene %s: duplicate CDS feature, ignoring\n' % geneId)
+                        else:
+                            gene.cdsFeature = seqFeature
+
+    def scanGenes(self, scanMethod):
+        """Populate C{self.geneList} by scanning an appropriate file.
+
+Currently, the only method supported is C{ath}, which is designed to
+work with the Arabidopsis thaliana genome (specifically the TAIR10
+release). Currently, specifying any other method will raise an
+exception. In the future, more genomes with different annotation
+conventions may be added.
         
-    def extractOrganismAndGeneNames(self, s):
-        m = self.paftolTargetRe.match(s)
-        if m is not None:
-            organismName = m.group(1)
-            geneName = m.group(2)
+@param scanMethod: the method to use for scanning genes
+@type scanMethod: C{str}
+        """
+        if scanMethod == 'ath':
+            self.scanGenesAth()
         else:
-            organismName = 'unknown'
-            geneName = s
-        return organismName, geneName
-    
-    def readFasta(self, fastaFname):
-        self.paftolGeneDict = {}
-        self.organismDict = {}
-        self.fastaFname = fastaFname
-        for sr in Bio.SeqIO.parse(fastaFname, 'fasta'):
-            organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
-            if not isSane(organismName):
-                raise StandardError, 'bad organism name: %s' % organismName
-            if not isSane(geneName):
-                raise StandardError, 'bad gene name: %s' % geneName
-            if organismName not in self.organismDict:
-                self.organismDict[organismName] = Organism(organismName)
-            if geneName not in self.paftolGeneDict:
-                self.paftolGeneDict[geneName] = PaftolGene(geneName)
-            paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
-            
-    def writeFasta(self, fastaFname):
-        srList = []
-        for organism in self.organismDict.values():
-            for paftolTarget in organism.paftolTargetDict.values():
-                srList.append(paftolTarget.seqRecord)
-        Bio.SeqIO.write(srList, fastaFname, 'fasta')
+            raise StandardError, 'unknown gene scan method: %s' % scanMethod
         
-    def addSamAlignment(self, samAlignment):
-        organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
-        if organismName not in self.organismDict:
-            raise StandardError, 'unknown organism: %s' % organismName
-        if geneName not in self.paftolGeneDict:
-            raise standardError, 'unknown gene: %s' % geneName
-        if geneName not in self.organismDict[organismName].paftolTargetDict:
-            raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
-        paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
-        paftolTarget.addSamAlignment(samAlignment)
+    def findGenesByHsp(self, hspAccession, hsp):
+        """Find genes that contain a given HSP.
+"""
+        geneList = []
+        for gene in self.geneList:
+            if gene.containsHsp(hspAccession, hsp):
+                geneList.append(gene)
+        return geneList
+
+    def blastTargetSet(self, paftolTargetSet):
+        blastnArgs = ['blastn', '-db', self.fastaFname, '-outfmt', '5']
+        blastnProcess = subprocess.Popen(blastnArgs, stdin=subprocess.PIPE, stdout = subprocess.PIPE)
+        pid = os.fork()
+        if pid == 0:
+            blastnProcess.stdout.close()
+            paftolTargetSet.writeFasta(blastnProcess.stdin)
+            blastnProcess.stdin.close()
+            os._exit(0)
+        blastnProcess.stdin.close()
+        targetIdToGeneDict = {}
+        for blastRecord in Bio.Blast.NCBIXML.parse(blastnProcess.stdout):
+            targetId = blastRecord.query
+            if targetId in targetIdToGeneDict:
+                raise StandardError, 'duplicate BLAST record for target %s' % targetId
+            geneList = []
+            for blastAlignment in blastRecord.alignments:
+                for hsp in blastAlignment.hsps:
+                    for gene in self.findGenesByHsp(blastAlignment.accession, hsp):
+                        if gene not in geneList:
+                            geneList.append(gene)
+            targetIdToGeneDict[targetId] = geneList
+        blastnProcess.stdout.close()
+        wPid, wExit = os.waitpid(pid, 0)
+        if pid != wPid:
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+        if wExit != 0:
+            raise StandardError, 'wait on forked process returned %d' % wExit
+        blastnReturncode = blastnProcess.wait()
+        if blastnReturncode != 0:
+            raise StandardError, 'blastn process exited with %d' % blastnReturncode
+        return targetIdToGeneDict
 
 
 class HybpiperAnalyser(HybseqAnalyser):

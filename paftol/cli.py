@@ -34,7 +34,24 @@ def runHybpiper(argNamespace):
         Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
         Bio.SeqIO.write([sr for sr in reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+
         
+def runTargetGeneScan(argNamespace):
+    paftolTargetSet = paftol.PaftolTargetSet()
+    if argNamespace.targetsfile is None:
+        paftolTargetSet.readFasta(sys.stdin)
+    else:
+        paftolTargetSet.readFasta(argNamespace.targetsfile)
+    sys.stderr.write('read target set with %d genes and %d organisms\n' % (len(paftolTargetSet.paftolGeneDict), len(paftolTargetSet.organismDict)))
+    # FIXME: hack to use scanMethod as the genome name as well
+    referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
+    referenceGenome.scanGenes(argNamespace.scanMethod)
+    sys.stderr.write('read reference genome and scanned %d genes\n' % len(referenceGenome.geneList))
+    targetIdToGeneDict = referenceGenome.blastTargetSet(paftolTargetSet)
+    for targetId in targetIdToGeneDict:
+        sys.stderr.write('%s: %s\n' % (targetId, ', '.join([gene.geneId for gene in targetIdToGeneDict[targetId]])))
+    
+    
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev')
@@ -70,7 +87,16 @@ def addHybpiperParser(subparsers):
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
     p.set_defaults(func=runHybpiper)
     
-
+    
+def addTargetGeneScanParser(subparsers):
+    p = subparsers.add_parser('genescan')
+    p.add_argument('-r', '--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
+    p.add_argument('-g', '--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
+    p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
+    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
+    p.set_defaults(func=runTargetGeneScan)
+    
+    
 def showArgs(args):
     print args
 
@@ -86,6 +112,7 @@ def paftoolsMain():
     addDevParser(subparsers)
     addHybseqParser(subparsers)
     addHybpiperParser(subparsers)
+    addTargetGeneScanParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
