@@ -62,9 +62,9 @@ if the sequence contains triplets with both gap and non-gap symbols.
     nongapStart = 0
     for gapStart, gapEnd in gapList:
         if (gapStart - nongapStart) % 3 != 0:
-            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, gapStart)
+            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, gapStart))
         if (gapEnd - gapStart) % 3 != 0:
-            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd)
+            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd))
         if nongapStart < gapStart:
             ungappedSeq = seq[nongapStart:gapStart]
             ungappedSeq.alphabet = ungappedAlphabet
@@ -73,7 +73,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
         nongapStart = gapEnd
     if nongapStart < len(seq):
         if (len(seq) - nongapStart) % 3 != 0:
-            raise StandardError, 'cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq))
+            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq)))
         ungappedSeq = seq[nongapStart:]
         ungappedSeq.alphabet = ungappedAlphabet
         t = t + str(ungappedSeq.translate(table))
@@ -213,7 +213,7 @@ roll your own (ryo) formatting facility.
 Ranges and strand orientations are changed accordingly.
 """
         if self.targetStrand not in '+-':
-            raise StandardError, 'cannot reverse complement strand with orientation "%s"' % self.targetStrand
+            raise StandardError('cannot reverse complement strand with orientation "%s"' % self.targetStrand)
         if self.targetAlignmentSeq is not None:
             self.targetAlignmentSeq = self.targetAlignmentSeq.reverse_complement(id=True, name=True, description=True)
             self.targetAlignmentStart, self.targetAlignmentEnd = self.targetAlignmentEnd, self.targetAlignmentStart
@@ -266,7 +266,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 @rtype: C{Bio.Align.MultipleSeqAlignment}
 """
         if self.exonerateModel != 'protein2genome:local':
-            raise StandardError, 'proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel
+            raise StandardError('proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
         v = self.vulgar.split()
         qAln = ''
         tAln = ''
@@ -285,7 +285,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             elif vLabel == 'G':
                 if vQueryLength == 0:
                     if vTargetLength % 3 != 0:
-                        raise StandardError, 'cannot process nucleotide gaps with length not a multiple of 3'
+                        raise StandardError('cannot process nucleotide gaps with length not a multiple of 3')
                     qAln = qAln + '-' * (vTargetLength / 3)
                     tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
                 elif vTargetLength == 0:
@@ -374,7 +374,7 @@ class ExonerateRunner(object):
         line = f.readline()
         # logger.debug('%s', line.strip())
         if line == '':
-            raise StandardError, 'unexpected EOF'
+            raise StandardError('unexpected EOF')
         if line[-1] == '\n':
             line = line[:-1]
         return line
@@ -383,9 +383,9 @@ class ExonerateRunner(object):
         line = self.nextLine(f)
         m = self.labelledLineRe.match(line)
         if m is None:
-            raise StandardError, 'malformed line (expected label %s): %s' % (label, line.strip())
+            raise StandardError('malformed line (expected label %s): %s' % (label, line.strip()))
         if m.group(1) != label:
-            raise StandardError, 'expected label %s but got %s' % (label, m.group(1))
+            raise StandardError('expected label %s but got %s' % (label, m.group(1)))
         return m.group(2).strip()
     
     def parseInt(self, f, label):
@@ -404,9 +404,9 @@ class ExonerateRunner(object):
         line = self.nextLine(f)
         m = self.seqStartRe.match(line)
         if m is None:
-            raise StandardError, 'malformed line (expected seqStart): %s' % line.strip()
+            raise StandardError('malformed line (expected seqStart): %s' % line.strip())
         if m.group(1) != label:
-            raise StandardError, 'expected sequence label %s but got %s' % (label, m.group(1))
+            raise StandardError('expected sequence label %s but got %s' % (label, m.group(1)))
         seq = ''
         s = self.nextLine(f)
         while s != 'seqEnd':
@@ -422,11 +422,11 @@ class ExonerateRunner(object):
         if line == '':
             return None
         if line.strip() != 'ryoStart':
-            raise StandardError, 'malformed input: ryoStart missing, got %s instead' % line.strip()
+            raise StandardError('malformed input: ryoStart missing, got %s instead' % line.strip())
         exonerateResult.exonerateModel = self.parseString(f, 'exonerateModel')
         exonerateResult.queryId = self.parseString(f, 'queryId')
         if exonerateResult.queryId != exonerateResult.querySeq.id:
-            raise StandardError, 'result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId)
+            raise StandardError('result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId))
         exonerateResult.queryDef = self.parseString(f, 'queryDef')
         exonerateResult.queryStrand = self.parseString(f, 'queryStrand')
         exonerateResult.queryAlignmentStart = self.parseInt(f, 'queryAlignmentStart')
@@ -461,10 +461,10 @@ class ExonerateRunner(object):
             exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
             exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
         else:
-            raise StandardError, 'unsupported exonerate model: %s' % exonerateResult.exonerateModel
+            raise StandardError('unsupported exonerate model: %s' % exonerateResult.exonerateModel)
         line = self.nextLine(f)
         if line.strip() != 'ryoEnd':
-            raise StandardError, 'malformed input: ryoEnd missing'
+            raise StandardError('malformed input: ryoEnd missing')
         return exonerateResult
 
     def parse(self, querySeq, targetFname, exonerateModel, bestn):
@@ -507,12 +507,12 @@ class ExonerateRunner(object):
             p.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
-                raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
             if wExit != 0:
-                raise StandardError, 'wait on forked process returned %d' % wExit
+                raise StandardError('wait on forked process returned %d' % wExit)
             r = p.wait()
             if r != 0:
-                raise StandardError, 'exonerate process exited with %d' % r
+                raise StandardError('exonerate process exited with %d' % r)
         finally:
             if paftol.keepTmp:
                 logger.warning('not deleting query scratch file %s', queryScratchFname)
@@ -574,7 +574,7 @@ the caller's responsibility to close it.
 @param exonerateResult: the instance from which to take the row's content
 """
         if self.csvDictWriter is None:
-            raise StandardError, 'illegal state: no DictWriter (close called previously?)'
+            raise StandardError('illegal state: no DictWriter (close called previously?)')
         d = {}
         d['querySeqId'] = None if exonerateResult.querySeq is None else exonerateResult.querySeq.id
         d['targetFname'] = exonerateResult.targetFname

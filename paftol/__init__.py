@@ -13,6 +13,9 @@ import Bio.SeqIO
 import Bio.SeqIO.QualityIO
 import Bio.Alphabet.IUPAC
 
+import Bio.File
+import Bio.SeqIO.FastaIO
+
 import paftol.tools
 
 
@@ -82,17 +85,17 @@ the target genes.
             if not self.allowInvalidBases:
                 setDiff = set(str(targetSr.seq).lower()) - set('acgt')
                 if len(setDiff) != 0:
-                    raise StandardError, 'target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff))
+                    raise StandardError('target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff)))
 
     def isPaired(self):
         return self.reverseFastq is not None
     
     def analyse(self):
-        raise StandardError, 'not implemented in this "abstract" base class'
+        raise StandardError('not implemented in this "abstract" base class')
     
     def setupTmpdir(self):
         if self.tmpDirname is not None:
-            raise StandardError, 'illegal state: already have generated working directory %s' % self.tmpDirname
+            raise StandardError('illegal state: already have generated working directory %s' % self.tmpDirname)
         self.tmpDirname = tempfile.mkdtemp(prefix=self.workDirname)
         os.mkdir(self.makeWorkDirname())
 
@@ -106,7 +109,7 @@ the target genes.
 
     def makeWorkDirname(self):
         if self.tmpDirname is None:
-            raise StandardError, 'illegal state: no temporary directory and hence no working directory'
+            raise StandardError('illegal state: no temporary directory and hence no working directory')
         # logger.debug('tmpDirname = %s, workDirname = %s', self.tmpDirname, self.workDirname)
         return os.path.join(self.tmpDirname, self.workDirname)
     
@@ -126,13 +129,13 @@ the target genes.
     def makeTgz(self):
         if self.workdirTgz is not None:
             if self.tmpDirname is None:
-                raise StandardError, 'illegal state: no temporary directory generated'
+                raise StandardError('illegal state: no temporary directory generated')
             tmpTgz = os.path.join(self.tmpDirname, '%s.tgz' % self.workDirname)
             tgzArgv = ['tar', '-zcf', tmpTgz, self.workDirname]
             tgzProcess = subprocess.Popen(tgzArgv, cwd = self.tmpDirname)
             tgzReturncode = tgzProcess.wait()
             if tgzReturncode != 0:
-                raise StandardError, 'process "%s" returned %d' % (' '.join(tgzArgv), tgzReturncode)
+                raise StandardError('process "%s" returned %d' % (' '.join(tgzArgv), tgzReturncode))
             # FIXME: clumsy to first create tgz in temp dir and then
             # moving it to final destination, compute absolute path to
             # final destination and use that directly?
@@ -176,7 +179,7 @@ to provide fields required for Hyb-Seq analysis only.
         while c != '':
             m = self.cigarElementRe.match(c)
             if m is None:
-                raise StandardError, 'malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c)
+                raise StandardError('malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c))
             e = e + (m.group(2) * int(m.group(1)))
             c = c[len(m.group()):]
         return e
@@ -212,7 +215,7 @@ facilitating handling of multiple genes and multiple organisms.
         self.seqRecord = seqRecord
         self.samAlignmentList = []
         if paftolGene.name in organism.paftolTargetDict or organism.name in paftolGene.paftolTargetDict:
-            raise StandardError, 'duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id)
+            raise StandardError('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
         organism.paftolTargetDict[paftolGene.name] = self
         paftolGene.paftolTargetDict[organism.name] = self
         
@@ -312,30 +315,35 @@ class PaftolTargetSet(object):
         for sr in Bio.SeqIO.parse(fastaHandle, 'fasta'):
             organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
-                raise StandardError, 'bad organism name: %s' % organismName
+                raise StandardError('bad organism name: %s' % organismName)
             if not isSane(geneName):
-                raise StandardError, 'bad gene name: %s' % geneName
+                raise StandardError('bad gene name: %s' % geneName)
             if organismName not in self.organismDict:
                 self.organismDict[organismName] = Organism(organismName)
             if geneName not in self.paftolGeneDict:
                 self.paftolGeneDict[geneName] = PaftolGene(geneName)
             paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
             
-    def writeFasta(self, fastaHandle):
+    def getSeqRecordList(self):
         srList = []
         for organism in self.organismDict.values():
             for paftolTarget in organism.paftolTargetDict.values():
                 srList.append(paftolTarget.seqRecord)
+        return srList
+            
+    def writeFasta(self, fastaHandle):
+        srList = self.getSeqRecordList()
+        sys.stderr.write('writeFasta: writing %d sequences\n' % len(srList))
         Bio.SeqIO.write(srList, fastaHandle, 'fasta')
         
     def addSamAlignment(self, samAlignment):
         organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
         if organismName not in self.organismDict:
-            raise StandardError, 'unknown organism: %s' % organismName
+            raise StandardError('unknown organism: %s' % organismName)
         if geneName not in self.paftolGeneDict:
-            raise standardError, 'unknown gene: %s' % geneName
+            raise StandardError('unknown gene: %s' % geneName)
         if geneName not in self.organismDict[organismName].paftolTargetDict:
-            raise StandardError, 'no entry for gene %s in organism %s' % (geneName, organismName)
+            raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
         paftolTarget.addSamAlignment(samAlignment)
     
@@ -378,40 +386,42 @@ class ReferenceGenome(object):
         
     def scanGenesAth(self):
         if self.genbankFname is None:
-            raise StandardError, 'no GenBank file name, cannot scan genes (ath method)'
+            raise StandardError('no GenBank file name, cannot scan genes (ath method)')
         mrnaFeatureDict = {}
         cdsFeatureDict = {}
         self.geneList = []
         geneDict = {}
-        for seqRecord in Bio.SeqIO.parse(self.genbankFname, 'genbank'):
-            for seqFeature in seqRecord.features:
-                if seqFeature.type == 'gene':
-                    # CHECKME: just presuming that locus_tag qualifier will always be present and have exactly one value
-                    geneId = seqFeature.qualifiers['locus_tag'][0]
-                    if geneId in geneDict:
-                        raise StandardError, 'duplicate gene id: %s' % geneId
-                    gene = ReferenceGene(geneId, self, seqRecord, seqFeature)
-                    self.geneList.append(gene)
-                    geneDict[geneId] = gene
+        with open(self.genbankFname, 'r') as f:
+            for seqRecord in Bio.SeqIO.parse(f, 'genbank'):
+                for seqFeature in seqRecord.features:
+                    if seqFeature.type == 'gene':
+                        # CHECKME: just presuming that locus_tag qualifier will always be present and have exactly one value
+                        geneId = seqFeature.qualifiers['locus_tag'][0]
+                        if geneId in geneDict:
+                            raise StandardError('duplicate gene id: %s' % geneId)
+                        gene = ReferenceGene(geneId, self, seqRecord, seqFeature)
+                        self.geneList.append(gene)
+                        geneDict[geneId] = gene
         # somewhat clumsy to re-scan GenBank file for additional features...
-        for seqRecord in Bio.SeqIO.parse(self.genbankFname, 'genbank'):
-            for seqFeature in seqRecord.features:
-                if seqFeature.type == 'mRNA':
-                    geneId = seqFeature.qualifiers['locus_tag'][0]
-                    if geneId in geneDict:
-                        gene = geneDict[geneId]
-                        if gene.mrnaFeature is not None:
-                            sys.stderr.write('gene %s: duplicate mRNA feature, ignoring\n' % geneId)
-                        else:
-                            gene.mrnaFeature = seqFeature
-                elif seqFeature.type == 'CDS':
-                    geneId = seqFeature.qualifiers['locus_tag'][0]
-                    if geneId in geneDict:
-                        gene = geneDict[geneId]
-                        if gene.cdsFeature is not None:
-                            sys.stderr.write('gene %s: duplicate CDS feature, ignoring\n' % geneId)
-                        else:
-                            gene.cdsFeature = seqFeature
+        with open(self.genbankFname, 'r') as f:
+            for seqRecord in Bio.SeqIO.parse(f, 'genbank'):
+                for seqFeature in seqRecord.features:
+                    if seqFeature.type == 'mRNA':
+                        geneId = seqFeature.qualifiers['locus_tag'][0]
+                        if geneId in geneDict:
+                            gene = geneDict[geneId]
+                            if gene.mrnaFeature is not None:
+                                sys.stderr.write('gene %s: duplicate mRNA feature, ignoring\n' % geneId)
+                            else:
+                                gene.mrnaFeature = seqFeature
+                    elif seqFeature.type == 'CDS':
+                        geneId = seqFeature.qualifiers['locus_tag'][0]
+                        if geneId in geneDict:
+                            gene = geneDict[geneId]
+                            if gene.cdsFeature is not None:
+                                sys.stderr.write('gene %s: duplicate CDS feature, ignoring\n' % geneId)
+                            else:
+                                gene.cdsFeature = seqFeature
 
     def scanGenes(self, scanMethod):
         """Populate C{self.geneList} by scanning an appropriate file.
@@ -428,7 +438,7 @@ conventions may be added.
         if scanMethod == 'ath':
             self.scanGenesAth()
         else:
-            raise StandardError, 'unknown gene scan method: %s' % scanMethod
+            raise StandardError('unknown gene scan method: %s' % scanMethod)
         
     def findGenesByHsp(self, hspAccession, hsp):
         """Find genes that contain a given HSP.
@@ -440,12 +450,44 @@ conventions may be added.
         return geneList
 
     def blastTargetSet(self, paftolTargetSet):
-        blastnArgs = ['blastn', '-db', self.fastaFname, '-outfmt', '5']
-        blastnProcess = subprocess.Popen(blastnArgs, stdin=subprocess.PIPE, stdout = subprocess.PIPE)
+        blastnArgv = ['blastn', '-db', self.fastaFname, '-outfmt', '5']
+        # blastnArgv = ['tee', 'tee.txt']
+        logger.debug('%s', ' '.join(blastnArgv))
+        blastnProcess = subprocess.Popen(blastnArgv, stdin=subprocess.PIPE, stdout = subprocess.PIPE)
+        subprocess.call(['lsof', '-p', '%d' % os.getpid()])
+        # blastnProcess.stdin.flush()
         pid = os.fork()
         if pid == 0:
+            # reload(Bio.SeqIO)
             blastnProcess.stdout.close()
-            paftolTargetSet.writeFasta(blastnProcess.stdin)
+            # paftolTargetSet.writeFasta(sys.stderr)
+            # srList = paftolTargetSet.getSeqRecordList()
+            # sys.stderr.write('target set has %d seqRecords\n' % len(srList))
+            sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('A'), id = 'srDummy', description = '')
+            # sq = Bio.Seq.Seq('A')
+            # s = str(sr.seq)
+            # Bio.SeqIO.write([sr], sys.stderr, 'fasta')
+            # sys.stderr.write(sr.format('fasta'))
+            # for i in xrange(333):
+            #     sys.stderr.write('>dummy\n')
+            #     for j in xrange(10):
+            #         sys.stderr.write('%s\n' % ('A' * 60))
+            # with Bio.File.as_handle(sys.stderr) as h:
+                # sys.stderr.write('biopython version: %s\n' % Bio.__version__)
+                # sys.stderr.write('handle of sys.stderr: %s\n' % str(h))
+                # w = Bio.SeqIO.FastaIO.FastaWriter(h)
+                # sys.stderr.write('writer: %s\n' % str(w))
+                # w.write_file([sr])
+                # w.write_header()
+                # w.write_records([sr])
+                # w.handle.write('>someseq\n')
+                # s = str(sr.seq)
+                # w.handle.write(str(sr.seq) + '\n')
+                # w.handle.write(sr.format('fasta'))
+            # x = sr.format('fasta')
+            # paftolTargetSet.writeFasta(blastnProcess.stdin)
+            for sr in paftolTargetSet.getSeqRecordList():
+                blastnProcess.stdin.write(sr.format('fasta'))
             blastnProcess.stdin.close()
             os._exit(0)
         blastnProcess.stdin.close()
@@ -453,7 +495,7 @@ conventions may be added.
         for blastRecord in Bio.Blast.NCBIXML.parse(blastnProcess.stdout):
             targetId = blastRecord.query
             if targetId in targetIdToGeneDict:
-                raise StandardError, 'duplicate BLAST record for target %s' % targetId
+                raise StandardError('duplicate BLAST record for target %s' % targetId)
             geneList = []
             for blastAlignment in blastRecord.alignments:
                 for hsp in blastAlignment.hsps:
@@ -464,12 +506,12 @@ conventions may be added.
         blastnProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+            raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
         if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
+            raise StandardError('wait on forked process returned %d' % wExit)
         blastnReturncode = blastnProcess.wait()
         if blastnReturncode != 0:
-            raise StandardError, 'blastn process exited with %d' % blastnReturncode
+            raise StandardError('blastn process exited with %d' % blastnReturncode)
         return targetIdToGeneDict
 
 
@@ -510,7 +552,7 @@ of developing this).
         
     def initPaftolTargetDicts(self):
         if self.targetsSourcePath is None:
-            raise StandardError, 'illegal state: cannot init organism and gene dicts with targetsSourcePath = None'
+            raise StandardError('illegal state: cannot init organism and gene dicts with targetsSourcePath = None')
         self.paftolTargetSet = PaftolTargetSet()
         self.paftolTargetSet.readFasta(self.targetsSourcePath)
         logger.info('%s organisms, %s genes' % (len(self.paftolTargetSet.organismDict), len(self.paftolTargetSet.paftolGeneDict)))
@@ -519,7 +561,7 @@ of developing this).
     def setup(self):
         logger.debug('setting up')
         if self.targetsSourcePath is None:
-            raise StandardError, 'illegal state: cannot set up with targetsSourcePath = None'
+            raise StandardError('illegal state: cannot set up with targetsSourcePath = None')
         self.setupTmpdir()
         shutil.copy(self.targetsSourcePath, self.makeTargetsFname(True))
             
@@ -561,9 +603,9 @@ of developing this).
         bwaReturncode = bwaProcess.wait()
         samtoolsReturncode = samtoolsProcess.wait()
         if bwaReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode)
+            raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
         if samtoolsReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode)
+            raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
     
     def setRepresentativeGenes(self):
         """Roughly equivalent to "distribute targets" in HybPiper."""
@@ -608,7 +650,7 @@ of developing this).
             # rest of reverse ignored
             revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
             if readName != revReadTitle.split()[0]:
-                raise StandardError, 'paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle)
+                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle))
             for paftolGene in self.paftolTargetSet.paftolGeneDict.values():
                 if readName in paftolGene.qnameSet():
                     f = open(self.makeGeneFname(paftolGene.name, True), 'a')
@@ -657,12 +699,12 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         parallelSpadesProcess.stdin.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+            raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
         if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
+            raise StandardError('wait on forked process returned %d' % wExit)
         parallelSpadesReturncode = parallelSpadesProcess.wait()
         if parallelSpadesReturncode != 0:
-            raise StandardError, 'parallel spades process exited with %d' % parallelSpadesReturncode
+            raise StandardError('parallel spades process exited with %d' % parallelSpadesReturncode)
         
     def makeGeneDirname(self, geneName):
         return 'spades-%s' % geneName
@@ -692,7 +734,7 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         spadesProcess = subprocess.Popen(spadesArgv, cwd = self.makeWorkDirname())
         spadesReturncode = spadesProcess.wait()
         if spadesReturncode != 0:
-            # raise StandardError, 'spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode)
+            # raise StandardError('spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode))
             logger.warning('spades process "%s" exited with %d', ' '.join(spadesArgv), spadesReturncode)
         spadesContigFname = os.path.join(self.makeGeneDirPath(geneName), 'contigs.fasta')
         # logger.debug('spadesContigFname: %s', spadesContigFname)
@@ -735,14 +777,14 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
                 return True
             # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
             if exonerateResult.targetId is None:
-                raise StandardError, 'cannot break tie when exonerateResult.targetId is None'
+                raise StandardError('cannot break tie when exonerateResult.targetId is None')
             if other.targetId is None:
-                raise StandardError, 'cannot break tie when other.targetId is None'
+                raise StandardError('cannot break tie when other.targetId is None')
             if exonerateResult.targetId < other.targetId:
                 return False
             elif other.targetId < exonerateResult.targetId:
                 return True
-            raise StandardError, 'cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other))
+            raise StandardError('cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
             
         nonContainedExonerateResultList = []
         for exonerateResult in exonerateResultList:
@@ -780,9 +822,9 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
     def reconstructCds(self, geneName):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if self.representativePaftolTargetDict is None:
-            raise StandardError, 'illegal state: no represesentative genes'
+            raise StandardError('illegal state: no represesentative genes')
         if self.representativePaftolTargetDict[geneName] is None:
-            raise StandardError, 'no representative for gene %s' % geneName
+            raise StandardError('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.assembleGeneSpades(geneName)
         if contigList is None:

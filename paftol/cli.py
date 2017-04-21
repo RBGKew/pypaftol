@@ -4,6 +4,8 @@ import logging
 
 import Bio
 import Bio.SeqIO
+import Bio.Seq
+import Bio.SeqRecord
 
 import paftol
 
@@ -37,6 +39,12 @@ def runHybpiper(argNamespace):
 
         
 def runTargetGeneScan(argNamespace):
+    
+    def writeTargetGeneScanCsv(f, targetIdToGenedict):
+        for targetId in targetIdToGeneDict:
+            for geneId in targetIdToGeneDict[targetId]:
+                f.write('%s,%s\n' % (targetId, geneId))
+
     paftolTargetSet = paftol.PaftolTargetSet()
     if argNamespace.targetsfile is None:
         paftolTargetSet.readFasta(sys.stdin)
@@ -50,6 +58,12 @@ def runTargetGeneScan(argNamespace):
     targetIdToGeneDict = referenceGenome.blastTargetSet(paftolTargetSet)
     for targetId in targetIdToGeneDict:
         sys.stderr.write('%s: %s\n' % (targetId, ', '.join([gene.geneId for gene in targetIdToGeneDict[targetId]])))
+    if argNamespace.outfile is None:
+        writeTargetGeneScanCsv(sys.stdout, targetIdToGeneDict)
+    else:
+        with open(argNamespace.outfile, 'w') as csvFile:
+            writeTargetGeneScanCsv(csvFile, targetIdToGeneDict)
+            
     
     
 
@@ -94,11 +108,12 @@ def addTargetGeneScanParser(subparsers):
     p.add_argument('-g', '--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
+    p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runTargetGeneScan)
     
     
 def showArgs(args):
-    print args
+    sys.stderr.write('%s\n' % str(args))
 
 
 def paftoolsMain():
@@ -117,6 +132,6 @@ def paftoolsMain():
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
         if loglevel is None:
-            raise ValueError, 'invalid log level: %s' % args.loglevel
+            raise ValueError('invalid log level: %s' % args.loglevel)
         logging.getLogger().setLevel(loglevel)
     args.func(args)
