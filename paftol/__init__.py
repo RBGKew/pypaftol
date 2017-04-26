@@ -12,6 +12,8 @@ import Bio
 import Bio.SeqIO
 import Bio.SeqIO.QualityIO
 import Bio.Alphabet.IUPAC
+import Bio.Blast
+import Bio.Blast.NCBIXML
 
 import Bio.File
 import Bio.SeqIO.FastaIO
@@ -453,6 +455,8 @@ conventions may be added.
         blastnArgv = ['blastn', '-db', self.fastaFname, '-outfmt', '5']
         # blastnArgv = ['tee', 'tee.txt']
         logger.debug('%s', ' '.join(blastnArgv))
+        sys.stderr.flush()
+        sys.stdout.flush()
         blastnProcess = subprocess.Popen(blastnArgv, stdin=subprocess.PIPE, stdout = subprocess.PIPE)
         subprocess.call(['lsof', '-p', '%d' % os.getpid()])
         # blastnProcess.stdin.flush()
@@ -485,9 +489,9 @@ conventions may be added.
                 # w.handle.write(str(sr.seq) + '\n')
                 # w.handle.write(sr.format('fasta'))
             # x = sr.format('fasta')
-            # paftolTargetSet.writeFasta(blastnProcess.stdin)
-            for sr in paftolTargetSet.getSeqRecordList():
-                blastnProcess.stdin.write(sr.format('fasta'))
+            paftolTargetSet.writeFasta(blastnProcess.stdin)
+            # for sr in paftolTargetSet.getSeqRecordList():
+            #     blastnProcess.stdin.write(sr.format('fasta'))
             blastnProcess.stdin.close()
             os._exit(0)
         blastnProcess.stdin.close()
