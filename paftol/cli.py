@@ -42,8 +42,8 @@ def runTargetGeneScan(argNamespace):
     
     def writeTargetGeneScanCsv(f, targetIdToGenedict):
         for targetId in targetIdToGeneDict:
-            for geneId in targetIdToGeneDict[targetId]:
-                f.write('%s,%s\n' % (targetId, geneId))
+            for gene in targetIdToGeneDict[targetId]:
+                f.write('%s,%s\n' % (targetId, gene.geneId))
 
     paftolTargetSet = paftol.PaftolTargetSet()
     if argNamespace.targetsfile is None:
