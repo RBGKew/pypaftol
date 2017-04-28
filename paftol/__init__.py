@@ -30,7 +30,7 @@ def isSane(filename):
     """Check whether a file name is sane, in the sense that it does not contain any "funny" characters"""
     if filename == '':
         return False
-    funnyCharRe = re.compile('\t/ ;,$#')
+    funnyCharRe = re.compile('[\t/ ;,$#]')
     m = funnyCharRe.search(filename)
     if m is not None:
         return False
@@ -54,6 +54,62 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
     elif e1.queryAlignmentStart > e2.queryAlignmentStart:
         return 1
     return 0
+
+
+class DataFrame(object):
+    
+    def __init__(self, columnHeaderList):
+        self.columnHeaderList = columnHeaderList[:]
+        self.rowDictList = []
+        
+    def addRow(self, rowDict):
+        if set(rowDict.keys()) != set(self.columnHeaderList):
+            raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
+        self.rowDictList.append(rowDict)
+        
+    def writeCsv(self, f):
+        csvDictWriter = csv.DictWriter(f, self.columnHeaderList)
+        csvDictWriter.writeheader()
+        for rowDict in self.rowDictList:
+            csvDictWriter.writerow(rowDict)
+            
+
+class BwaParams(object):
+    """Hold parameters for C{bwa} and provide argument vectors on that basis.
+    
+@ivar numThreads: BWA number of threads (C{-t} option)
+@type numThreads: C{int}
+@ivar minSeedLength: BWA minimum seed length (C{-k} option)
+@type minSeedLength: C{int}
+@ivar scoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
+@type scoreThreshold: C{int}
+@ivar reseedTrigger: BWA re-seed trigger (C{-r} option)
+@type scoreThreshold: C{float}
+"""
+    def __init__(self, numThreads=None, minSeedLength=None, scoreThreshold=None, reseedTrigger=None):
+        self.numThreads = numThreads
+        self.minSeedLength = minSeedLength
+        self.scoreThreshold = scoreThreshold
+        self.reseedTrigger = reseedTrigger
+        
+    def mappingMemArgv(self, referenceFname, forwardReadsFname, reverseReadsFname=None):
+        argv = ['bwa', 'mem', '-M']
+        if self.minSeedLength is not None:
+            argv.extend(['-k', '%d' % self.minSeedLength])
+        if self.reseedTrigger is not None:
+            argv.extend(['-r', '%f' % self.reseedTrigger])
+        if self.scoreThreshold is not None:
+            argv.extend(['-T', '%d' % self.scoreThreshold])
+        if self.numThreads is not None:
+            argv.extend(['-t', '%d' % self.numThreads])
+        argv.append(referenceFname)
+        argv.append(forwardReadsFname)
+        if reverseReadsFname is not None:
+            argv.append(reverseReadsFname)
+        return argv
+    
+    def referenceIndexArgv(self, referenceFname):
+        return ['bwa', 'index', referenceFname]
 
 
 # FIXME: use abc for this class?
@@ -153,6 +209,8 @@ to provide fields required for Hyb-Seq analysis only.
 @type qname: C{str}
 @ivar rname: SAM reference name (C{RNAME})
 @type rname: C{str}
+@ivar pos: SAM mapping position (C{POS})
+@type pos: C{int}
 @ivar mapq: SAM mapping quality (C{MAPQ})
 @type mapq: C{int}
 @ivar cigar: SAM CIGAR string (unexpanded) (C{CIGAR})
@@ -169,9 +227,17 @@ to provide fields required for Hyb-Seq analysis only.
         w = samLine.split('\t')
         self.qname = w[0]
         self.rname = w[2]
+        self.pos = int(w[3])
         self.mapq = int(w[4])
         self.cigar = w[5]
         self.seq = w[9]
+        
+    def getMatchLength(self):
+        e = self.expandedCigar()
+        return e.count('M') + e.count('D')
+
+    def getEndpos(self):
+        return self.pos + self.getMatchLength()
     
     def expandedCigar(self):
         if self.cigar is None:
@@ -352,13 +418,13 @@ class PaftolTargetSet(object):
     
 class ReferenceGene(object):
     
-    def __init__(self, geneId, referenceGenome, seqRecord, geneFeature, mrnaFeature=None, cdsFeature=None):
+    def __init__(self, geneId, referenceGenome, seqRecord, geneFeature, mrnaFeatureList=None, cdsFeatureList=None):
         self.geneId = geneId
         self.referenceGenome = referenceGenome
         self.seqRecord = seqRecord
         self.geneFeature = geneFeature
-        self.mrnaFeature = mrnaFeature
-        self.cdsFeature = cdsFeature
+        self.mrnaFeatureList = [] if mrnaFeatureList is None else mrnaFeatureList[:]
+        self.cdsFeatureList = [] if cdsFeatureList is None else cdsFeatureList[:]
         
     def getSequenceId(self):
         return self.seqRecord.id.split('.')[0]
@@ -367,6 +433,11 @@ class ReferenceGene(object):
         if self.getSequenceId() != hspAccession:
             return False
         return self.geneFeature.location.start <= hsp.sbjct_start and self.geneFeature.location.end >= hsp.sbjct_end
+    
+    def containsSamAlignment(self, samAlignment):
+        if self.getSequenceId() != samAlignment.rname:
+            return False
+        return self.geneFeature.location.start <= samAlignment.pos and self.geneFeature.location.end >= samAlignment.getEndpos()
                 
     
 class ReferenceGenome(object):
@@ -411,19 +482,11 @@ class ReferenceGenome(object):
                     if seqFeature.type == 'mRNA':
                         geneId = seqFeature.qualifiers['locus_tag'][0]
                         if geneId in geneDict:
-                            gene = geneDict[geneId]
-                            if gene.mrnaFeature is not None:
-                                sys.stderr.write('gene %s: duplicate mRNA feature, ignoring\n' % geneId)
-                            else:
-                                gene.mrnaFeature = seqFeature
+                            geneDict[geneId].mrnaFeatureList.append(seqFeature)
                     elif seqFeature.type == 'CDS':
                         geneId = seqFeature.qualifiers['locus_tag'][0]
                         if geneId in geneDict:
-                            gene = geneDict[geneId]
-                            if gene.cdsFeature is not None:
-                                sys.stderr.write('gene %s: duplicate CDS feature, ignoring\n' % geneId)
-                            else:
-                                gene.cdsFeature = seqFeature
+                            geneDict[geneId].cdsFeatureList.append(seqFeature)
 
     def scanGenes(self, scanMethod):
         """Populate C{self.geneList} by scanning an appropriate file.
@@ -458,7 +521,7 @@ conventions may be added.
         # sys.stderr.flush()
         # sys.stdout.flush()
         blastnProcess = subprocess.Popen(blastnArgv, stdin=subprocess.PIPE, stdout = subprocess.PIPE)
-        subprocess.call(['lsof', '-p', '%d' % os.getpid()])
+        # subprocess.call(['lsof', '-p', '%d' % os.getpid()])
         # blastnProcess.stdin.flush()
         pid = os.fork()
         if pid == 0:
@@ -490,6 +553,7 @@ conventions may be added.
                 # w.handle.write(sr.format('fasta'))
             # x = sr.format('fasta')
             # paftolTargetSet.writeFasta(blastnProcess.stdin)
+            # FIXME: generating FASTA string and writing that manually to work around unresolved broken pipe issue
             for sr in paftolTargetSet.getSeqRecordList():
                 blastnProcess.stdin.write(sr.format('fasta'))
             blastnProcess.stdin.close()
@@ -517,8 +581,53 @@ conventions may be added.
         if blastnReturncode != 0:
             raise StandardError('blastn process exited with %d' % blastnReturncode)
         return targetIdToGeneDict
+    
+    def findGeneIdForSamAlignment(self, samAlignment):
+        # FIXME: clumsy linear search
+        for gene in self.geneList:
+            if gene.containsSamAlignment(samAlignment):
+                return gene.geneId
 
+    def mapReadsStatsBwaMem(self, forwardReadsFname, reverseReadsFname=None, bwaParams=None):
+        if bwaParams is None:
+            bwaParams = BwaParams()
+        bwaArgv = bwaParams.mappingMemArgv(self.fastaFname, forwardReadsFname, reverseReadsFname)
+        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
+        logger.debug('%s', ' '.join(bwaArgv))
+        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE)
+        logger.debug('%s', ' '.join(samtoolsArgv))
+        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE)
+        samLine = samtoolsProcess.stdout.readline()
+        dataFrame = DataFrame(['geneId', 'numHits'])
+        dfRowDict = {}
+        for gene in self.geneList:
+            dfRow = {'geneId': gene.geneId, 'numHits': 0}
+            dfRowDict[gene.geneId] = dfRow
+            dataFrame.addRow(dfRow)
+        intergenicId = 'intergenic'
+        dfRow = {'geneId': intergenicId, 'numHits': 0}
+        dfRowDict[intergenicId] = dfRow
+        dataFrame.addRow(dfRow)
+        while samLine != '':
+            # logger.debug(samLine)
+            if samLine[0] != '@':
+                samAlignment = SamAlignment(samLine)
+                geneId = self.findGeneIdForSamAlignment(samAlignment)
+                if geneId is None:
+                    geneId = intergenicId
+                dfRowDict[geneId]['numHits'] = dfRowDict[geneId]['numHits'] + 1
+            samLine = samtoolsProcess.stdout.readline()
+        bwaProcess.stdout.close()
+        samtoolsProcess.stdout.close()
+        bwaReturncode = bwaProcess.wait()
+        samtoolsReturncode = samtoolsProcess.wait()
+        if bwaReturncode != 0:
+            raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
+        if samtoolsReturncode != 0:
+            raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
+        return dataFrame
 
+        
 class HybpiperAnalyser(HybseqAnalyser):
     """L{HybseqAnalyser} subclass that implements an analysis process
 close to the HybPiper pipeline.
@@ -528,14 +637,6 @@ variables as documented below. Defaults of these parameters correspond
 to the defaults provided by BWA and SPAdes, respectively (at the time
 of developing this).
 
-@ivar bwaNumThreads: BWA number of threads (C{-t} option)
-@type bwaNumThreads: C{int}
-@ivar bwaMinSeedLength: BWA minimum seed length (C{-k} option)
-@type bwaMinSeedLength: C{int}
-@ivar bwaScoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
-@type bwaScoreThreshold: C{int}
-@ivar bwaReseedTrigger: BWA re-seed trigger (C{-r} option)
-@type bwaScoreThreshold: C{float}
 @ivar spadesCovCutoff: SPAdes coverage cutoff (C{--cov-cutoff} option)
 @type spadesCovCutoff: C{int}
 @ivar spadesKvalList: SPAdes oligomer length value list (C{-k} option)
@@ -573,11 +674,13 @@ of developing this).
         self.cleanupTmpdir()
     
     def bwaIndexReference(self, referenceFname):
+        # FIXME: replace with BwaParams
         bwaIndexArgv = ['bwa', 'index', referenceFname]
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
     def makeBwaMemArgv(self, referenceFname, fastqArgs):
+        # FIXME: replace with BwaParams
         return ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, referenceFname] + fastqArgs
         
     def mapReadsBwa(self):
@@ -585,6 +688,7 @@ of developing this).
 """
         logger.debug('mapping reads to gene sequences')
         self.bwaIndexReference(self.makeTargetsFname(True))
+        # FIXME: replace with BwaParams
         fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
         if self.reverseFastq is not None:
             fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))

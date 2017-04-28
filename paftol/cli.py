@@ -64,8 +64,17 @@ def runTargetGeneScan(argNamespace):
         with open(argNamespace.outfile, 'w') as csvFile:
             writeTargetGeneScanCsv(csvFile, targetIdToGeneDict)
             
-    
-    
+            
+def runGenomeReadScan(argNamespace):
+    referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
+    referenceGenome.scanGenes(argNamespace.scanMethod)
+    statsTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads)
+    if argNamespace.outfile is None:
+        statsTable.writeCsv(sys.stdout)
+    else:
+        with open(argNamespace.outfile, 'w') as csvFile:
+            statsTable.writeCsv(csvFile)
+
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev')
@@ -112,6 +121,17 @@ def addTargetGeneScanParser(subparsers):
     p.set_defaults(func=runTargetGeneScan)
     
     
+def addGenomeReadScanParser(subparsers):
+    p = subparsers.add_parser('readscan')
+    p.add_argument('--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
+    p.add_argument('--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
+    p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
+    p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
+    p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+    p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
+    p.set_defaults(func=runGenomeReadScan)
+    
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -128,6 +148,7 @@ def paftoolsMain():
     addHybseqParser(subparsers)
     addHybpiperParser(subparsers)
     addTargetGeneScanParser(subparsers)
+    addGenomeReadScanParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
