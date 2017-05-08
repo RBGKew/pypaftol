@@ -39,12 +39,6 @@ def runHybpiper(argNamespace):
 
         
 def runTargetGeneScan(argNamespace):
-    
-    def writeTargetGeneScanCsv(f, targetIdToGenedict):
-        for targetId in targetIdToGeneDict:
-            for gene in targetIdToGeneDict[targetId]:
-                f.write('%s,%s\n' % (targetId, gene.geneId))
-
     paftolTargetSet = paftol.PaftolTargetSet()
     if argNamespace.targetsfile is None:
         paftolTargetSet.readFasta(sys.stdin)
@@ -55,14 +49,12 @@ def runTargetGeneScan(argNamespace):
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
     sys.stderr.write('read reference genome and scanned %d genes\n' % len(referenceGenome.geneList))
-    targetIdToGeneDict = referenceGenome.blastTargetSet(paftolTargetSet)
-    for targetId in targetIdToGeneDict:
-        sys.stderr.write('%s: %s\n' % (targetId, ', '.join([gene.geneId for gene in targetIdToGeneDict[targetId]])))
+    targetGeneTable = referenceGenome.blastTargetSet(paftolTargetSet)
     if argNamespace.outfile is None:
-        writeTargetGeneScanCsv(sys.stdout, targetIdToGeneDict)
+        targetGeneTable.writeCsv(sys.stdout)
     else:
         with open(argNamespace.outfile, 'w') as csvFile:
-            writeTargetGeneScanCsv(csvFile, targetIdToGeneDict)
+            targetGeneTable.writeCsv(csvFile)
             
             
 def runGenomeReadScan(argNamespace):

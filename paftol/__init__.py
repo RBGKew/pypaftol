@@ -439,7 +439,33 @@ class ReferenceGene(object):
             return False
         return self.geneFeature.location.start <= samAlignment.pos and self.geneFeature.location.end >= samAlignment.getEndpos()
                 
-    
+    def getGeneName(self):
+        if 'name' in self.geneFeature.qualifiers:
+            return self.geneFeature.qualifiers['name'][0]
+        else:
+            return None
+                
+    def getGeneNote(self):
+        if 'note' in self.geneFeature.qualifiers:
+            return self.geneFeature.qualifiers['note'][0]
+        else:
+            return None
+        
+    def getMrnaProduct(self):
+        # CHECKME: returning 'product' qualifier value from feature with that qualifier -- may be more thorough to check that all are the same?
+        for mrnaFeature in self.mrnaFeatureList:
+            if 'product' in mrnaFeature.qualifiers:
+                return mrnaFeature.qualifiers['product'][0]
+        return None
+        
+    def getCdsProduct(self):
+        # CHECKME: returning 'product' qualifier value from feature with that qualifier -- may be more thorough to check that all are the same?
+        for cdsFeature in self.cdsFeatureList:
+            if 'product' in cdsFeature.qualifiers:
+                return cdsFeature.qualifiers['product'][0]
+        return None
+
+
 class ReferenceGenome(object):
     """Represent a reference genome, provided via FASTA and GenBank files (possibly both).
 
@@ -559,7 +585,9 @@ conventions may be added.
             blastnProcess.stdin.close()
             os._exit(0)
         blastnProcess.stdin.close()
+        # dict solely serves to check for duplicate BLAST records
         targetIdToGeneDict = {}
+        targetGeneTable = DataFrame(['targetId', 'geneId', 'geneName', 'geneNote', 'mrnaProduct', 'cdsProduct'])
         for blastRecord in Bio.Blast.NCBIXML.parse(blastnProcess.stdout):
             targetId = blastRecord.query
             if targetId in targetIdToGeneDict:
@@ -569,6 +597,14 @@ conventions may be added.
                 for hsp in blastAlignment.hsps:
                     for gene in self.findGenesByHsp(blastAlignment.accession, hsp):
                         if gene not in geneList:
+                            dfRow = {}
+                            dfRow['targetId'] = targetId
+                            dfRow['geneId'] = gene.geneId
+                            dfRow['geneName'] = gene.getGeneName()
+                            dfRow['geneNote'] = gene.getGeneNote()
+                            dfRow['mrnaProduct'] = gene.getMrnaProduct()
+                            dfRow['cdsProduct'] = gene.getCdsProduct()
+                            targetGeneTable.addRow(dfRow)
                             geneList.append(gene)
             targetIdToGeneDict[targetId] = geneList
         blastnProcess.stdout.close()
@@ -580,7 +616,7 @@ conventions may be added.
         blastnReturncode = blastnProcess.wait()
         if blastnReturncode != 0:
             raise StandardError('blastn process exited with %d' % blastnReturncode)
-        return targetIdToGeneDict
+        return targetGeneTable
     
     def findGeneIdForSamAlignment(self, samAlignment):
         # FIXME: clumsy linear search
@@ -599,6 +635,7 @@ conventions may be added.
         samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE)
         samLine = samtoolsProcess.stdout.readline()
         dataFrame = DataFrame(['geneId', 'numHits'])
+        # FIXME: should not add row and then change it via dfRowDict -- better to finish dfRowDict and then construct DataFrame
         dfRowDict = {}
         for gene in self.geneList:
             dfRow = {'geneId': gene.geneId, 'numHits': 0}
