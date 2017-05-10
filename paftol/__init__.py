@@ -84,7 +84,7 @@ class BwaParams(object):
 @ivar scoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
 @type scoreThreshold: C{int}
 @ivar reseedTrigger: BWA re-seed trigger (C{-r} option)
-@type scoreThreshold: C{float}
+@type reseedTrigger: C{float}
 """
     def __init__(self, numThreads=None, minSeedLength=None, scoreThreshold=None, reseedTrigger=None):
         self.numThreads = numThreads
@@ -112,7 +112,6 @@ class BwaParams(object):
         return ['bwa', 'index', referenceFname]
 
 
-# FIXME: use abc for this class?
 class HybseqAnalyser(object):
     """Base class for Hybseq analysers.
     
@@ -209,6 +208,8 @@ to provide fields required for Hyb-Seq analysis only.
 @type qname: C{str}
 @ivar rname: SAM reference name (C{RNAME})
 @type rname: C{str}
+@ivar flag: SAM flag (C{FLAG})
+@type flag: C{int}
 @ivar pos: SAM mapping position (C{POS})
 @type pos: C{int}
 @ivar mapq: SAM mapping quality (C{MAPQ})
@@ -226,11 +227,15 @@ to provide fields required for Hyb-Seq analysis only.
             samLine = samLine[:-1]
         w = samLine.split('\t')
         self.qname = w[0]
+        self.flag = int(w[1])
         self.rname = w[2]
         self.pos = int(w[3])
         self.mapq = int(w[4])
         self.cigar = w[5]
         self.seq = w[9]
+        
+    def isMapped(self):
+        return self.flag & 4 == 0
         
     def getMatchLength(self):
         e = self.expandedCigar()
@@ -434,6 +439,9 @@ class ReferenceGene(object):
             return False
         return self.geneFeature.location.start <= hsp.sbjct_start and self.geneFeature.location.end >= hsp.sbjct_end
     
+    def getLength(self):
+        return abs(self.geneFeature.location.end - self.geneFeature.location.start)
+    
     def containsSamAlignment(self, samAlignment):
         if self.getSequenceId() != samAlignment.rname:
             return False
@@ -482,6 +490,7 @@ class ReferenceGenome(object):
         self.fastaFname = fastaFname
         self.genbankFname = genbankFname
         self.geneList = None
+        self.genomeLength = None
         
     def scanGenesAth(self):
         if self.genbankFname is None:
@@ -489,9 +498,11 @@ class ReferenceGenome(object):
         mrnaFeatureDict = {}
         cdsFeatureDict = {}
         self.geneList = []
+        self.genomeLength = 0
         geneDict = {}
         with open(self.genbankFname, 'r') as f:
             for seqRecord in Bio.SeqIO.parse(f, 'genbank'):
+                self.genomeLength = self.genomeLength + len(seqRecord)
                 for seqFeature in seqRecord.features:
                     if seqFeature.type == 'gene':
                         # CHECKME: just presuming that locus_tag qualifier will always be present and have exactly one value
@@ -628,40 +639,51 @@ conventions may be added.
         if bwaParams is None:
             bwaParams = BwaParams()
         bwaArgv = bwaParams.mappingMemArgv(self.fastaFname, forwardReadsFname, reverseReadsFname)
-        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
+        # FIXME: tidy up samtools related stuff (filtering now done in loop below)
+        # samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE)
-        logger.debug('%s', ' '.join(samtoolsArgv))
-        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE)
-        samLine = samtoolsProcess.stdout.readline()
-        dataFrame = DataFrame(['geneId', 'numHits'])
+        # logger.debug('%s', ' '.join(samtoolsArgv))
+        # samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE)
         # FIXME: should not add row and then change it via dfRowDict -- better to finish dfRowDict and then construct DataFrame
         dfRowDict = {}
+        intergenicLength = self.genomeLength
         for gene in self.geneList:
-            dfRow = {'geneId': gene.geneId, 'numHits': 0}
-            dfRowDict[gene.geneId] = dfRow
-            dataFrame.addRow(dfRow)
+            geneLength = gene.getLength()
+            dfRowDict[gene.geneId] = {'geneId': gene.geneId, 'geneLength': geneLength, 'numHits': 0}
+            if intergenicLength is not None:
+                intergenicLength = intergenicLength - geneLength
         intergenicId = 'intergenic'
-        dfRow = {'geneId': intergenicId, 'numHits': 0}
-        dfRowDict[intergenicId] = dfRow
-        dataFrame.addRow(dfRow)
+        dfRowDict[intergenicId] = {'geneId': intergenicId, 'geneLength': intergenicLength, 'numHits': 0}
+        unmappedId = 'unmapped'
+        dfRowDict[unmappedId] = {'geneId': unmappedId, 'geneLength': None, 'numHits': 0}
+        # samLine = samtoolsProcess.stdout.readline()
+        samLine = bwaProcess.stdout.readline()
         while samLine != '':
             # logger.debug(samLine)
             if samLine[0] != '@':
                 samAlignment = SamAlignment(samLine)
-                geneId = self.findGeneIdForSamAlignment(samAlignment)
-                if geneId is None:
-                    geneId = intergenicId
+                if samAlignment.isMapped():
+                    geneId = self.findGeneIdForSamAlignment(samAlignment)
+                    if geneId is None:
+                        geneId = intergenicId
+                else:
+                    geneId = unmappedId
                 dfRowDict[geneId]['numHits'] = dfRowDict[geneId]['numHits'] + 1
-            samLine = samtoolsProcess.stdout.readline()
+            samLine = bwaProcess.stdout.readline()
         bwaProcess.stdout.close()
-        samtoolsProcess.stdout.close()
+        # samtoolsProcess.stdout.close()
         bwaReturncode = bwaProcess.wait()
-        samtoolsReturncode = samtoolsProcess.wait()
+        # samtoolsReturncode = samtoolsProcess.wait()
         if bwaReturncode != 0:
             raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
-        if samtoolsReturncode != 0:
-            raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
+        # if samtoolsReturncode != 0:
+        #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
+        dataFrame = DataFrame(['geneId', 'geneLength', 'numHits'])
+        for gene in self.geneList:
+            dataFrame.addRow(dfRowDict[gene.geneId])
+        dataFrame.addRow(dfRowDict[intergenicId])
+        dataFrame.addRow(dfRowDict[unmappedId])
         return dataFrame
 
         

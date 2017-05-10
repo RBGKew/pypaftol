@@ -58,9 +58,14 @@ def runTargetGeneScan(argNamespace):
             
             
 def runGenomeReadScan(argNamespace):
+    bwaParams = paftol.BwaParams()
+    bwaParams.numThreads = argNamespace.bwaNumThreads
+    bwaParams.minSeedLength = argNamespace.bwaMinSeedLength
+    bwaParams.scoreThreshold = argNamespace.bwaScoreThreshold
+    bwaParams.reseedTrigger = argNamespace.bwaReseedTrigger
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
-    statsTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads)
+    statsTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaParams=bwaParams)
     if argNamespace.outfile is None:
         statsTable.writeCsv(sys.stdout)
     else:
@@ -120,6 +125,10 @@ def addGenomeReadScanParser(subparsers):
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+    p.add_argument('--bwaNumThreads', type=int, help='BWA number of threads')
+    p.add_argument('--bwaMinSeedLength', type=int, help='BWA minimum seed length (k)')
+    p.add_argument('--bwaScoreThreshold', type=int, help='BWA score threshold')
+    p.add_argument('--bwaReseedTrigger', type=float, help='BWA reseed trigger')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)
     
