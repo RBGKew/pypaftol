@@ -8,7 +8,22 @@ import Bio.Seq
 import Bio.SeqRecord
 
 import paftol
+    
+    
+def addBwaParamsToParser(p):
+    p.add_argument('--bwaNumThreads', type=int, help='set number of threads for BWA (see bwa mem -t)')
+    p.add_argument('--bwaMinSeedLength', type=int, help='set minimum seed length for BWA (see bwa mem -k)')
+    p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
+    p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
 
+
+def argToBwaParams(argNamespace):
+    bwaParams = paftol.BwaParams()
+    bwaParams.numThreads = argNamespace.bwaNumThreads
+    bwaParams.minSeedLength = argNamespace.bwaMinSeedLength
+    bwaParams.scoreThreshold = argNamespace.bwaScoreThreshold
+    bwaParams.reseedTrigger = argNamespace.bwaReseedTrigger
+    return bwaParams
 
 def runHybseq(argNamespace):
     """Experimental.
@@ -20,16 +35,11 @@ def runHybseq(argNamespace):
 def runHybpiper(argNamespace):
     """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
 """
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
-    if argNamespace.bwaMinSeedLength is not None:
-        hybpiperAnalyser.bwaMinSeedLength = argNamespace.bwaMinSeedLength
-    if argNamespace.bwaScoreThreshold is not None:
-        hybpiperAnalyser.bwaScoreThreshold = argNamespace.bwaScoreThreshold
-    if argNamespace.bwaReseedTrigger is not None:
-        hybpiperAnalyser.bwaReseedTrigger = argNamespace.bwaReseedTrigger
+    bwaParams = argToBwaParams(argNamespace)
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz, bwaParams=bwaParams)
+    hybpiperAnalyser.allowInvalidBases = argNamespace.allowInvalidBases
     if argNamespace.csv is not None:
         hybpiperAnalyser.statsCsvFilename = argNamespace.csv
-    hybpiperAnalyser.allowInvalidBases = argNamespace.allowInvalidBases
     hybpiperAnalyser.keepTmpDir = True
     reconstructedCdsDict = hybpiperAnalyser.analyse()
     if argNamespace.outfile is not None:
@@ -58,11 +68,7 @@ def runTargetGeneScan(argNamespace):
             
             
 def runGenomeReadScan(argNamespace):
-    bwaParams = paftol.BwaParams()
-    bwaParams.numThreads = argNamespace.bwaNumThreads
-    bwaParams.minSeedLength = argNamespace.bwaMinSeedLength
-    bwaParams.scoreThreshold = argNamespace.bwaScoreThreshold
-    bwaParams.reseedTrigger = argNamespace.bwaReseedTrigger
+    bwaParams = argToBwaParams(argNamespace)
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
     statsTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaParams=bwaParams)
@@ -97,13 +103,11 @@ def addHybpiperParser(subparsers):
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
-    p.add_argument('--bwaMinSeedLength', type=int, help='set minimum seed length for BWA (see bwa mem -k)')
-    p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
-    p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
     p.add_argument('--csv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
+    addBwaParamsToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
     p.set_defaults(func=runHybpiper)
     
@@ -125,10 +129,7 @@ def addGenomeReadScanParser(subparsers):
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
-    p.add_argument('--bwaNumThreads', type=int, help='BWA number of threads')
-    p.add_argument('--bwaMinSeedLength', type=int, help='BWA minimum seed length (k)')
-    p.add_argument('--bwaScoreThreshold', type=int, help='BWA score threshold')
-    p.add_argument('--bwaReseedTrigger', type=float, help='BWA reseed trigger')
+    addBwaParamsToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)
     

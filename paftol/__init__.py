@@ -92,6 +92,9 @@ class BwaParams(object):
         self.scoreThreshold = scoreThreshold
         self.reseedTrigger = reseedTrigger
         
+    def indexReferenceArgv(self, referenceFname):
+        return ['bwa', 'index', referenceFname]
+        
     def mappingMemArgv(self, referenceFname, forwardReadsFname, reverseReadsFname=None):
         argv = ['bwa', 'mem', '-M']
         if self.minSeedLength is not None:
@@ -639,13 +642,8 @@ conventions may be added.
         if bwaParams is None:
             bwaParams = BwaParams()
         bwaArgv = bwaParams.mappingMemArgv(self.fastaFname, forwardReadsFname, reverseReadsFname)
-        # FIXME: tidy up samtools related stuff (filtering now done in loop below)
-        # samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE)
-        # logger.debug('%s', ' '.join(samtoolsArgv))
-        # samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE)
-        # FIXME: should not add row and then change it via dfRowDict -- better to finish dfRowDict and then construct DataFrame
         dfRowDict = {}
         intergenicLength = self.genomeLength
         for gene in self.geneList:
@@ -657,7 +655,6 @@ conventions may be added.
         dfRowDict[intergenicId] = {'geneId': intergenicId, 'geneLength': intergenicLength, 'numHits': 0}
         unmappedId = 'unmapped'
         dfRowDict[unmappedId] = {'geneId': unmappedId, 'geneLength': None, 'numHits': 0}
-        # samLine = samtoolsProcess.stdout.readline()
         samLine = bwaProcess.stdout.readline()
         while samLine != '':
             # logger.debug(samLine)
@@ -672,13 +669,9 @@ conventions may be added.
                 dfRowDict[geneId]['numHits'] = dfRowDict[geneId]['numHits'] + 1
             samLine = bwaProcess.stdout.readline()
         bwaProcess.stdout.close()
-        # samtoolsProcess.stdout.close()
         bwaReturncode = bwaProcess.wait()
-        # samtoolsReturncode = samtoolsProcess.wait()
         if bwaReturncode != 0:
             raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
-        # if samtoolsReturncode != 0:
-        #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
         dataFrame = DataFrame(['geneId', 'geneLength', 'numHits'])
         for gene in self.geneList:
             dataFrame.addRow(dfRowDict[gene.geneId])
@@ -702,12 +695,12 @@ of developing this).
 @type spadesKvalList: C{list} of C{int}, or C{None}
 """
     
-    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp'):
+    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp', bwaParams=None):
         super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
-        self.bwaNumThreads = 1
-        self.bwaMinSeedLength = 19
-        self.bwaScoreThreshold = 30
-        self.bwaReseedTrigger = 1.5
+        if bwaParams is None:
+            self.bwaParams = BwaParams()
+        else:
+            self.bwaParams = bwaParams
         self.spadesCovCutoff = 8
         self.spadesKvalList = None
         self.statsCsvFilename = None
@@ -733,8 +726,7 @@ of developing this).
         self.cleanupTmpdir()
     
     def bwaIndexReference(self, referenceFname):
-        # FIXME: replace with BwaParams
-        bwaIndexArgv = ['bwa', 'index', referenceFname]
+        bwaIndexArgv = self.bwaParams.indexReferenceArgv(referenceFname)
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
@@ -746,13 +738,15 @@ of developing this).
         """Map reads to gene sequences (from multiple organisms possibly).
 """
         logger.debug('mapping reads to gene sequences')
-        self.bwaIndexReference(self.makeTargetsFname(True))
-        # FIXME: replace with BwaParams
-        fastqArgs = [os.path.join(os.getcwd(), self.forwardFastq)]
-        if self.reverseFastq is not None:
-            fastqArgs.append(os.path.join(os.getcwd(), self.reverseFastq))
-        # bwa parameters for tweaking considerations: -k, -r, -T
-        bwaArgv = self.makeBwaMemArgv(self.makeTargetsFname(), fastqArgs)
+        referenceFname = self.makeTargetsFname(True)
+        self.bwaIndexReference(referenceFname)
+        forwardReadsFname = os.path.join(os.getcwd(), self.forwardFastq)
+        if self.reverseFastq is None:
+            reverseReadsFname = None
+        else:
+            reverseReadsFname = os.path.join(os.getcwd(), self.reverseFastq)
+        # bwaArgv = self.makeBwaMemArgv(self.makeTargetsFname(), fastqArgs)
+        bwaArgv = self.bwaParams.mappingMemArgv(referenceFname, forwardReadsFname, reverseReadsFname)
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
         bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.makeWorkDirname())
