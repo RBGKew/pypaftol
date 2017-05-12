@@ -730,10 +730,6 @@ of developing this).
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
         
-    def makeBwaMemArgv(self, referenceFname, fastqArgs):
-        # FIXME: replace with BwaParams
-        return ['bwa', 'mem', '-M', '-k', '%d' % self.bwaMinSeedLength, '-T', '%d' % self.bwaScoreThreshold, '-r', '%f' % self.bwaReseedTrigger, '-t', '%d' % self.bwaNumThreads, referenceFname] + fastqArgs
-        
     def mapReadsBwa(self):
         """Map reads to gene sequences (from multiple organisms possibly).
 """
@@ -745,7 +741,6 @@ of developing this).
             reverseReadsFname = None
         else:
             reverseReadsFname = os.path.join(os.getcwd(), self.reverseFastq)
-        # bwaArgv = self.makeBwaMemArgv(self.makeTargetsFname(), fastqArgs)
         bwaArgv = self.bwaParams.mappingMemArgv(referenceFname, forwardReadsFname, reverseReadsFname)
         samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         logger.debug('%s', ' '.join(bwaArgv))
