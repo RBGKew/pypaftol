@@ -71,7 +71,10 @@ def runGenomeReadScan(argNamespace):
     bwaParams = argToBwaParams(argNamespace)
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
-    statsTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaParams=bwaParams)
+    statsTable, rawmapTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaParams=bwaParams)
+    if argNamespace.rawmapTable is not None:
+        with open(argNamespace.rawmapTable, 'w') as csvFile:
+            rawmapTable.writeCsv(csvFile)
     if argNamespace.outfile is None:
         statsTable.writeCsv(sys.stdout)
     else:
@@ -129,6 +132,7 @@ def addGenomeReadScanParser(subparsers):
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+    p.add_argument('--rawmapTable', help='genomic coordinates of mapped reads')
     addBwaParamsToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)

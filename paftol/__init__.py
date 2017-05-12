@@ -655,12 +655,14 @@ conventions may be added.
         dfRowDict[intergenicId] = {'geneId': intergenicId, 'geneLength': intergenicLength, 'numHits': 0}
         unmappedId = 'unmapped'
         dfRowDict[unmappedId] = {'geneId': unmappedId, 'geneLength': None, 'numHits': 0}
+        rawmapTable = DataFrame(['qname', 'rname', 'pos'])
         samLine = bwaProcess.stdout.readline()
         while samLine != '':
             # logger.debug(samLine)
             if samLine[0] != '@':
                 samAlignment = SamAlignment(samLine)
                 if samAlignment.isMapped():
+                    rawmapTable.addRow({'qname': samAlignment.qname, 'rname': samAlignment.rname, 'pos': samAlignment.pos})
                     geneId = self.findGeneIdForSamAlignment(samAlignment)
                     if geneId is None:
                         geneId = intergenicId
@@ -672,12 +674,12 @@ conventions may be added.
         bwaReturncode = bwaProcess.wait()
         if bwaReturncode != 0:
             raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
-        dataFrame = DataFrame(['geneId', 'geneLength', 'numHits'])
+        statsTable = DataFrame(['geneId', 'geneLength', 'numHits'])
         for gene in self.geneList:
-            dataFrame.addRow(dfRowDict[gene.geneId])
-        dataFrame.addRow(dfRowDict[intergenicId])
-        dataFrame.addRow(dfRowDict[unmappedId])
-        return dataFrame
+            statsTable.addRow(dfRowDict[gene.geneId])
+        statsTable.addRow(dfRowDict[intergenicId])
+        statsTable.addRow(dfRowDict[unmappedId])
+        return statsTable, rawmapTable
 
         
 class HybpiperAnalyser(HybseqAnalyser):
