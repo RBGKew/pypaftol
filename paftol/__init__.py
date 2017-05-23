@@ -285,6 +285,9 @@ facilitating handling of multiple genes and multiple organisms.
 @ivar seqRecord: the sequence of this gene in this organism
 @type seqRecord: C{Bio.SeqRecord.SeqRecord}
 """
+    
+    csvFieldNames = ['organism', 'gene', 'seqLength', 'numSamAlignments']
+    
     def __init__(self, organism, paftolGene, seqRecord):
         self.organism = organism
         self.paftolGene = paftolGene
@@ -307,21 +310,13 @@ facilitating handling of multiple genes and multiple organisms.
         # FIXME: may have to trim away "/1", "/2"?
         return set([a.qname for a in self.samAlignmentList])
     
-    @staticmethod
-    def makeCsvDictWriter(csvfile):
-        csvFieldnames = ['organism', 'gene', 'seqLength', 'numSamAlignments']
-        csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
-        csvDictWriter.writeheader()
-        return csvDictWriter
-    
-    def writeCsvRow(self, csvDictWriter):
+    def csvRowDict(self):
         d = {}
         d['organism'] = self.organism.name
         d['gene'] = self.paftolGene.name
         d['seqLength'] = len(self.seqRecord)
         d['numSamAlignments'] = len(self.samAlignmentList)
-        logger.debug('writing CSV row: %s, %s', self.organism.name, self.paftolGene.name)
-        csvDictWriter.writerow(d)
+        return d
 
 
 class Organism(object):
@@ -333,10 +328,18 @@ class Organism(object):
 @type paftolTargetDict: C{dict} of C{PaftolTarget} instances with PAFTOL gene names as keys
 """
     
+    csvFieldNames = ['organism', 'numGenes', 'numSamAlignments']
+    
     def __init__(self, name):
         self.name = name
         self.paftolTargetDict = {}
 
+    def csvRowDict(self):
+        d = {}
+        d['organism'] = self.name
+        d['numGenes'] = len(self.paftolTargetDict)
+        d['numSamAlignments'] = sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+        return d
 
 class PaftolGene(object):
     """Represent a PAFTOL gene.
@@ -350,8 +353,9 @@ organisms.
 @type name: C{str}
 @ivar paftolTargetDict: dictionary of organisms with this PAFTOL gene
 @type paftolTargetDict: C{dict} of C{PaftolTarget} instances with organism names as keys
-
-    """
+"""
+    
+    csvFieldNames = ['gene', 'numOrganisms', 'meanSeqLength', 'numSamAlignments']
     
     def __init__(self, name):
         self.name = name
@@ -362,6 +366,20 @@ organisms.
         for paftolTarget in self.paftolTargetDict.values():
             s = s | paftolTarget.qnameSet()
         return s
+    
+    def meanSequenceLength(self):
+        if len(self.paftolTargetDict) == 0:
+            return None
+        else:
+            return float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
+
+    def csvRowDict(self):
+        d = {}
+        d['gene'] = self.name
+        d['numOrganisms'] = len(self.paftolTargetDict)
+        d['meanSeqLength'] = float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
+        d['numSamAlignments'] = sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+        return d
     
 
 class PaftolTargetSet(object):
@@ -400,6 +418,11 @@ class PaftolTargetSet(object):
                 self.paftolGeneDict[geneName] = PaftolGene(geneName)
             paftolTarget = PaftolTarget(self.organismDict[organismName], self.paftolGeneDict[geneName], sr)
             
+    def meanTargetLength(self, geneName):
+        if geneName not in self.paftolGeneDict:
+            raise StandardError, 'gene %s not contained in this target set'
+        return self.paftolGeneDict[geneName].meanSequenceLength()
+            
     def getSeqRecordList(self):
         srList = []
         for organism in self.organismDict.values():
@@ -422,7 +445,26 @@ class PaftolTargetSet(object):
             raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
         paftolTarget.addSamAlignment(samAlignment)
+        
+    def targetStats(self):
+        dataFrame = DataFrame(PaftolTarget.csvFieldNames)
+        for organismName in self.organismDict:
+            for geneName in self.organismDict[organismName].paftolTargetDict:
+                dataFrame.addRow(self.organismDict[organismName].paftolTargetDict[geneName].csvRowDict())
+        return dataFrame
     
+    def geneStats(self):
+        dataFrame = DataFrame(PaftolGene.csvFieldNames)
+        for paftolGene in self.paftolGeneDict.values():
+            dataFrame.addRow(paftolGene.csvRowDict())
+        return dataFrame
+    
+    def organismStats(self):
+        dataFrame = DataFrame(Organism.csvFieldNames)
+        for organism in self.organismDict.values():
+            dataFrame.addRow(organism.csvRowDict())
+        return dataFrame
+
     
 class ReferenceGene(object):
     
@@ -1055,11 +1097,9 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             for geneName in self.paftolTargetSet.paftolGeneDict:
                 reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
             if self.statsCsvFilename is not None:
-                csvFile = open(self.statsCsvFilename, 'w')
-                csvDictWriter = PaftolTarget.makeCsvDictWriter(csvFile)
-                for organismName in self.paftolTargetSet.organismDict:
-                    for geneName in self.paftolTargetSet.organismDict[organismName].paftolTargetDict:
-                        self.paftolTargetSet.organismDict[organismName].paftolTargetDict[geneName].writeCsvRow(csvDictWriter)
+                tStats = self.paftolTargetSets.targetStats()
+                with open(self.statsCsvFilename, 'w') as csvFile:
+                    tStats.writeCsv(csvFile)
                 csvFile.close()
             return reconstructedCdsDict
         finally:

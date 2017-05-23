@@ -25,6 +25,7 @@ def argToBwaParams(argNamespace):
     bwaParams.reseedTrigger = argNamespace.bwaReseedTrigger
     return bwaParams
 
+
 def runHybseq(argNamespace):
     """Experimental.
 """
