@@ -310,12 +310,15 @@ facilitating handling of multiple genes and multiple organisms.
         # FIXME: may have to trim away "/1", "/2"?
         return set([a.qname for a in self.samAlignmentList])
     
+    def numSamAlignments(self):
+        return len(self.samAlignmentList)
+    
     def csvRowDict(self):
         d = {}
         d['organism'] = self.organism.name
         d['gene'] = self.paftolGene.name
         d['seqLength'] = len(self.seqRecord)
-        d['numSamAlignments'] = len(self.samAlignmentList)
+        d['numSamAlignments'] = self.numSamAlignments()
         return d
 
 
@@ -333,12 +336,15 @@ class Organism(object):
     def __init__(self, name):
         self.name = name
         self.paftolTargetDict = {}
+        
+    def numSamAlignments(self):
+        return sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
 
     def csvRowDict(self):
         d = {}
         d['organism'] = self.name
         d['numGenes'] = len(self.paftolTargetDict)
-        d['numSamAlignments'] = sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+        d['numSamAlignments'] = self.numSamAlignments()
         return d
 
 class PaftolGene(object):
@@ -373,12 +379,15 @@ organisms.
         else:
             return float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
 
+    def numSamAlignments(self):
+        return sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+
     def csvRowDict(self):
         d = {}
         d['gene'] = self.name
         d['numOrganisms'] = len(self.paftolTargetDict)
-        d['meanSeqLength'] = float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
-        d['numSamAlignments'] = sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+        d['meanSeqLength'] = self.meanSequenceLength()
+        d['numSamAlignments'] = self.numSamAlignments()
         return d
     
 
@@ -448,9 +457,9 @@ class PaftolTargetSet(object):
         
     def targetStats(self):
         dataFrame = DataFrame(PaftolTarget.csvFieldNames)
-        for organismName in self.organismDict:
-            for geneName in self.organismDict[organismName].paftolTargetDict:
-                dataFrame.addRow(self.organismDict[organismName].paftolTargetDict[geneName].csvRowDict())
+        for organism in self.organismDict.values():
+            for paftolTarget in organism.paftolTargetDict.values():
+                dataFrame.addRow(paftolTarget.csvRowDict())
         return dataFrame
     
     def geneStats(self):
@@ -464,6 +473,13 @@ class PaftolTargetSet(object):
         for organism in self.organismDict.values():
             dataFrame.addRow(organism.csvRowDict())
         return dataFrame
+    
+    def numSamAlignments(self):
+        n = 0
+        for organism in self.organismDict.values():
+            for paftolTarget in organism.paftolTargetDict.values():
+                n = n + paftolTarget.numSamAlignments()
+        return n
 
     
 class ReferenceGene(object):
