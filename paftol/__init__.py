@@ -67,6 +67,12 @@ class DataFrame(object):
             raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
         self.rowDictList.append(rowDict)
         
+    def nrow(self):
+        return len(self.rowDictList)
+        
+    def getRowDict(self, rowIndex):
+        return self.rowDictList[rowIndex]
+        
     def writeCsv(self, f):
         csvDictWriter = csv.DictWriter(f, self.columnHeaderList)
         csvDictWriter.writeheader()
