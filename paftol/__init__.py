@@ -79,6 +79,16 @@ class DataFrame(object):
         for rowDict in self.rowDictList:
             csvDictWriter.writerow(rowDict)
             
+            
+class FastqStats(object):
+    
+    def __init__(self, fastqcStatsFname):
+        with open(fastqcStatsFname, 'r') as f:
+            self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
+            # read table from first module
+            # and so on for other FastQC modules...
+        
+            
 
 class BwaParams(object):
     """Hold parameters for C{bwa} and provide argument vectors on that basis.
