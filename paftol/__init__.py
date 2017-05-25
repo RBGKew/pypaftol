@@ -79,15 +79,98 @@ class DataFrame(object):
         for rowDict in self.rowDictList:
             csvDictWriter.writerow(rowDict)
             
-            
+class RunFastqc(object):
+    def __init__(self, fastqFName):
+        self.fastqFName = fastqFName
+	self.outFName = '%s_fastqc/fastqc_data.txt' % self.fastqFName.split('.')[0]
+        fastqcArgs = ['fastqc', '--extract', '--nogroup', self.fastqFName]
+	#FIXME consider using --outgroup option to store files in a temporary directory for deletion
+	fastqcProcess = subprocess.call(fastqcArgs)
+
 class FastqStats(object):
     
     def __init__(self, fastqcStatsFname):
         with open(fastqcStatsFname, 'r') as f:
-            self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
-            # read table from first module
-            # and so on for other FastQC modules...
+            self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
+	    self.perBaseNContent = DataFrame(['base','nCount'])
+	    self.perBaseSequenceContent = DataFrame(['base','g','a','t','c'])
+	    line = f.readline()
+	    while line != '':
+	        line = line.rstrip('\n')
+		infoLine = line.split('\t')
+		if infoLine[0] == '>>Per base sequence quality':
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    while line != '>>END_MODULE':
+			infoLine = line.split('\t')
+			r = {'base': infoLine[0], 'mean': infoLine[1], 'median': infoLine[2], 'lowerQuartile': infoLine[3], 'upperQuartile': infoLine[4], 'percentile10': infoLine[5], 'percentile90': infoLine[6]}
+			self.perBaseSequenceQuality.addRow(r)
+		        line = f.readline()
+			line = line.rstrip('\n')
+
+		elif infoLine[0] == '>>Per base N content':
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    while line != '>>END_MODULE':
+			infoLine = line.split('\t')
+			r = {'base': infoLine[0], 'nCount': infoLine[1]}
+			self.perBaseNContent.addRow(r)
+			line = f.readline()
+			line = line.rstrip('\n')
+
+		elif infoLine[0] == '>>Per base sequence content':
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    line = f.readline()
+		    line = line.rstrip('\n')
+		    while line != '>>END_MODULE':
+			infoLine = line.split('\t')
+			r = {'base': infoLine[0], 'g':infoLine[1], 'a':infoLine[2], 't':infoLine[3], 'c':infoLine[4]}
+			self.perBaseSequenceContent.addRow(r)
+			line = f.readline()
+			line = line.rstrip('\n')
+
+		else:
+		    line = f.readline()
+    
+    def getMedian(self, index):
+        return float(self.perBaseSequenceQuality.getRowDict(index)['median'])
+
+    def getN(self):
+        l = []
+        for index in range(len(self.perBaseNContent.rowDictList)):
+	    l.append(self.perBaseNContent.rowDictList[index]['nCount'])
+	    if l[-1] != '0.0':
+	        print l[-1]
+		sys.exit()
+	return 0
         
+
+    def calculateMeanStd(self, dataframe):
+	colList = dataframe.columnHeaderList[:]
+	colList.remove('base')
+	params = {}
+	for column in colList:
+	    l =[]
+	    for row in range(len(dataframe.rowDictList)):
+	        l.append(float(dataframe.rowDictList[row][column]))
+	    params[column] = MeanAndStd(l)
+	return params
+
+
+class MeanAndStd(object):
+    def __init__(self, l):
+        self.l = l
+        self.mean = sum(l) / float(len(l))
+        sdList = []
+	for num in l:
+	    sdList.append((self.mean - num) ** 2)
+	self.std = sum(sdList) / len(sdList)
+	   
             
 
 class BwaParams(object):
