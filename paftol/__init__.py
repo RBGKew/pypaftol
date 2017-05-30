@@ -87,10 +87,78 @@ class RunFastqc(object):
 	#FIXME consider using --outgroup option to store files in a temporary directory for deletion
 	fastqcProcess = subprocess.call(fastqcArgs)
 
-class FastqStats(object):
+    
+class FastqcDataFrame(DataFrame):
+    
+    def __init__(self, columnHeaderList, description=None, result=None):
+        super(DataFrame, self).__init__(columnHeaderList)
+        self.description = description
+        self.result = result
+        self.annotations = {}
+        
+        
+class FastqcStats(object):
+    
+    fastqcVersionRe = re.compile('##FastQC\t(.+)')
+    fastqcModuleStartRe = re.compile('>>([^\t])\t([\t])')
+    
+    def readCompleteLine(self, f):
+        l = f.readline()
+        if len(l) == 0:
+            raise StandardError, '...'
+        if l[-1] != '\n':
+            raise StandardError, 'unterminated line'
+        return l
+    
+    def readTableHeader(self, f):
+        l = f.readline()
+        if l[0] != '#':
+            raise StandardError, 'malformed FastQC table header: %s' % l.strip()
+        return l[1:].strip().split('\t')
+    
+    def checkFastqcVersion(self, f):
+        # FIXME: need to check for empty string (premature EOF) -- check all readline() uses for parsing
+        l = f.readline()
+        m = self.fastqcVersionRe.match(l)
+        if m is None:
+            raise StandardError, 'malformed FastQC version line: %s' % l.strip()
+        v = m.group(1)
+        if v != '0.11.5':
+            raise StandardError, 'unsupported FastQC version %s' % v
+        
+    def parseBasicStatistics(self, f):
+        l = f.readline()
+        m = self.fastqcModuleStartRe.match(l)
+        if m is None:
+            raise StandardError, 'malformed FastQC module start (Basic Statistics): %s' % l.strip()
+        description = m.group(1)
+        result = m.group(2)
+        if moduleName != 'Basic Statistics':
+            raise StandardError, 'expected Basic Statistics module but found %s' % moduleName
+        if self.readTableHeader(f) != ['Measure', 'Value']:
+            raise StandardError, 'malformed Basic Statistics header: %s' % ', '.join(h)
+        fastqcDataFrame = FastqcDataFrame(['measure', 'value'], description, result)
+        l = f.readline()
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            self.checkRow(w, 2)
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' l.strip()
+            fastqcDataFrame.addRow({'measure': w[0], 'value': w[1]})
+            l = f.readline()
+        self.basicStatistics = fastqcDataFrame
+        
+    def parseSequenceDuplicaionLevels(self, f):
+        fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
+        fastqcDataFrame.annotaions['totalDeduplicatedPercentage'] = float( ... )
     
     def __init__(self, fastqcStatsFname):
         with open(fastqcStatsFname, 'r') as f:
+            self.checkFastqcVersion(f)
+            self.parseBasicStatistics(f)
+            
+            # rest obsolete
+            self.perBaseSequenceQuality = self.parsePerBaseSequenceQuality(f)
             self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
 	    self.perBaseNContent = DataFrame(['base','nCount'])
 	    self.perBaseSequenceContent = DataFrame(['base','g','a','t','c'])
@@ -116,7 +184,7 @@ class FastqStats(object):
 		    line = f.readline()
 		    line = line.rstrip('\n')
 		    while line != '>>END_MODULE':
-			infoLine = line.split('\t')
+                infoLine = line.split('\t')
 			r = {'base': infoLine[0], 'nCount': infoLine[1]}
 			self.perBaseNContent.addRow(r)
 			line = f.readline()
