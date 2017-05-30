@@ -872,6 +872,43 @@ class ReferenceGene(object):
         return None
 
 
+class ReferenceGenomeMappingProcessor(object):
+    
+    def __init__(self, referenceGenome):
+        if referenceGenome.genomeLength is None:
+            raise StandardError, 'reference genome length is None'
+        self.referenceGenome = referenceGenome
+        self.intergenicId = 'intergenic'
+        self.unmappedId = 'unmapped'
+        self.geneHitDict = {}
+        self.intergenicLength = referenceGenome.genomeLength
+        for gene in referenceGenome.geneList:
+            geneLength = gene.getLength()
+            self.geneHitDict[gene.geneId] = {'geneId': gene.geneId, 'geneLength': geneLength, 'numHits': 0}
+                self.intergenicLength = self.intergenicLength - geneLength
+        self.geneHitDict[self.intergenicId] = {'geneId': self.intergenicId, 'geneLength': self.intergenicLength, 'numHits': 0}
+        self.geneHitDict[self.unmappedId] = {'geneId': self.unmappedId, 'geneLength': None, 'numHits': 0}
+        self.rawmapTable = DataFrame(['qname', 'rname', 'pos'])
+        
+    def getStatsTable(self):
+        statsTable = DataFrame(['geneId', 'geneLength', 'numHits'])
+        for gene in self.referenceGenome.geneList:
+            statsTable.addRow(self.geneHitDict[gene.geneId])
+        statsTable.addRow(self.geneHitDict[self.intergenicId])
+        statsTable.addRow(self.geneHitDict[self.unmappedId])
+        return statsTable
+    
+    def processSamAlignment(self, samAlignment):
+        if samAlignment.isMapped():
+            self.rawmapTable.addRow({'qname': samAlignment.qname, 'rname': samAlignment.rname, 'pos': samAlignment.pos})
+            geneId = self.referenceGenome.findGeneIdForSamAlignment(samAlignment)
+            if geneId is None:
+                geneId = self.intergenicId
+        else:
+            geneId = self.unmappedId
+        self.geneHitDict[geneId]['numHits'] = self.geneHitDict[geneId]['numHits'] + 1
+    
+    
 class ReferenceGenome(object):
     """Represent a reference genome, provided via FASTA and GenBank files (possibly both).
 
@@ -1034,6 +1071,8 @@ conventions may be added.
                 return gene.geneId
 
     def mapReadsStatsBwaMem(self, forwardReadsFname, reverseReadsFname=None, bwaParams=None):
+        referenceGenomeMappingProcessor = ReferenceGenomeMappingProcessor(self)
+        # continue here
         if bwaParams is None:
             bwaParams = BwaParams()
         bwaArgv = bwaParams.mappingMemArgv(self.fastaFname, forwardReadsFname, reverseReadsFname)
@@ -1450,7 +1489,7 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             for geneName in self.paftolTargetSet.paftolGeneDict:
                 reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
             if self.statsCsvFilename is not None:
-                tStats = self.paftolTargetSets.targetStats()
+                tStats = self.paftolTargetSet.targetStats()
                 with open(self.statsCsvFilename, 'w') as csvFile:
                     tStats.writeCsv(csvFile)
                 csvFile.close()

@@ -602,3 +602,77 @@ the caller's responsibility to close it.
         d['equivalencedMismatches'] = exonerateResult.equivalencedMismatches
         d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(self.targetCdsSeq)
         self.csvDictWriter.writerow(d)
+
+        
+class BwaRunner(object):
+    """Hold parameters for C{bwa} and provide argument vectors on that basis.
+    
+@ivar numThreads: BWA number of threads (C{-t} option)
+@type numThreads: C{int}
+@ivar minSeedLength: BWA minimum seed length (C{-k} option)
+@type minSeedLength: C{int}
+@ivar scoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
+@type scoreThreshold: C{int}
+@ivar reseedTrigger: BWA re-seed trigger (C{-r} option)
+@type reseedTrigger: C{float}
+"""
+    def __init__(self, numThreads=None, minSeedLength=None, scoreThreshold=None, reseedTrigger=None, workingDirectory=None):
+        self.numThreads = numThreads
+        self.minSeedLength = minSeedLength
+        self.scoreThreshold = scoreThreshold
+        self.reseedTrigger = reseedTrigger
+        self.workingDirectory = workingDirectory
+        
+    def indexReferenceArgv(self, referenceFname):
+        return ['bwa', 'index', referenceFname]
+        
+    def mappingMemArgv(self, referenceFname, forwardReadsFname, reverseReadsFname=None):
+        argv = ['bwa', 'mem', '-M']
+        if self.minSeedLength is not None:
+            argv.extend(['-k', '%d' % self.minSeedLength])
+        if self.reseedTrigger is not None:
+            argv.extend(['-r', '%f' % self.reseedTrigger])
+        if self.scoreThreshold is not None:
+            argv.extend(['-T', '%d' % self.scoreThreshold])
+        if self.numThreads is not None:
+            argv.extend(['-t', '%d' % self.numThreads])
+        argv.append(referenceFname)
+        argv.append(forwardReadsFname)
+        if reverseReadsFname is not None:
+            argv.append(reverseReadsFname)
+        return argv
+
+    def indexReference(self, referenceFname):
+        bwaIndexArgv = self.indexReferenceArgv(referenceFname)
+        logger.debug('%s', ' '.join(bwaIndexArgv))
+        subprocess.check_call(bwaIndexArgv)
+    
+    def mapReadsBwa(self, samAlignmentProcessor, referenceFname, forwardReadsFname, reverseReadsFname=None):
+        """Map reads to to reference sequences.
+"""
+        sys.stderr.write('effective mapReadsBwa logging level: %d\n' % logger.getEffectiveLevel())
+        logger.debug('mapping reads to gene sequences')
+        self.indexReference(referenceFname)
+        bwaArgv = self.mappingMemArgv(referenceFname, forwardReadsFname, reverseReadsFname)
+        logger.debug('%s', ' '.join(bwaArgv))
+        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.workingDirectory)
+        # samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
+        # logger.debug('%s', ' '.join(samtoolsArgv))
+        # samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.workingDirectory)
+        samLine = bwaProcess.stdout.readline()
+        while samLine != '':
+            # logger.debug(samLine)
+            if samLine[0] != '@':
+                samAlignment = paftol.SamAlignment(samLine)
+                samAlignmentProcessor.processSamAlignment(samAlignment)
+            samLine = bwaProcess.stdout.readline()
+        bwaProcess.stdout.close()
+        # samtoolsProcess.stdout.close()
+        bwaReturncode = bwaProcess.wait()
+        # samtoolsReturncode = samtoolsProcess.wait()
+        if bwaReturncode != 0:
+            raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
+        # if samtoolsReturncode != 0:
+        #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
+
+        
