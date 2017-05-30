@@ -85,7 +85,7 @@ class RunFastqc(object):
 	self.outFName = '%s_fastqc/fastqc_data.txt' % self.fastqFName.split('.')[0]
         fastqcArgs = ['fastqc', '--extract', '--nogroup', self.fastqFName]
 	#FIXME consider using --outgroup option to store files in a temporary directory for deletion
-	fastqcProcess = subprocess.call(fastqcArgs)
+	fastqcProcess = subprocess.check_call(fastqcArgs)
 
     
 class FastqcDataFrame(DataFrame):
@@ -105,9 +105,9 @@ class FastqcStats(object):
     def readCompleteLine(self, f):
         l = f.readline()
         if len(l) == 0:
-            raise StandardError, '...'
+            raise StandardError, 'unexpected empty line'
         if l[-1] != '\n':
-            raise StandardError, 'unterminated line'
+            raise StandardError, 'unexpected truncated line'
         return l
     
     def readTableHeader(self, f):
@@ -118,7 +118,7 @@ class FastqcStats(object):
     
     def checkFastqcVersion(self, f):
         # FIXME: need to check for empty string (premature EOF) -- check all readline() uses for parsing
-        l = f.readline()
+        l = self.readCompleteLine(f)
         m = self.fastqcVersionRe.match(l)
         if m is None:
             raise StandardError, 'malformed FastQC version line: %s' % l.strip()
@@ -127,83 +127,253 @@ class FastqcStats(object):
             raise StandardError, 'unsupported FastQC version %s' % v
         
     def parseBasicStatistics(self, f):
-        l = f.readline()
+        l = self.readCompleteLine(f)
         m = self.fastqcModuleStartRe.match(l)
         if m is None:
             raise StandardError, 'malformed FastQC module start (Basic Statistics): %s' % l.strip()
         description = m.group(1)
         result = m.group(2)
-        if moduleName != 'Basic Statistics':
-            raise StandardError, 'expected Basic Statistics module but found %s' % moduleName
+        if description != 'Basic Statistics':
+            raise StandardError, 'expected "Basic Statistics" module but found "%s"' % description
         if self.readTableHeader(f) != ['Measure', 'Value']:
-            raise StandardError, 'malformed Basic Statistics header: %s' % ', '.join(h)
+            raise StandardError, 'malformed "Basic Statistics" header: %s' % ', '.join(self.readTableHeader(f))
         fastqcDataFrame = FastqcDataFrame(['measure', 'value'], description, result)
-        l = f.readline()
+        l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
-            self.checkRow(w, 2)
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' l.strip()
+                raise StandardError, 'malformed line: %s' % l.strip()
             fastqcDataFrame.addRow({'measure': w[0], 'value': w[1]})
-            l = f.readline()
+            l = self.readCompleteLine(f)
         self.basicStatistics = fastqcDataFrame
         
-    def parseSequenceDuplicaionLevels(self, f):
-        fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
-        fastqcDataFrame.annotaions['totalDeduplicatedPercentage'] = float( ... )
+    def parsePerBaseSequenceQuality(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per base sequence quality): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per base sequence quality':
+	    raise StandardError, 'expected "Per base sequency quality" module but found "%s"' % description
+	if self.readTableHeader(f) != ['Base', 'Mean', 'Median', 'Lower Quartile', 'Upper Quartile', '10th Percentile', '90th Percentile']:
+	    raise StandardError, 'malformed "Per base sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 7:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+	    fastqcDataFrame.addRow({'base': int(w[0]), 'mean': float(w[1]), 'median': float(w[2]), 'lowerQuartile': float(w[3]), 'upperQuartile': float(w[4]), 'percentile10': float(w[5]), 'percentile90': float(w[6])})
+	    l = self.readCompleteLine(f)
+	self.perBaseSequenceQuality = fastqcDataFrame
+
+    def parsePerTileSequenceQuality(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per tile sequence quality): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per tile sequence quality':
+	    raise StandardError, 'expected "Per tile sequence quality" module but found "%s"' % description
+	if self.readTableHeader(f) != ['Tile', 'Base', 'Mean']:
+	    raise StandardError, 'malformed "Per tile sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['tile', 'base', 'mean'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 3:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+	    fastqcDataFrame.addRow({'tile': int(w[0]), 'base': int(w[1]), 'mean':float(w[2])})
+	    l = self.readCompleteLine(f)
+	self.perTileSequenceQuality = fastqDataFrame
+
+    def parsePerSequenceQualityScores(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per Sequence Quality Scores): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per sequence quality scores':
+	    raise StandardError, 'expected "Per sequence quality scores" module but found "%s"' % description
+	if self.readTableHeader(f) != ['Quality', 'Count']:
+	    raise StandardError, 'malformed "Per sequence quality scores" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['quality', 'count'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 2:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'quality': w[0], 'count': w[1]})
+	    l = self.readCompleteLine(f)
+	self.perSequenceQualityScores = fastqcDataFrame
+
+    def parsePerBaseSequenceContent(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per base sequence content): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per base sequence content':
+	    raise StandardError, 'expected "Per base sequence content" module but found "%s"' % description
+	if self.readTableHeader(f) != ['Base', 'G', 'A', 'T', 'C']:
+	    raise StandardError, 'malformed "Per base sequence content" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['base', 'g', 'a', 't', 'c'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 5:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+	    fastqcDataFrame.addRow({'base':int(w[0]), 'g': float(w[1]), 'a': float(w[2]), 't': float(w[3]), 'c': float(w[4])})
+	    l = self.readCompleteLine(f)
+	self.perBaseSequenceContent = fastqcDataFrame
+
+    def parsePerSequenceGCContent(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per sequence GC content): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per sequence GC content':
+	    raise StandardError, 'expected "Per sequence GC content" module but found "%s"' % description
+	if self.readTableHeader(f) != ['GC Content', 'Count']:
+	    raise StandardError, 'malformed "Per sequence GC content" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['gcContent', 'count'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 2:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'gcContent': int(w[0]), 'count':float(w[0])})
+	    l = self.readCompleteLine(f)
+	self.perSequenceGCContent = fastqcDataFrame
     
+    def parsePerBaseNContent(self, f):
+        l = self.readCompleteLine(f)
+	m = self.fastqcModuleStartRe.match(l)
+	if m is None:
+	    raise StandardError, 'malformed FastQC module start (Per base N content): %s' % l.strip()
+	description = m.group(1)
+	result = m.group(2)
+	if description != 'Per base N content':
+	    raise StandardError, 'expected "Per base N content" module but found "%s"' % description
+	if self.readTableHeader(f) != ['Base', 'N-Count']:
+	    raise StandardError, 'malformed "Per base N content" header: %s' % ', '.join(self.readTableHeader(f))
+	fastqcDataFrame = FastqcDataFrame(['base', 'nCount'], description, result)
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    w = l.strip().split('\t')
+	    if len(w) != 2:
+	        raise StandardError, 'malformed line: %s' % l.strip()
+	    fastqcDataFrame.addRow({'base': int(w[0]), 'nCount': float(w[1])})
+	    l = self.readCompleteLine(f)
+	self.perBaseNContent = fastqcDataFrame
+
+    def parseSequenceLengthDistribution(self, f):
+        sys.stderr.write('WARNING: FastQC module "Sequence length Distribution" not implemented\n')
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    l = self.readCompleteLine(f)
+	self.sequenceLengthDistribution = None
+
+    def parseSequenceDuplicationLevels(self, f):
+        #fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
+        #fastqcDataFrame.annotaions['totalDeduplicatedPercentage'] = float( ... )
+        sys.stderr.write('WARNING: FastQC module "Sequence Duplication Levels" not implemented\n')
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    l = self.readCompleteLine(f)
+	self.sequenceDuplicationLevels = None
+
+    def parseOverrepresentedSequences(self, f):
+        sys.stderr.write('WARNING: FastQC module "Overrepresented sequences" not implemented\n')
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    l = self.readCompleteLine(f)
+	self.overrepresentedSequences = None
+
+    def parseAdapterContent(self, f):
+        sys.stderr.write('WARNING: FastQC module "Adapter Content" not implemented\n')
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    l = self.readCompleteLine(f)
+	self.adapterContent = None
+
+    def parseKmerContent(self, f):
+        sys.stderr.write('WARNING: FastQC module "Kmer Content" not implemented\n')
+	l = self.readCompleteLine(f)
+	while l.strip() != '>>END_MODULE':
+	    l = self.readCompleteLine(f)
+	self.kmerContent = None
+
     def __init__(self, fastqcStatsFname):
         with open(fastqcStatsFname, 'r') as f:
             self.checkFastqcVersion(f)
             self.parseBasicStatistics(f)
+	    self.parsePerBaseSequenceQuality(f)
+	    self.parsePerTileSequenceQuality(f)
+	    self.parsePerSequenceQualityScores(f)
+	    self.parsePerBaseSequenceContent(f)
+            self.parsePerSequenceGCContent(f)
+	    self.parsePerBaseNContent(f)
+	    self.parseSequenceLengthDistribution(f)
+	    self.parseSequenceDuplicationLevels(f)
+	    self.parseOverrepresentedSequences(f)
+	    self.parseAdapterContent(f)
+	    self.parseKmerContent(f)
+
             
-            # rest obsolete
-            self.perBaseSequenceQuality = self.parsePerBaseSequenceQuality(f)
-            self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
-	    self.perBaseNContent = DataFrame(['base','nCount'])
-	    self.perBaseSequenceContent = DataFrame(['base','g','a','t','c'])
-	    line = f.readline()
-	    while line != '':
-	        line = line.rstrip('\n')
-		infoLine = line.split('\t')
-		if infoLine[0] == '>>Per base sequence quality':
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    while line != '>>END_MODULE':
-			infoLine = line.split('\t')
-			r = {'base': infoLine[0], 'mean': infoLine[1], 'median': infoLine[2], 'lowerQuartile': infoLine[3], 'upperQuartile': infoLine[4], 'percentile10': infoLine[5], 'percentile90': infoLine[6]}
-			self.perBaseSequenceQuality.addRow(r)
-		        line = f.readline()
-			line = line.rstrip('\n')
-
-		elif infoLine[0] == '>>Per base N content':
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    while line != '>>END_MODULE':
-                infoLine = line.split('\t')
-			r = {'base': infoLine[0], 'nCount': infoLine[1]}
-			self.perBaseNContent.addRow(r)
-			line = f.readline()
-			line = line.rstrip('\n')
-
-		elif infoLine[0] == '>>Per base sequence content':
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    line = f.readline()
-		    line = line.rstrip('\n')
-		    while line != '>>END_MODULE':
-			infoLine = line.split('\t')
-			r = {'base': infoLine[0], 'g':infoLine[1], 'a':infoLine[2], 't':infoLine[3], 'c':infoLine[4]}
-			self.perBaseSequenceContent.addRow(r)
-			line = f.readline()
-			line = line.rstrip('\n')
-
-		else:
-		    line = f.readline()
+#            # rest obsolete
+#            self.perBaseSequenceQuality = self.parsePerBaseSequenceQuality(f)
+#            self.perBaseSequenceQuality = DataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
+#	    self.perBaseNContent = DataFrame(['base','nCount'])
+#	    self.perBaseSequenceContent = DataFrame(['base','g','a','t','c'])
+#	    line = f.readline()
+#	    while line != '':
+#	        line = line.rstrip('\n')
+#		infoLine = line.split('\t')
+#		if infoLine[0] == '>>Per base sequence quality':
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    while line != '>>END_MODULE':
+#			infoLine = line.split('\t')
+#			r = {'base': infoLine[0], 'mean': infoLine[1], 'median': infoLine[2], 'lowerQuartile': infoLine[3], 'upperQuartile': infoLine[4], 'percentile10': infoLine[5], 'percentile90': infoLine[6]}
+#			self.perBaseSequenceQuality.addRow(r)
+#		        line = f.readline()
+#			line = line.rstrip('\n')
+#
+#		elif infoLine[0] == '>>Per base N content':
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    while line != '>>END_MODULE':
+#                infoLine = line.split('\t')
+#			r = {'base': infoLine[0], 'nCount': infoLine[1]}
+#			self.perBaseNContent.addRow(r)
+#			line = f.readline()
+#			line = line.rstrip('\n')
+#
+#		elif infoLine[0] == '>>Per base sequence content':
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    line = f.readline()
+#		    line = line.rstrip('\n')
+#		    while line != '>>END_MODULE':
+#			infoLine = line.split('\t')
+#			r = {'base': infoLine[0], 'g':infoLine[1], 'a':infoLine[2], 't':infoLine[3], 'c':infoLine[4]}
+#			self.perBaseSequenceContent.addRow(r)
+#			line = f.readline()
+#			line = line.rstrip('\n')
+#
+#		else:
+#		    line = f.readline()
     
     def getMedian(self, index):
         return float(self.perBaseSequenceQuality.getRowDict(index)['median'])
