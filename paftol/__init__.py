@@ -69,7 +69,7 @@ class RunFastqc(object):
 class FastqcDataFrame(paftol.tools.DataFrame):
 
     def __init__(self, columnHeaderList, description=None, result=None):
-        super(paftol.tools.DataFrame, self).__init__(columnHeaderList)
+        super(FastqcDataFrame, self).__init__(columnHeaderList)
         self.description = description
         self.result = result
         self.annotations = {}
@@ -77,8 +77,8 @@ class FastqcDataFrame(paftol.tools.DataFrame):
 
 class FastqcStats(object):
 
-    fastqcVersionRe = re.compile('##FastQC\t(.+)')
-    fastqcModuleStartRe = re.compile('>>([^\t])\t([\t])')
+    fastqcVersionRe = re.compile('##FastQC\t(.+)') 
+    fastqcModuleStartRe = re.compile('>>([^\t]+)\t([^\t]+)')
 
     def readCompleteLine(self, f):
         l = f.readline()
@@ -165,7 +165,7 @@ class FastqcStats(object):
                 raise StandardError, 'malformed line: %s' % l.strip()
             fastqcDataFrame.addRow({'tile': int(w[0]), 'base': int(w[1]), 'mean': float(w[2])})
             l = self.readCompleteLine(f)
-        self.perTileSequenceQuality = fastqDataFrame
+        self.perTileSequenceQuality = fastqcDataFrame
 
     def parsePerSequenceQualityScores(self, f):
         l = self.readCompleteLine(f)
@@ -371,7 +371,7 @@ class FastqcStats(object):
             l = []
             for row in range(len(dataframe.rowDictList)):
                 l.append(float(dataframe.rowDictList[row][column]))
-            params[column] = MeanAndStd(l)
+            params[column] = paftol.tools.MeanAndStddev(l)
         return params
 
 
@@ -1442,18 +1442,56 @@ def extractPaftolSampleId(fastqName):
         raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
     return m.group(1)
 
+def getQual28(fastqcDataFrame):
+    medianList = fastqcDataFrame.getColumn('median')
+    baseList = fastqcDataFrame.getColumn('base')
+    bool = 0
+    index = 0
+    if min(medianList) > 28:
+        return None
+    else:
+        index = 0
+        while medianList[index] > 28:
+            index = index + 1
+        return baseList[index]
+
 
 def paftolSummary(paftolTargetSet, fastqPairList):
     summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperLength']
     summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
-        paftolSampleId = extractPaftolSampleId(fastqFwd)
-        # fastqc stats...
-        # hybpiper ...
         rowDict = {}
         for columnName in summaryColumnList:
             rowDict[columnName] = None
+        paftolSampleId = extractPaftolSampleId(fastqFwd)
         rowDict['sampleName'] = paftolSampleId
-        summaryDataFrame.addRow(rowDict)
+        
+        runFastqcFwd = RunFastqc(fastqFwd)
+        runFastqcRev = RunFastq(fastqRev)
+        fastqcStatsFwd = FastqcStats(runFastqcFwd.outFName)
+        fastqcStatsRev = FastqcStats(runFastqcRev.outFName)
+        rowDict['qual28Fwd'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
+        rowDict['qual28Rev'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
+        perBaseSequenceContentFwd = fastqcStatsFwd.calculateMeanStd(fastqcStatsFwd.perBaseSequenceContent)
+        perBaseSequenceContentRev = fastqcStatsRev.calculateMeanStd(fastqcStatsRev.perBaseSequenceContent)
+        rowDict['meanA'] = sum(perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / float(2) 
+        rowDict['stddevA'] = sum(perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / float(2)
+        rowDict['meanC'] = sum(perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / float(2)
+        rowDict['stddevC'] = sum(perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / float(2)
+        rowDict['meanG'] = sum(perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / float(2)
+        rowDict['stddevG'] = sum(perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / float(2)
+        rowDict['meanT'] = sum(perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / float(2)
+        rowDict['stddevT'] = sum(perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / float(2)
+
+        ## Run hybpiper analyser
+
+        targetSet = paftol.PaftolTargetSet() # This should come from the output of the analyser?
+        targetSeqRecordList = targetSet.getSeqRecordList()
+        for i in range(len(targetSeqRecordList)):
+            rowDict['paftolOrganism'] = targetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[0]
+            rowDict['paftolGene'] = targetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[1]
+            rowDict['paftolTargetLength'] = len(targetSeqRecordList[i].seq)
+            
+            summaryDataFrame.addRow(rowDict)
     return summaryDataFrame
         
