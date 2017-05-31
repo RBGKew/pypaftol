@@ -857,7 +857,7 @@ class ReferenceGenomeMappingProcessor(object):
         for gene in referenceGenome.geneList:
             geneLength = gene.getLength()
             self.geneHitDict[gene.geneId] = {'geneId': gene.geneId, 'geneLength': geneLength, 'numHits': 0}
-                self.intergenicLength = self.intergenicLength - geneLength
+            self.intergenicLength = self.intergenicLength - geneLength
         self.geneHitDict[self.intergenicId] = {'geneId': self.intergenicId, 'geneLength': self.intergenicLength, 'numHits': 0}
         self.geneHitDict[self.unmappedId] = {'geneId': self.unmappedId, 'geneLength': None, 'numHits': 0}
         self.rawmapTable = paftol.tools.DataFrame(['qname', 'rname', 'pos'])
@@ -1043,7 +1043,7 @@ conventions may be added.
             if gene.containsSamAlignment(samAlignment):
                 return gene.geneId
 
-    def mapReadsStatsBwaMem(self, forwardReadsFname, reverseReadsFname=None, bwaRunner):
+    def mapReadsStatsBwaMem(self, bwaRunner, forwardReadsFname, reverseReadsFname=None):
         referenceGenomeMappingProcessor = ReferenceGenomeMappingProcessor(self)
         # continue here
         bwaRunner.processBwa(referenceGenomeMappingProcessor, forwardReadsFname, reverseReadsFname)
@@ -1434,11 +1434,26 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             self.cleanup()
 
             
-            
+
+def extractPaftolSampleId(fastqName):
+    paftolFastqRe = re.compile('([A-Z0-9_-]+)_L001_R([12])')
+    m = paftolFastqRe.match(fastqName)
+    if m is None:
+        raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
+    return m.group(1)
+
+
 def paftolSummary(paftolTargetSet, fastqPairList):
-    summaryDataFrame = paftol.tools.DataFrame(['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperLength'])
+    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperLength']
+    summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
-        pass
+        paftolSampleId = extractPaftolSampleId(fastqFwd)
         # fastqc stats...
         # hybpiper ...
-        rowDict = {'sampleName'
+        rowDict = {}
+        for columnName in summaryColumnList:
+            rowDict[columnName] = None
+        rowDict['sampleName'] = paftolSampleId
+        summaryDataFrame.addRow(rowDict)
+    return summaryDataFrame
+        
