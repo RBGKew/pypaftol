@@ -10,20 +10,20 @@ import Bio.SeqRecord
 import paftol
     
     
-def addBwaParamsToParser(p):
+def addBwaRunnerToParser(p):
     p.add_argument('--bwaNumThreads', type=int, help='set number of threads for BWA (see bwa mem -t)')
     p.add_argument('--bwaMinSeedLength', type=int, help='set minimum seed length for BWA (see bwa mem -k)')
     p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
     p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
 
 
-def argToBwaParams(argNamespace):
-    bwaParams = paftol.BwaParams()
-    bwaParams.numThreads = argNamespace.bwaNumThreads
-    bwaParams.minSeedLength = argNamespace.bwaMinSeedLength
-    bwaParams.scoreThreshold = argNamespace.bwaScoreThreshold
-    bwaParams.reseedTrigger = argNamespace.bwaReseedTrigger
-    return bwaParams
+def argToBwaRunner(argNamespace):
+    bwaRunner = paftol.tools.BwaRunner()
+    bwaRunner.numThreads = argNamespace.bwaNumThreads
+    bwaRunner.minSeedLength = argNamespace.bwaMinSeedLength
+    bwaRunner.scoreThreshold = argNamespace.bwaScoreThreshold
+    bwaRunner.reseedTrigger = argNamespace.bwaReseedTrigger
+    return bwaRunner
 
 
 def runHybseq(argNamespace):
@@ -34,21 +34,24 @@ def runHybseq(argNamespace):
     
     
 def runHybseqstats(argNamespace):
-    paftolTargetSet = paftol.PaftolTargetSet()
-    paftolTargetSet.readFasta(argNamespace.targetseqs)
+    bwaRunner = argToBwaRunner(argNamespace)
     fastqPairList = []
     sys.stderr.write('fastqList: %s\n' % str(argNamespace.fastqList))
     for i in range(0, len(argNamespace.fastqList), 2):
         fastqPairList.append((argNamespace.fastqList[i], argNamespace.fastqList[i + 1], ))
-    sdf = paftol.paftolSummary(paftolTargetSet, fastqPairList)
-    sdf.writeCsv(sys.stdout)
-
+    sdf = paftol.paftolSummary(argNamespace.targetseqs, fastqPairList, bwaRunner)
+    if argNamespace.outfile is None:
+        sdf.writeCsv(sys.stdout)
+    else:
+        with open(argNamespace.outfile, 'w') as f:
+            sdf.writeCsv(f)
+    
 
 def runHybpiper(argNamespace):
     """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
 """
-    bwaParams = argToBwaParams(argNamespace)
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz, bwaParams=bwaParams)
+    bwaRunner = argToBwaRunner(argNamespace)
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz, bwaRunner=bwaRunner)
     hybpiperAnalyser.allowInvalidBases = argNamespace.allowInvalidBases
     if argNamespace.csv is not None:
         hybpiperAnalyser.statsCsvFilename = argNamespace.csv
@@ -80,10 +83,10 @@ def runTargetGeneScan(argNamespace):
             
             
 def runGenomeReadScan(argNamespace):
-    bwaParams = argToBwaParams(argNamespace)
+    bwaRunner = argToBwaRunner(argNamespace)
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
-    statsTable, rawmapTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaParams=bwaParams)
+    statsTable, rawmapTable = referenceGenome.mapReadsStatsBwaMem(argNamespace.forwardreads, argNamespace.reversereads, bwaRunner=bwaRunner)
     if argNamespace.rawmapTable is not None:
         with open(argNamespace.rawmapTable, 'w') as csvFile:
             rawmapTable.writeCsv(csvFile)
@@ -105,7 +108,9 @@ def addDevParser(subparsers):
 def addHybseqstatsParser(subparsers):
     p = subparsers.add_parser('hybseqstats')
     p.add_argument('-t', '--targetseqs', help='target sequences FASTA file')
+    p.add_argument('-o', '--outfile', help='output file (default: stdout)')
     p.add_argument('fastqList', nargs='*', help='fastq file list')
+    addBwaRunnerToParser(p)
     p.set_defaults(func=runHybseqstats)
 
     
@@ -129,7 +134,7 @@ def addHybpiperParser(subparsers):
     p.add_argument('--csv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
-    addBwaParamsToParser(p)
+    addBwaRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
     p.set_defaults(func=runHybpiper)
     
@@ -152,7 +157,7 @@ def addGenomeReadScanParser(subparsers):
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
     p.add_argument('--rawmapTable', help='genomic coordinates of mapped reads')
-    addBwaParamsToParser(p)
+    addBwaRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)
     

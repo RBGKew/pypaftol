@@ -707,6 +707,7 @@ class PaftolTargetSet(object):
     def __init__(self):
         self.paftolGeneDict = {}
         self.organismDict = {}
+        self.numOfftargetReads = 0
 
     def makeFastaId(organismName, geneName):
         return '%s-%s' % (organismName, geneName)
@@ -722,9 +723,10 @@ class PaftolTargetSet(object):
         return organismName, geneName
 
     def readFasta(self, fastaHandle):
+        # FIXME: add provision to control tolerance for invalid bases -- checkTargets type functionality?
         self.paftolGeneDict = {}
         self.organismDict = {}
-        for sr in Bio.SeqIO.parse(fastaHandle, 'fasta'):
+        for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
             organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
                 raise StandardError('bad organism name: %s' % organismName)
@@ -753,16 +755,19 @@ class PaftolTargetSet(object):
         sys.stderr.write('writeFasta: writing %d sequences\n' % len(srList))
         Bio.SeqIO.write(srList, fastaHandle, 'fasta')
 
-    def addSamAlignment(self, samAlignment):
-        organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
-        if organismName not in self.organismDict:
-            raise StandardError('unknown organism: %s' % organismName)
-        if geneName not in self.paftolGeneDict:
-            raise StandardError('unknown gene: %s' % geneName)
-        if geneName not in self.organismDict[organismName].paftolTargetDict:
-            raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
-        paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
-        paftolTarget.addSamAlignment(samAlignment)
+    def processSamAlignment(self, samAlignment):
+        if samAlignment.isMapped():
+            organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
+            if organismName not in self.organismDict:
+                raise StandardError('unknown organism: %s' % organismName)
+            if geneName not in self.paftolGeneDict:
+                raise StandardError('unknown gene: %s' % geneName)
+            if geneName not in self.organismDict[organismName].paftolTargetDict:
+                raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
+            paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
+            paftolTarget.addSamAlignment(samAlignment)
+        else:
+            self.numOfftargetReads = self.numOfftargetReads + 1
 
     def targetStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolTarget.csvFieldNames)
@@ -1066,19 +1071,19 @@ of developing this).
 @type spadesKvalList: C{list} of C{int}, or C{None}
 """
 
-    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp', bwaParams=None):
+    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None):
         super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
-        if bwaParams is None:
-            self.bwaParams = BwaParams()
+        if bwaRunner is None:
+            self.bwaRunner = paftol.tools.BwaRunner()
         else:
-            self.bwaParams = bwaParams
+            self.bwaRunner = bwaRunner
         self.spadesCovCutoff = 8
         self.spadesKvalList = None
         self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
-        self.initPaftolTargetDicts()
+        self.readPaftolTargetSet()
 
-    def initPaftolTargetDicts(self):
+    def readPaftolTargetSet(self):
         if self.targetsSourcePath is None:
             raise StandardError('illegal state: cannot init organism and gene dicts with targetsSourcePath = None')
         self.paftolTargetSet = PaftolTargetSet()
@@ -1090,49 +1095,25 @@ of developing this).
         logger.debug('setting up')
         if self.targetsSourcePath is None:
             raise StandardError('illegal state: cannot set up with targetsSourcePath = None')
+        self.readPaftolTargetSet()
         self.setupTmpdir()
         shutil.copy(self.targetsSourcePath, self.makeTargetsFname(True))
 
     def cleanup(self):
         self.cleanupTmpdir()
 
-    def bwaIndexReference(self, referenceFname):
-        bwaIndexArgv = self.bwaParams.indexReferenceArgv(referenceFname)
-        logger.debug('%s', ' '.join(bwaIndexArgv))
-        subprocess.check_call(bwaIndexArgv)
-
     def mapReadsBwa(self):
         """Map reads to gene sequences (from multiple organisms possibly).
 """
         logger.debug('mapping reads to gene sequences')
         referenceFname = self.makeTargetsFname(True)
-        self.bwaIndexReference(referenceFname)
+        self.bwaRunner.indexReference(referenceFname)
         forwardReadsFname = os.path.join(os.getcwd(), self.forwardFastq)
         if self.reverseFastq is None:
             reverseReadsFname = None
         else:
             reverseReadsFname = os.path.join(os.getcwd(), self.reverseFastq)
-        bwaArgv = self.bwaParams.mappingMemArgv(referenceFname, forwardReadsFname, reverseReadsFname)
-        samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
-        logger.debug('%s', ' '.join(bwaArgv))
-        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd=self.makeWorkDirname())
-        logger.debug('%s', ' '.join(samtoolsArgv))
-        samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd=self.makeWorkDirname())
-        samLine = samtoolsProcess.stdout.readline()
-        while samLine != '':
-            # logger.debug(samLine)
-            if samLine[0] != '@':
-                samAlignment = SamAlignment(samLine)
-                self.paftolTargetSet.addSamAlignment(samAlignment)
-            samLine = samtoolsProcess.stdout.readline()
-        bwaProcess.stdout.close()
-        samtoolsProcess.stdout.close()
-        bwaReturncode = bwaProcess.wait()
-        samtoolsReturncode = samtoolsProcess.wait()
-        if bwaReturncode != 0:
-            raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
-        if samtoolsReturncode != 0:
-            raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
+        self.bwaRunner.processBwa(self.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
     def setRepresentativeGenes(self):
         """Roughly equivalent to "distribute targets" in HybPiper."""
@@ -1252,7 +1233,8 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
             logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
             return None
-        spadesArgv = ['spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
+        # FIXME: add proper spades parameters
+        spadesArgv = ['spades.py', '--only-assembler', '--threads', '4', '--cov-cutoff', '%d' % self.spadesCovCutoff]
         if self.spadesKvalList is not None:
             spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
         spadesArgv.extend(spadesInputArgs)
@@ -1421,6 +1403,7 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             self.distribute()
             self.setRepresentativeGenes()
             reconstructedCdsDict = {}
+            # FIXME: place paftol target set, reconstructed CDS etc in one analysis result instance (new class)
             for geneName in self.paftolTargetSet.paftolGeneDict:
                 reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
             if self.statsCsvFilename is not None:
@@ -1432,7 +1415,6 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         finally:
             self.makeTgz()
             self.cleanup()
-
             
 
 def extractPaftolSampleId(fastqName):
@@ -1457,8 +1439,8 @@ def getQual28(fastqcDataFrame):
         return baseList[index]
 
 
-def paftolSummary(paftolTargetSet, fastqPairList):
-    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperLength']
+def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
+    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperCdsLength']
     summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
         logger.debug('fastqPair: %s, %s' % (fastqFwd, fastqRev))
@@ -1484,15 +1466,22 @@ def paftolSummary(paftolTargetSet, fastqPairList):
         rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
         rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
         rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
-
-        ## Run hybpiper analyser
-
-        # targetSet = paftol.PaftolTargetSet() # This should come from the output of the analyser?
-        targetSeqRecordList = paftolTargetSet.getSeqRecordList()
-        for i in range(len(targetSeqRecordList)):
-            rowDict['paftolOrganism'] = paftolTargetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[0]
-            rowDict['paftolGene'] = paftolTargetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[1]
-            rowDict['paftolTargetLength'] = len(targetSeqRecordList[i].seq)
-            summaryDataFrame.addRow(rowDict)
+        hybpiperAnalyser = HybpiperAnalyser(paftolTargetFname, fastqFwd, fastqRev, bwaRunner=bwaRunner)
+        reconstructedCdsDict = hybpiperAnalyser.analyse()
+        targetSeqRecordList = hybpiperAnalyser.paftolTargetSet.getSeqRecordList()
+        for paftolOrganism in hybpiperAnalyser.paftolTargetSet.organismDict.values():
+            for paftolTarget in paftolOrganism.paftolTargetDict.values():
+                rowDict['paftolOrganism'] = paftolOrganism.name
+                rowDict['paftolGene'] = paftolTarget.paftolGene.name
+                rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
+                rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
+                hybpiperCdsLength = None
+                if paftolTarget.paftolGene.name in reconstructedCdsDict and reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
+                    hybpiperCdsLength = len(reconstructedCdsDict[paftolTarget.paftolGene.name])
+                rowDict['hybpiperCdsLength'] = hybpiperCdsLength
+                summaryDataFrame.addRow(rowDict)
+        tmpCsvFname = 'tmp_%s.csv' % paftolSampleId
+        with open(tmpCsvFname, 'w') as tmpCsv:
+            summaryDataFrame.writeCsv(tmpCsv)
     return summaryDataFrame
         
