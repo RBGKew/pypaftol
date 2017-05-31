@@ -647,7 +647,7 @@ class BwaRunner(object):
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
     
-    def mapReadsBwa(self, samAlignmentProcessor, referenceFname, forwardReadsFname, reverseReadsFname=None):
+    def processBwa(self, samAlignmentProcessor, referenceFname, forwardReadsFname, reverseReadsFname=None):
         """Map reads to to reference sequences.
 """
         sys.stderr.write('effective mapReadsBwa logging level: %d\n' % logger.getEffectiveLevel())
@@ -676,3 +676,48 @@ class BwaRunner(object):
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
         
+class DataFrame(object):
+
+    def __init__(self, columnHeaderList):
+        self.columnHeaderList = columnHeaderList[:]
+        self.rowDictList = []
+
+    def addRow(self, rowDict):
+        if set(rowDict.keys()) != set(self.columnHeaderList):
+            raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
+        self.rowDictList.append(rowDict)
+
+    def nrow(self):
+        return len(self.rowDictList)
+
+    def getRowDict(self, rowIndex):
+        return self.rowDictList[rowIndex]
+
+    def writeCsv(self, f):
+        csvDictWriter = csv.DictWriter(f, self.columnHeaderList)
+        csvDictWriter.writeheader()
+        for rowDict in self.rowDictList:
+            csvDictWriter.writerow(rowDict)
+
+    def getColumn(self, columnName):
+        return [rowDict[columnName] for rowDict in self.rowDictList]        
+
+    def colMeanAndStddev(self, columnName):
+        return MeanAndStddev(self.getColumn(columnName))
+
+    def colStats(self, columnName):
+        d = {}
+        for columnName in self.columnHeaderList:
+            d[columnHeader] = self.colMeanAndStddev(columnName)
+        return d
+
+
+class MeanAndStddev(object):
+
+    def __init__(self, l):
+        self.l = l
+        self.mean = sum(l) / float(len(l))
+        sdList = []
+        for num in l:
+            sdList.append((self.mean - num) ** 2)
+        self.std = sum(sdList) / len(sdList)
