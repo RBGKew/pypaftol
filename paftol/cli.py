@@ -31,6 +31,17 @@ def runHybseq(argNamespace):
 """
     hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     sys.stderr.write('%s\n' % str(hybseqAnalyser))
+    
+    
+def runHybseqstats(argNamespace):
+    paftolTargetSet = paftol.PaftolTargetSet()
+    paftolTargetSet.readFasta(argNamespace.targetseqs)
+    fastqPairList = []
+    sys.stderr.write('fastqList: %s\n' % str(argNamespace.fastqList))
+    for i in range(0, len(argNamespace.fastqList), 2):
+        fastqPairList.append((argNamespace.fastqList[i], argNamespace.fastqList[i + 1], ))
+    sdf = paftol.paftolSummary(paftolTargetSet, fastqPairList)
+    sdf.writeCsv(sys.stdout)
 
 
 def runHybpiper(argNamespace):
@@ -89,6 +100,13 @@ def addDevParser(subparsers):
     p.add_argument('-i', '--int', type=int, help='set an integer')
     p.add_argument('-f', '--flag', action='store_true', help='set a flag')
     p.set_defaults(func=showArgs)
+
+    
+def addHybseqstatsParser(subparsers):
+    p = subparsers.add_parser('hybseqstats')
+    p.add_argument('-t', '--targetseqs', help='target sequences FASTA file')
+    p.add_argument('fastqList', nargs='*', help='fastq file list')
+    p.set_defaults(func=runHybseqstats)
 
     
 def addHybseqParser(subparsers):
@@ -156,6 +174,7 @@ def paftoolsMain():
     addHybpiperParser(subparsers)
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
+    addHybseqstatsParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)

@@ -8,6 +8,8 @@ import subprocess
 import csv
 import tempfile
 import logging
+import copy
+import math
 
 import Bio
 import Bio.Alphabet
@@ -685,7 +687,7 @@ class DataFrame(object):
     def addRow(self, rowDict):
         if set(rowDict.keys()) != set(self.columnHeaderList):
             raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
-        self.rowDictList.append(rowDict)
+        self.rowDictList.append(copy.copy(rowDict))
 
     def nrow(self):
         return len(self.rowDictList)
@@ -720,4 +722,4 @@ class MeanAndStddev(object):
         sdList = []
         for num in l:
             sdList.append((self.mean - num) ** 2)
-        self.std = sum(sdList) / len(sdList)
+        self.std = math.sqrt(sum(sdList) / (len(sdList) - 1))

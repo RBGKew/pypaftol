@@ -1442,6 +1442,7 @@ def extractPaftolSampleId(fastqName):
         raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
     return m.group(1)
 
+
 def getQual28(fastqcDataFrame):
     medianList = fastqcDataFrame.getColumn('median')
     baseList = fastqcDataFrame.getColumn('base')
@@ -1460,6 +1461,7 @@ def paftolSummary(paftolTargetSet, fastqPairList):
     summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperLength']
     summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
+        logger.debug('fastqPair: %s, %s' % (fastqFwd, fastqRev))
         rowDict = {}
         for columnName in summaryColumnList:
             rowDict[columnName] = None
@@ -1467,31 +1469,30 @@ def paftolSummary(paftolTargetSet, fastqPairList):
         rowDict['sampleName'] = paftolSampleId
         
         runFastqcFwd = RunFastqc(fastqFwd)
-        runFastqcRev = RunFastq(fastqRev)
+        runFastqcRev = RunFastqc(fastqRev)
         fastqcStatsFwd = FastqcStats(runFastqcFwd.outFName)
         fastqcStatsRev = FastqcStats(runFastqcRev.outFName)
         rowDict['qual28Fwd'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
         rowDict['qual28Rev'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
         perBaseSequenceContentFwd = fastqcStatsFwd.calculateMeanStd(fastqcStatsFwd.perBaseSequenceContent)
         perBaseSequenceContentRev = fastqcStatsRev.calculateMeanStd(fastqcStatsRev.perBaseSequenceContent)
-        rowDict['meanA'] = sum(perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / float(2) 
-        rowDict['stddevA'] = sum(perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / float(2)
-        rowDict['meanC'] = sum(perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / float(2)
-        rowDict['stddevC'] = sum(perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / float(2)
-        rowDict['meanG'] = sum(perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / float(2)
-        rowDict['stddevG'] = sum(perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / float(2)
-        rowDict['meanT'] = sum(perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / float(2)
-        rowDict['stddevT'] = sum(perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / float(2)
+        rowDict['meanA'] = (perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / 2.0 
+        rowDict['stddevA'] = (perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / 2.0
+        rowDict['meanC'] = (perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / 2.0
+        rowDict['stddevC'] = (perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / 2.0
+        rowDict['meanG'] = (perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / 2.0
+        rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
+        rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
+        rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
 
         ## Run hybpiper analyser
 
-        targetSet = paftol.PaftolTargetSet() # This should come from the output of the analyser?
-        targetSeqRecordList = targetSet.getSeqRecordList()
+        # targetSet = paftol.PaftolTargetSet() # This should come from the output of the analyser?
+        targetSeqRecordList = paftolTargetSet.getSeqRecordList()
         for i in range(len(targetSeqRecordList)):
-            rowDict['paftolOrganism'] = targetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[0]
-            rowDict['paftolGene'] = targetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[1]
+            rowDict['paftolOrganism'] = paftolTargetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[0]
+            rowDict['paftolGene'] = paftolTargetSet.extractOrganismAndGeneNames(targetSeqRecordList[i].id)[1]
             rowDict['paftolTargetLength'] = len(targetSeqRecordList[i].seq)
-            
             summaryDataFrame.addRow(rowDict)
     return summaryDataFrame
         
