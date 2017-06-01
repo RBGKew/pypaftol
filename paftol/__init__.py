@@ -768,6 +768,15 @@ class PaftolTargetSet(object):
             paftolTarget.addSamAlignment(samAlignment)
         else:
             self.numOfftargetReads = self.numOfftargetReads + 1
+            
+    def makeQnameGeneDict(self):
+        qnameGeneDict = {}
+        for paftolGene in self.paftolGeneDict.values():
+            for qname in paftolGene.qnameSet():
+                if qname not in qnameGeneDict:
+                    qnameGeneDict[qname] = []
+                qnameGeneDict[qname].append(paftolGene)
+        return qnameGeneDict
 
     def targetStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolTarget.csvFieldNames)
@@ -1135,14 +1144,13 @@ of developing this).
     def distributeSingle(self):
         fForward = open(self.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
-            for paftolGene in self.paftolTargetSet.paftolGeneDict.values():
-                if readName in paftolGene.qnameSet():
-                    f = open(self.makeGeneFname(paftolGene.name, True), 'a')
-                    logger.debug('appending to %s', f.name)
-                    f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                    f.close()
+            if readName in readGenedict:
+                for paftolGene in qnameGeneDict[readName]:
+                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
+                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
         fForward.close()
 
     def distributePaired(self):
@@ -1151,6 +1159,7 @@ of developing this).
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         fReverse = open(self.reverseFastq, 'r')
         fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
+        qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
             # FIXME: premature end of reverse fastq will trigger
@@ -1159,12 +1168,11 @@ of developing this).
             revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
             if readName != revReadTitle.split()[0]:
                 raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle))
-            for paftolGene in self.paftolTargetSet.paftolGeneDict.values():
-                if readName in paftolGene.qnameSet():
-                    f = open(self.makeGeneFname(paftolGene.name, True), 'a')
-                    f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                    f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
-                    f.close()
+            if readName in qnameGeneDict:
+                for paftolGene in qnameGeneDict[readName]:
+                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
+                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                        f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
         # FIXME: check for dangling stuff in reverse: should trigger
         # an exception:
         # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
@@ -1233,7 +1241,7 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
             logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
             return None
-        # FIXME: add proper spades parameters
+        # FIXME: add proper spades parameters... consider factoring out to SpadesRunner?
         spadesArgv = ['spades.py', '--only-assembler', '--threads', '4', '--cov-cutoff', '%d' % self.spadesCovCutoff]
         if self.spadesKvalList is not None:
             spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
@@ -1396,25 +1404,36 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
     def analyse(self):
+        logger.debug('starting')
         self.checkTargets()
+        logger.debug('targets checked')
         try:
             self.setup()
+            logger.debug('setup done')
             self.mapReadsBwa()
+            logger.debug('BWA mapping done')
             self.distribute()
+            logger.debug('read distribution done')
             self.setRepresentativeGenes()
+            logger.debug('representative genes selected')
             reconstructedCdsDict = {}
             # FIXME: place paftol target set, reconstructed CDS etc in one analysis result instance (new class)
             for geneName in self.paftolTargetSet.paftolGeneDict:
                 reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
+            logger.debug('CDS reconstruction done')
             if self.statsCsvFilename is not None:
                 tStats = self.paftolTargetSet.targetStats()
                 with open(self.statsCsvFilename, 'w') as csvFile:
                     tStats.writeCsv(csvFile)
                 csvFile.close()
+                logger.debug('CSV file written')
+            logger.debug('finished')
             return reconstructedCdsDict
         finally:
             self.makeTgz()
+            logger.debug('tgz file made')            
             self.cleanup()
+            logger.debug('cleanup done')
             
 
 def extractPaftolSampleId(fastqName):
