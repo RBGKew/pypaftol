@@ -169,7 +169,7 @@ def showArgs(args):
 def paftoolsMain():
     """Entry point for the C{paftools} script.
 """
-    logging.basicConfig(format='%(levelname)s: %(module)s:%(lineno)d, %(funcName)s: %(message)s')
+    logging.basicConfig(format='%(levelname)s: %(module)s:%(lineno)d, %(funcName)s, %(asctime)s: %(message)s')
     # logger = logging.getLogger(__name__)
     p = argparse.ArgumentParser(description='paftools -- tools for the Plant and Fungal Trees of Life (PAFTOL) project')
     p.add_argument('--loglevel', help='set logging level [DEBUG, INFO, WARNING, ERROR, CRITICAL]')
