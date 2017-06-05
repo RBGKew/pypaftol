@@ -59,12 +59,25 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
 class RunFastqc(object):
 
     def __init__(self, fastqFName):
+        self.tmpDirName = tempfile.mkdtemp()
+        print self.tmpDirName
         self.fastqFName = fastqFName
-        self.outFName = '%s_fastqc/fastqc_data.txt' % self.fastqFName.split('.')[0]
-        fastqcArgs = ['fastqc', '--extract', '--nogroup', self.fastqFName]
+        self.outFName = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFName.split('.')[0])
+        fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFName]
         # FIXME consider using --outgroup option to store files in a temporary directory for deletion
         fastqcProcess = subprocess.check_call(fastqcArgs)
+        self.cleanup()
 
+    def cleanupTmpdir(self):
+        if self.tmpDirName is not None:
+            if keepTmp:
+                logger.warning('not removing temporary directory %s', self.tmpDirName)
+            else:
+                shutil.rmtree(self.tmpDirName)
+            self.tmpDirName = None
+
+    def cleanup(self):
+        self.cleanupTmpdir()
 
 class FastqcDataFrame(paftol.tools.DataFrame):
 
