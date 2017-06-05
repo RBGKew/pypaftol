@@ -358,10 +358,7 @@ class FastqcStats(object):
         l = []
         for index in range(len(self.perBaseNContent.rowDictList)):
             l.append(self.perBaseNContent.rowDictList[index]['nCount'])
-            if l[-1] != '0.0':
-                print l[-1]
-                sys.exit()
-        return 0
+        return l
 
     def calculateMeanStd(self, dataframe):
         colList = dataframe.columnHeaderList[:]
@@ -1459,16 +1456,22 @@ def getQual28(fastqcDataFrame):
 
 
 def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
-    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'hybpiperCdsLength']
+    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numUnmappedReads', 'hybpiperCdsLength']
     summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
         logger.debug('fastqPair: %s, %s' % (fastqFwd, fastqRev))
         rowDict = {}
         for columnName in summaryColumnList:
             rowDict[columnName] = None
+        rowDict['numReadsFwd'] = 0
+        for read in Bio.SeqIO.parse(fastqFwd, 'fastq'):
+            rowDict['numReadsFwd'] = rowDict['numReadsFwd'] + 1
+        rowDict['numReadsRev'] = 0
+        for read in Bio.SeqIO.parse(fastqRev, 'fastq'):
+            rowDict['numReadsRev'] = rowDict['numReadsRev'] + 1
         paftolSampleId = extractPaftolSampleId(fastqFwd)
         rowDict['sampleName'] = paftolSampleId
-        
+        rowDict['targetsFile'] = paftolTargetFname 
         runFastqcFwd = RunFastqc(fastqFwd)
         runFastqcRev = RunFastqc(fastqRev)
         fastqcStatsFwd = FastqcStats(runFastqcFwd.outFName)
@@ -1485,6 +1488,10 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
         rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
         rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
+        perBaseNContentFwd = fastqcStatsFwd.calculateMeanStd(fastqcStatsFwd.perBaseNContent)
+        perBaseNContentRev = fastqcStatsRev.calculateMeanStd(fastqcStatsRev.perBaseNContent)
+        rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
+        rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
         hybpiperAnalyser = HybpiperAnalyser(paftolTargetFname, fastqFwd, fastqRev, bwaRunner=bwaRunner)
         reconstructedCdsDict = hybpiperAnalyser.analyse()
         targetSeqRecordList = hybpiperAnalyser.paftolTargetSet.getSeqRecordList()
