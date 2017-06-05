@@ -1456,7 +1456,7 @@ def getQual28(fastqcDataFrame):
 
 
 def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
-    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numUnmappedReads', 'hybpiperCdsLength']
+    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
     summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
     for fastqFwd, fastqRev in fastqPairList:
         logger.debug('fastqPair: %s, %s' % (fastqFwd, fastqRev))
@@ -1501,6 +1501,7 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
                 rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
+                rowDict['totNumUnmappedReads'] = hybpiperAnalyser.paftolTargetSet.numOfftargetReads 
                 hybpiperCdsLength = None
                 if paftolTarget.paftolGene.name in reconstructedCdsDict and reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
                     hybpiperCdsLength = len(reconstructedCdsDict[paftolTarget.paftolGene.name])
