@@ -55,6 +55,20 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
         return 1
     return 0
 
+def generateFastqcDataFrame(fastqFName):
+    """Method that runs fastqc and returns C{FastqcStats}.
+
+@param fastqFName: fastq file name
+@type fastFName: C{str}
+@return: C{FastqcStats}
+"""
+    try: 
+        runFastqc = RunFastqc(fastqFName)
+        fastqcStats = FastqcStats(runFastqc.outFName)
+    finally:
+        shutil.rmtree(runFastqc.tmpDirName)
+        runFastqc.tmpDirName = None
+    return fastqcStats
 
 class RunFastqc(object):
 
@@ -62,22 +76,8 @@ class RunFastqc(object):
         self.tmpDirName = tempfile.mkdtemp()
         self.fastqFName = fastqFName
         self.outFName = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFName.split('.')[0])
-        try:
-            fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFName]
-            fastqcProcess = subprocess.check_call(fastqcArgs)
-        finally:
-            self.cleanup()
-
-    def cleanupTmpdir(self):
-        if self.tmpDirName is not None:
-            if keepTmp:
-                logger.warning('not removing temporary directory %s', self.tmpDirName)
-            else:
-                shutil.rmtree(self.tmpDirName)
-            self.tmpDirName = None
-
-    def cleanup(self):
-        self.cleanupTmpdir()
+        fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFName]
+        fastqcProcess = subprocess.check_call(fastqcArgs)
 
 class FastqcDataFrame(paftol.tools.DataFrame):
 
@@ -1457,16 +1457,17 @@ def extractPaftolSampleId(fastqName):
 def getQual28(fastqcDataFrame):
     medianList = fastqcDataFrame.getColumn('median')
     baseList = fastqcDataFrame.getColumn('base')
-    bool = 0
     index = 0
-    if min(medianList) > 28:
-        return None
+    boolVar = 0
+    while (index < len(medianList)) and (boolVar == 0):
+        if (medianList[index] < 28):
+            pos = index
+            boolVar = 1
+        index = index + 1
+    if boolVar == 0:
+        return 0
     else:
-        index = 0
-        while medianList[index] > 28:
-            index = index + 1
-        return baseList[index]
-
+        return baseList[pos]
 
 def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
     summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
@@ -1476,23 +1477,17 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         rowDict = {}
         for columnName in summaryColumnList:
             rowDict[columnName] = None
-        rowDict['numReadsFwd'] = 0
-        for read in Bio.SeqIO.parse(fastqFwd, 'fastq'):
-            rowDict['numReadsFwd'] = rowDict['numReadsFwd'] + 1
-        rowDict['numReadsRev'] = 0
-        for read in Bio.SeqIO.parse(fastqRev, 'fastq'):
-            rowDict['numReadsRev'] = rowDict['numReadsRev'] + 1
+        rowDict['numReadsFwd'] = paftol.tools.countSeqRecords(fastqFwd, 'fastq')
+        rowDict['numReadsRev'] = paftol.tools.countSeqRecords(fastqRev, 'fastq')
         paftolSampleId = extractPaftolSampleId(fastqFwd)
         rowDict['sampleName'] = paftolSampleId
         rowDict['targetsFile'] = paftolTargetFname 
-        runFastqcFwd = RunFastqc(fastqFwd)
-        runFastqcRev = RunFastqc(fastqRev)
-        fastqcStatsFwd = FastqcStats(runFastqcFwd.outFName)
-        fastqcStatsRev = FastqcStats(runFastqcRev.outFName)
-        rowDict['qual28Fwd'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
-        rowDict['qual28Rev'] = getQual28(fastqcStatsFwd.perBaseSequenceQuality)
-        perBaseSequenceContentFwd = fastqcStatsFwd.calculateMeanStd(fastqcStatsFwd.perBaseSequenceContent)
-        perBaseSequenceContentRev = fastqcStatsRev.calculateMeanStd(fastqcStatsRev.perBaseSequenceContent)
+        fqDataFrameFwd = generateFastqcDataFrame(fastqFwd)
+        fqDataFrameRev = generateFastqcDataFrame(fastqRev)
+        rowDict['qual28Fwd'] = getQual28(fqDataFrameFwd.perBaseSequenceQuality)
+        rowDict['qual28Rev'] = getQual28(fqDataFrameRev.perBaseSequenceQuality)
+        perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
+        perBaseSequenceContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseSequenceContent)
         rowDict['meanA'] = (perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / 2.0 
         rowDict['stddevA'] = (perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / 2.0
         rowDict['meanC'] = (perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / 2.0
@@ -1501,20 +1496,20 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
         rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
         rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
-        perBaseNContentFwd = fastqcStatsFwd.calculateMeanStd(fastqcStatsFwd.perBaseNContent)
-        perBaseNContentRev = fastqcStatsRev.calculateMeanStd(fastqcStatsRev.perBaseNContent)
+        perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
+        perBaseNContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseNContent)
         rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
         rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
         hybpiperAnalyser = HybpiperAnalyser(paftolTargetFname, fastqFwd, fastqRev, bwaRunner=bwaRunner)
         reconstructedCdsDict = hybpiperAnalyser.analyse()
+        rowDict['totNumUnmappedReads'] = hybpiperAnalyser.paftolTargetSet.numOfftargetReads 
         targetSeqRecordList = hybpiperAnalyser.paftolTargetSet.getSeqRecordList()
         for paftolOrganism in hybpiperAnalyser.paftolTargetSet.organismDict.values():
+            rowDict['paftolOrganism'] = paftolOrganism.name
             for paftolTarget in paftolOrganism.paftolTargetDict.values():
-                rowDict['paftolOrganism'] = paftolOrganism.name
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
                 rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
-                rowDict['totNumUnmappedReads'] = hybpiperAnalyser.paftolTargetSet.numOfftargetReads 
                 hybpiperCdsLength = None
                 if paftolTarget.paftolGene.name in reconstructedCdsDict and reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
                     hybpiperCdsLength = len(reconstructedCdsDict[paftolTarget.paftolGene.name])
