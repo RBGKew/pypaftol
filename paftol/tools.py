@@ -29,6 +29,12 @@ import paftol
 logger = logging.getLogger(__name__)
 
 
+def countSeqRecords(fName, fFormat):
+    count = 0
+    for seqRecord in Bio.SeqIO.parse(fName, fFormat):
+        count = count + 1
+    return count
+
 def translateGapped(seq, table='Standard'):
     """Translate a gapped sequence.
 
