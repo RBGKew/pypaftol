@@ -718,6 +718,7 @@ class PaftolTargetSet(object):
         self.paftolGeneDict = {}
         self.organismDict = {}
         self.numOfftargetReads = 0
+        self.fastaHandleStr = None
 
     def makeFastaId(organismName, geneName):
         return '%s-%s' % (organismName, geneName)
@@ -736,6 +737,7 @@ class PaftolTargetSet(object):
         # FIXME: add provision to control tolerance for invalid bases -- checkTargets type functionality?
         self.paftolGeneDict = {}
         self.organismDict = {}
+        self.fastaHandleStr = str(fastaHandle)
         for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
             organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
@@ -806,6 +808,7 @@ class PaftolTargetSet(object):
         for organism in self.organismDict.values():
             dataFrame.addRow(organism.csvRowDict())
         return dataFrame
+        
 
     def numSamAlignments(self):
         n = 0
@@ -1438,20 +1441,86 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
                 csvFile.close()
                 logger.debug('CSV file written')
             logger.debug('finished')
-            return reconstructedCdsDict
+            return HybpiperResult(reconstructedCdsDict, self.paftolTargetSet, self.forwardFastq, self.reverseFastq)
         finally:
             self.makeTgz()
-            logger.debug('tgz file made')            
+            logger.debug('tgz file made')
             self.cleanup()
             logger.debug('cleanup done')
-            
 
+            
+class HybseqResult(object):
+    
+    def __init__(self, reconstructedCdsDict):
+        self.reconstructedCdsDict = reconstructedCdsDict
+        
+    def summaryStats(self):
+        raise StandardError, 'not implemented by this abstract class'
+        
+
+class HybpiperResult(HybseqResult):
+    
+    def __init__(self, reconstructedCdsDict, paftolTargetSet, forwardFastq, reverseFastq):
+        super(HybpiperResult, self).__init__(reconstructedCdsDict)
+        self.paftolTargetSet = paftolTargetSet
+        self.forwardFastq = forwardFastq
+        self.reverseFastq = reverseFastq
+    
+    def summaryStats(self):
+        summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
+        summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
+        rowDict = {}
+        for columnName in summaryColumnList:
+            rowDict[columnName] = None
+        rowDict['numReadsFwd'] = paftol.tools.countSeqRecords(self.forwardFastq, 'fastq')
+        rowDict['numReadsRev'] = paftol.tools.countSeqRecords(self.reverseFastq, 'fastq')
+        paftolSampleId = extractPaftolSampleId(self.forwardFastq)
+        rowDict['sampleName'] = paftolSampleId
+        rowDict['targetsFile'] = self.paftolTargetSet.fastaHandleStr
+        fqDataFrameFwd = generateFastqcDataFrame(self.forwardFastq)
+        fqDataFrameRev = generateFastqcDataFrame(self.reverseFastq)
+        rowDict['qual28Fwd'] = getQual28(fqDataFrameFwd.perBaseSequenceQuality)
+        rowDict['qual28Rev'] = getQual28(fqDataFrameRev.perBaseSequenceQuality)
+        perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
+        perBaseSequenceContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseSequenceContent)
+        rowDict['meanA'] = (perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / 2.0 
+        rowDict['stddevA'] = (perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / 2.0
+        rowDict['meanC'] = (perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / 2.0
+        rowDict['stddevC'] = (perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / 2.0
+        rowDict['meanG'] = (perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / 2.0
+        rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
+        rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
+        rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
+        perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
+        perBaseNContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseNContent)
+        rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
+        rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
+        rowDict['totNumUnmappedReads'] = self.paftolTargetSet.numOfftargetReads 
+        targetSeqRecordList = self.paftolTargetSet.getSeqRecordList()
+        for paftolOrganism in self.paftolTargetSet.organismDict.values():
+            rowDict['paftolOrganism'] = paftolOrganism.name
+            for paftolTarget in paftolOrganism.paftolTargetDict.values():
+                rowDict['paftolGene'] = paftolTarget.paftolGene.name
+                rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
+                rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
+                hybpiperCdsLength = None
+                if paftolTarget.paftolGene.name in self.reconstructedCdsDict and self.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
+                    hybpiperCdsLength = len(self.reconstructedCdsDict[paftolTarget.paftolGene.name])
+                rowDict['hybpiperCdsLength'] = hybpiperCdsLength
+                summaryDataFrame.addRow(rowDict)
+        return summaryDataFrame
+
+
+# FIXME: also extracts more generic sample IDs now, so name is not quite right
 def extractPaftolSampleId(fastqName):
     paftolFastqRe = re.compile('([A-Z0-9_-]+)_L001_R([12])')
-    m = paftolFastqRe.match(fastqName)
-    if m is None:
-        raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
-    return m.group(1)
+    illuminaPairedFastqRe = re.compile('([^.])_R1[^.]*\\.fastq')
+    genericFastqRe = re.compile('([^.]+)\\.fastq')
+    for r in [paftolFastqRe, illuminaPairedFastqRe, genericFastqRe]:
+        m = r.match(fastqName)
+        if m is not None:
+            return m.group(1)
+    raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
 
 
 def getQual28(fastqcDataFrame):
@@ -1501,7 +1570,7 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
         rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
         hybpiperAnalyser = HybpiperAnalyser(paftolTargetFname, fastqFwd, fastqRev, bwaRunner=bwaRunner)
-        reconstructedCdsDict = hybpiperAnalyser.analyse()
+        hybpiperResult = hybpiperAnalyser.analyse()
         rowDict['totNumUnmappedReads'] = hybpiperAnalyser.paftolTargetSet.numOfftargetReads 
         targetSeqRecordList = hybpiperAnalyser.paftolTargetSet.getSeqRecordList()
         for paftolOrganism in hybpiperAnalyser.paftolTargetSet.organismDict.values():
@@ -1511,8 +1580,8 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
                 rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
                 hybpiperCdsLength = None
-                if paftolTarget.paftolGene.name in reconstructedCdsDict and reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
-                    hybpiperCdsLength = len(reconstructedCdsDict[paftolTarget.paftolGene.name])
+                if paftolTarget.paftolGene.name in hybpiperResult.reconstructedCdsDict and hybpiperResult.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
+                    hybpiperCdsLength = len(hybpiperResult.reconstructedCdsDict[paftolTarget.paftolGene.name])
                 rowDict['hybpiperCdsLength'] = hybpiperCdsLength
                 summaryDataFrame.addRow(rowDict)
         tmpCsvFname = 'tmp_%s.csv' % paftolSampleId
