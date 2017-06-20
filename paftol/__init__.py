@@ -55,6 +55,7 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
         return 1
     return 0
 
+
 def generateFastqcDataFrame(fastqFname):
     """Method that runs fastqc and returns C{FastqcStats}.
 
@@ -63,21 +64,15 @@ def generateFastqcDataFrame(fastqFname):
 @return: C{FastqcStats}
 """
     try: 
-        runFastqc = RunFastqc(fastqFname)
-        fastqcStats = FastqcStats(runFastqc.outFname)
+        tmpDirName = tempfile.mkdtemp()
+        outFname = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFname.split('.')[0])
+        fastqcArgs = ['fastqc', '--extract', '--outdir', tmpDirName, '--nogroup', fastqFname]
+        fastqcProcess = subprocess.check_call(fastqcArgs)
+        fastqcStats = FastqcStats(outFname)
     finally:
-        shutil.rmtree(runFastqc.tmpDirName)
-        runFastqc.tmpDirName = None
+        shutil.rmtree(tmpDirName)
     return fastqcStats
 
-class RunFastqc(object):
-
-    def __init__(self, fastqFname):
-        self.tmpDirName = tempfile.mkdtemp()
-        self.fastqFname = fastqFname
-        self.outFname = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFname.split('.')[0])
-        fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFname]
-        fastqcProcess = subprocess.check_call(fastqcArgs)
 
 class FastqcDataFrame(paftol.tools.DataFrame):
 
@@ -317,53 +312,6 @@ class FastqcStats(object):
             self.parseAdapterContent(f)
             self.parseKmerContent(f)
 
-# rest obsolete
-#            self.perBaseSequenceQuality = self.parsePerBaseSequenceQuality(f)
-#            self.perBaseSequenceQuality = paftol.tools.DataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'])
-#	    self.perBaseNContent = paftol.tools.DataFrame(['base','nCount'])
-#	    self.perBaseSequenceContent = paftol.tools.DataFrame(['base','g','a','t','c'])
-#	    line = f.readline()
-#	    while line != '':
-#	        line = line.rstrip('\n')
-#		infoLine = line.split('\t')
-#		if infoLine[0] == '>>Per base sequence quality':
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    while line != '>>END_MODULE':
-#			infoLine = line.split('\t')
-#			r = {'base': infoLine[0], 'mean': infoLine[1], 'median': infoLine[2], 'lowerQuartile': infoLine[3], 'upperQuartile': infoLine[4], 'percentile10': infoLine[5], 'percentile90': infoLine[6]}
-#			self.perBaseSequenceQuality.addRow(r)
-#		        line = f.readline()
-#			line = line.rstrip('\n')
-#
-#		elif infoLine[0] == '>>Per base N content':
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    while line != '>>END_MODULE':
-#                infoLine = line.split('\t')
-#			r = {'base': infoLine[0], 'nCount': infoLine[1]}
-#			self.perBaseNContent.addRow(r)
-#			line = f.readline()
-#			line = line.rstrip('\n')
-#
-#		elif infoLine[0] == '>>Per base sequence content':
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    line = f.readline()
-#		    line = line.rstrip('\n')
-#		    while line != '>>END_MODULE':
-#			infoLine = line.split('\t')
-#			r = {'base': infoLine[0], 'g':infoLine[1], 'a':infoLine[2], 't':infoLine[3], 'c':infoLine[4]}
-#			self.perBaseSequenceContent.addRow(r)
-#			line = f.readline()
-#			line = line.rstrip('\n')
-#
-#		else:
-#		    line = f.readline()
     def getMedian(self, index):
         return float(self.perBaseSequenceQuality.getRowDict(index)['median'])
 
