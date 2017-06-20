@@ -55,16 +55,16 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
         return 1
     return 0
 
-def generateFastqcDataFrame(fastqFName):
+def generateFastqcDataFrame(fastqFname):
     """Method that runs fastqc and returns C{FastqcStats}.
 
-@param fastqFName: fastq file name
-@type fastFName: C{str}
+@param fastqFname: fastq file name
+@type fastFname: C{str}
 @return: C{FastqcStats}
 """
     try: 
-        runFastqc = RunFastqc(fastqFName)
-        fastqcStats = FastqcStats(runFastqc.outFName)
+        runFastqc = RunFastqc(fastqFname)
+        fastqcStats = FastqcStats(runFastqc.outFname)
     finally:
         shutil.rmtree(runFastqc.tmpDirName)
         runFastqc.tmpDirName = None
@@ -72,11 +72,11 @@ def generateFastqcDataFrame(fastqFName):
 
 class RunFastqc(object):
 
-    def __init__(self, fastqFName):
+    def __init__(self, fastqFname):
         self.tmpDirName = tempfile.mkdtemp()
-        self.fastqFName = fastqFName
-        self.outFName = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFName.split('.')[0])
-        fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFName]
+        self.fastqFname = fastqFname
+        self.outFname = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFname.split('.')[0])
+        fastqcArgs = ['fastqc', '--extract', '--outdir', self.tmpDirName, '--nogroup', self.fastqFname]
         fastqcProcess = subprocess.check_call(fastqcArgs)
 
 class FastqcDataFrame(paftol.tools.DataFrame):
