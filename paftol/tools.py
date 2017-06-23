@@ -29,6 +29,24 @@ import paftol
 logger = logging.getLogger(__name__)
 
 
+def alignCdsByProtein(alignedProteinSeqRecord, cdsSeqRecord):
+    u = str(alignedProteinSeqRecord.seq)
+    c = str(cdsSeqRecord.seq)
+    if len(c) != 3 * len(u):
+        raise StandardError, 'incompatible sequences: CDS %s (length %d), ungapped prtotein sequence %s (length %d)' % (cdsSeqRecord.id, len(c), alignedProteinSeqRecord.id, len(u))
+    a = str(alignedProteinSeqRecord.seq)
+    s = ''
+    i = 0
+    for aa in a:
+        # FIXME: hard coded gap symbol
+        if aa == '-':
+            s = s + '---'
+        else:
+            s = s + c[i:i + 3]
+            i = i + 3
+    return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, Bio.Alphabet.Gapped(cdsSeqRecord.seq.alphabet)), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
+
+
 def countSeqRecords(fName, fFormat):
     count = 0
     for seqRecord in Bio.SeqIO.parse(fName, fFormat):

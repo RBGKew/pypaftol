@@ -1295,6 +1295,8 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
         logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
+        exonerateResultList = self.filterByOverlap(exonerateResultList)
+        logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
         return exonerateResultList
 
     def reconstructCds(self, geneName):
