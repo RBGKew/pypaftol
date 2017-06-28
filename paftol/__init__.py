@@ -386,10 +386,8 @@ and provide methods for running analyses to reconstruct sequences of
 the target genes.
 """
 
-    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='paftoolstmp'):
-        self.targetsSourcePath = targetsSourcePath
-        self.forwardFastq = forwardFastq
-        self.reverseFastq = reverseFastq
+    def __init__(self, workdirTgz=None, workDirname='paftoolstmp'):
+        # FIXME: temporary workdir management should be moved out of analyser -- perhaps into result?
         self.workdirTgz = workdirTgz
         self.workDirname = workDirname
         self.tmpDirname = None
@@ -397,20 +395,6 @@ the target genes.
         self.targetsFname = 'targets.fasta'
         self.geneFnamePattern = 'gene-%s.fasta'
         self.allowInvalidBases = False
-
-    def __str__(self):
-        return 'HybseqAnalyser(targetsSourcePath=%s, forwardFastq=%s, reverseFastq=%s)' % (repr(self.targetsSourcePath), repr(self.forwardFastq), repr(self.reverseFastq))
-
-    def checkTargets(self):
-        # FIXME: merge with __init__()? parsing is redundant with HybpiperAnalyser.initPaftolTargetDicts too
-        for targetSr in Bio.SeqIO.parse(self.targetsSourcePath, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
-            if not self.allowInvalidBases:
-                setDiff = set(str(targetSr.seq).lower()) - set('acgt')
-                if len(setDiff) != 0:
-                    raise StandardError('target %s: illegal base(s) %s' % (targetSr.id, ', '.join(setDiff)))
-
-    def isPaired(self):
-        return self.reverseFastq is not None
 
     def analyse(self):
         raise StandardError('not implemented in this "abstract" base class')
@@ -765,6 +749,15 @@ class PaftolTargetSet(object):
                 n = n + paftolTarget.numSamAlignments()
         return n
 
+    # FIXME: untested after transplant from HybpiperAnalyser
+    def sanityCheck(self, allowInvalidBases):
+        for organism in sefl.organismDict.values():
+            for paftolTarget in organism.paftolTargetDict.values():
+		if not allowInvalidBases:
+		    setDiff = set(str(paftolTarget.seqRecord.seq).lower()) - set('acgt')
+		    if len(setDiff) != 0:
+			raise StandardError('target %s: illegal base(s) %s' % (paftolTarget.seqRecord.id, ', '.join(setDiff)))
+
 
 class ReferenceGene(object):
 
@@ -1041,8 +1034,8 @@ of developing this).
 @type spadesKvalList: C{list} of C{int}, or C{None}
 """
 
-    def __init__(self, targetsSourcePath, forwardFastq, reverseFastq=None, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None):
-        super(HybpiperAnalyser, self).__init__(targetsSourcePath, forwardFastq, reverseFastq, workdirTgz, workDirname)
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None):
+        super(HybpiperAnalyser, self).__init__(workdirTgz, workDirname)
         if bwaRunner is None:
             self.bwaRunner = paftol.tools.BwaRunner()
         else:
@@ -1053,36 +1046,25 @@ of developing this).
         self.exoneratePercentIdentityThreshold = 65.0
         self.readPaftolTargetSet()
 
-    def readPaftolTargetSet(self):
-        if self.targetsSourcePath is None:
-            raise StandardError('illegal state: cannot init organism and gene dicts with targetsSourcePath = None')
-        self.paftolTargetSet = PaftolTargetSet()
-        self.paftolTargetSet.readFasta(self.targetsSourcePath)
-        logger.info('%s organisms, %s genes' % (len(self.paftolTargetSet.organismDict), len(self.paftolTargetSet.paftolGeneDict)))
-        self.representativePaftolTargetDict = None
-
-    def setup(self):
+    def setup(self, result):
         logger.debug('setting up')
-        if self.targetsSourcePath is None:
-            raise StandardError('illegal state: cannot set up with targetsSourcePath = None')
-        self.readPaftolTargetSet()
         self.setupTmpdir()
-        shutil.copy(self.targetsSourcePath, self.makeTargetsFname(True))
+	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
 
     def cleanup(self):
         self.cleanupTmpdir()
 
-    def mapReadsBwa(self):
+    def mapReadsBwa(self, result):
         """Map reads to gene sequences (from multiple organisms possibly).
 """
         logger.debug('mapping reads to gene sequences')
         referenceFname = self.makeTargetsFname(True)
         self.bwaRunner.indexReference(referenceFname)
-        forwardReadsFname = os.path.join(os.getcwd(), self.forwardFastq)
-        if self.reverseFastq is None:
+        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        if result.reverseFastq is None:
             reverseReadsFname = None
         else:
-            reverseReadsFname = os.path.join(os.getcwd(), self.reverseFastq)
+            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
         self.bwaRunner.processBwa(self.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
     def setRepresentativeGenes(self):
@@ -1102,8 +1084,8 @@ of developing this).
             else:
                 logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
 
-    def distributeSingle(self):
-        fForward = open(self.forwardFastq, 'r')
+    def distributeSingle(self, result):
+        fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
@@ -1114,11 +1096,11 @@ of developing this).
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
         fForward.close()
 
-    def distributePaired(self):
+    def distributePaired(self, result):
         # FIXME: consider try...finally to ensure files are closed
-        fForward = open(self.forwardFastq, 'r')
+        fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        fReverse = open(self.reverseFastq, 'r')
+        fReverse = open(result.reverseFastq, 'r')
         fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
         qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
@@ -1128,7 +1110,7 @@ of developing this).
             # rest of reverse ignored
             revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
             if readName != revReadTitle.split()[0]:
-                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (self.forwardFastq, self.reverseFastq, fwdReadTitle, revReadTitle))
+                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
             if readName in qnameGeneDict:
                 for paftolGene in qnameGeneDict[readName]:
                     with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
@@ -1140,48 +1122,11 @@ of developing this).
         fForward.close()
         fReverse.close()
 
-    def distribute(self):
-        if self.isPaired():
-            self.distributePaired()
+    def distribute(self, result):
+        if result.isPaired():
+            self.distributePaired(result)
         else:
-            self.distributeSingle()
-
-    def assembleSpadesParallel(self):
-        """OBSOLETE -- Run SPAdes assemblies using GNU parallel, as the
-original HybPiper implementation does.
-
-Replaced by L{assembleGeneSpades} and no longer maintained / functional.
-"""
-        # consider --fg to ensure wait for all parallel processes?
-        # is --eta really of any use here?
-        # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
-        if self.isPaired():
-            spadesInputArgs = ['--12', '{}_interleaved.fasta']
-        else:
-            spadesInputArgs = ['-s', '{}.fasta']
-        parallelSpadesArgv = ['parallel', 'spades.py', '--only-assembler', '--threads', '1', '--cov-cutoff', '%d' % self.spadesCovCutoff]
-        if self.spadesKvalList is not None:
-            parallelSpadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
-        parallelSpadesArgv.extend(spadesInputArgs)
-        parallelSpadesArgv.extend(['-o', '{}_spades'])
-        # time parallel --eta spades.py --only-assembler --threads 1 --cov-cutoff 8 --12 {}/{}_interleaved.fasta -o {}/{}_spades :::: spades_genelist.txt > spades.log
-        logger.debug('%s', ' '.join(parallelSpadesArgv))
-        parallelSpadesProcess = subprocess.Popen(parallelSpadesArgv, stdin=subprocess.PIPE, cwd=self.makeWorkDirname())
-        pid = os.fork()
-        if pid == 0:
-            for geneName in self.geneNameSet:
-                parallelSpadesProcess.stdin.write('%s\n' % geneName)
-            parallelSpadesProcess.stdin.close()
-            os._exit(0)
-        parallelSpadesProcess.stdin.close()
-        wPid, wExit = os.waitpid(pid, 0)
-        if pid != wPid:
-            raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
-        if wExit != 0:
-            raise StandardError('wait on forked process returned %d' % wExit)
-        parallelSpadesReturncode = parallelSpadesProcess.wait()
-        if parallelSpadesReturncode != 0:
-            raise StandardError('parallel spades process exited with %d' % parallelSpadesReturncode)
+            self.distributeSingle(result)
 
     def makeGeneDirname(self, geneName):
         return 'spades-%s' % geneName
@@ -1189,13 +1134,13 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
     def makeGeneDirPath(self, geneName):
         return os.path.join(self.makeWorkDirname(), self.makeGeneDirname(geneName))
 
-    def assembleGeneSpades(self, geneName):
+    def assembleGeneSpades(self, result, geneName):
         # FIXME: should return file with contigs / scaffolds upon success, None otherwise
         # consider --fg to ensure wait for all parallel processes?
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
         geneFname = self.makeGeneFname(geneName)
-        if self.isPaired():
+        if result.isPaired():
             spadesInputArgs = ['--12', geneFname]
         else:
             spadesInputArgs = ['-s', geneFname]
@@ -1299,14 +1244,14 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
         logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
         return exonerateResultList
 
-    def reconstructCds(self, geneName):
+    def reconstructCds(self, result, geneName):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if self.representativePaftolTargetDict is None:
             raise StandardError('illegal state: no represesentative genes')
         if self.representativePaftolTargetDict[geneName] is None:
             raise StandardError('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
-        contigList = self.assembleGeneSpades(geneName)
+        contigList = self.assembleGeneSpades(result, geneName)
         if contigList is None:
             logger.warning('gene %s: no spades contigs', geneName)
             return None
@@ -1350,10 +1295,10 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             return None
         # not filtering for percent identity to gene again, as that is already done
         if self.reverseFastq is not None:
-            readsSpec = '%s, %s' % (self.forwardFastq, self.reverseFastq)
+            readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
         else:
-            readsSpec = self.forwardFastq
-        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (self.targetsSourcePath, readsSpec))
+            readsSpec = result.forwardFastq
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
         return splicedSupercontig
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
@@ -1366,32 +1311,34 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq):
         logger.debug('starting')
-        self.checkTargets()
-        logger.debug('targets checked')
-        try:
+	paftolTargetSet = PaftolTargetSet()
+	paftolTargetSet.readFasta(targetsSourcePath)
+	paftolTargetSet.sanityCheck(True)
+        result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
+	try:
             self.setup()
             logger.debug('setup done')
-            self.mapReadsBwa()
+            self.mapReadsBwa(result)
             logger.debug('BWA mapping done')
-            self.distribute()
+            self.distribute(result)
             logger.debug('read distribution done')
-            self.setRepresentativeGenes()
+            self.setRepresentativeGenes(result)
             logger.debug('representative genes selected')
-            reconstructedCdsDict = {}
-            # FIXME: place paftol target set, reconstructed CDS etc in one analysis result instance (new class)
-            for geneName in self.paftolTargetSet.paftolGeneDict:
-                reconstructedCdsDict[geneName] = self.reconstructCds(geneName)
-            logger.debug('CDS reconstruction done')
+            result.reconstructedCdsDict = {}
+            for geneName in result.paftolTargetSet.paftolGeneDict:
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
+	    logger.debug('CDS reconstruction done')
+	    # FIXME: self.statsCsvFilename no longer required, caller can get that from result now
             if self.statsCsvFilename is not None:
-                tStats = self.paftolTargetSet.targetStats()
+                tStats = result.paftolTargetSet.targetStats()
                 with open(self.statsCsvFilename, 'w') as csvFile:
                     tStats.writeCsv(csvFile)
                 csvFile.close()
                 logger.debug('CSV file written')
             logger.debug('finished')
-            return HybpiperResult(reconstructedCdsDict, self.paftolTargetSet, self.forwardFastq, self.reverseFastq)
+            return result 
         finally:
             self.makeTgz()
             logger.debug('tgz file made')
@@ -1401,23 +1348,29 @@ Replaced by L{assembleGeneSpades} and no longer maintained / functional.
             
 class HybseqResult(object):
     
-    def __init__(self, reconstructedCdsDict):
-        self.reconstructedCdsDict = reconstructedCdsDict
-        
+    def __init__(self):
+        self.reconstructedCdsDict = None 
+
     def summaryStats(self):
         raise StandardError, 'not implemented by this abstract class'
         
 
 class HybpiperResult(HybseqResult):
     
-    def __init__(self, reconstructedCdsDict, paftolTargetSet, forwardFastq, reverseFastq):
-        super(HybpiperResult, self).__init__(reconstructedCdsDict)
+    def __init__(self, paftolTargetSet, forwardFastq, reverseFastq):
+        super(HybpiperResult, self).__init__()
         self.paftolTargetSet = paftolTargetSet
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
+        self.representativePaftolTargetDict = None
     
+    def isPaired(self):
+        return self.reverseFastq is not None
+
     def summaryStats(self):
-        summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
+        if self.reconstructedCdsDict is None:
+	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
+	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
         summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
         rowDict = {}
         for columnName in summaryColumnList:
