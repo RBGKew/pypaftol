@@ -32,19 +32,24 @@ logger = logging.getLogger(__name__)
 def alignCdsByProtein(alignedProteinSeqRecord, cdsSeqRecord):
     u = str(alignedProteinSeqRecord.seq)
     c = str(cdsSeqRecord.seq)
-    if len(c) != 3 * len(u):
-        raise StandardError, 'incompatible sequences: CDS %s (length %d), ungapped prtotein sequence %s (length %d)' % (cdsSeqRecord.id, len(c), alignedProteinSeqRecord.id, len(u))
+    # if len(c) != 3 * len(u):
+    #     raise StandardError, 'incompatible sequences: CDS %s (length %d), ungapped prtotein sequence %s (length %d)' % (cdsSeqRecord.id, len(c), alignedProteinSeqRecord.id, len(u))
+    proteinAlphabet = alignedProteinSeqRecord.seq.alphabet
+    if not isinstance(proteinAlphabet, Bio.Alphabet.Gapped):
+        proteinAlphabet = Bio.Alphabet.Gapped(proteinAlphabet)
+    cdsAlphabet = cdsSeqRecord.seq.alphabet
+    if not isinstance(cdsAlphabet, Bio.Alphabet.Gapped):
+        cdsAlphabet = Bio.Alphabet.Gapped(cdsAlphabet)
     a = str(alignedProteinSeqRecord.seq)
     s = ''
     i = 0
     for aa in a:
-        # FIXME: hard coded gap symbol
-        if aa == '-':
-            s = s + '---'
+        if aa == proteinAlphabet.gap_char:
+            s = s + 3 * cdsAlphabet.gap_char
         else:
             s = s + c[i:i + 3]
             i = i + 3
-    return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, Bio.Alphabet.Gapped(cdsSeqRecord.seq.alphabet)), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
+    return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, cdsAlphabet), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
 
 
 def countSeqRecords(fName, fFormat):
