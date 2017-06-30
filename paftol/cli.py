@@ -51,12 +51,11 @@ def runHybpiper(argNamespace):
     """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
 """
     bwaRunner = argToBwaRunner(argNamespace)
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz, bwaRunner=bwaRunner)
-    hybpiperAnalyser.allowInvalidBases = argNamespace.allowInvalidBases
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.tgz, bwaRunner=bwaRunner)
     if argNamespace.csv is not None:
         hybpiperAnalyser.statsCsvFilename = argNamespace.csv
     hybpiperAnalyser.keepTmpDir = True
-    hybpiperResult = hybpiperAnalyser.analyse()
+    hybpiperResult = hybpiperAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:

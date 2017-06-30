@@ -63,9 +63,13 @@ def generateFastqcDataFrame(fastqFname):
 @type fastFname: C{str}
 @return: C{FastqcStats}
 """
+    m = re.match('(.*)\\.fastq', fastqFname)
+    if m is None:
+        raise StandardError, 'failed to extract basename of fastq filename'
+    fastqBasename = m.group(1)
     try: 
         tmpDirName = tempfile.mkdtemp()
-        outFname = '%s/%s_fastqc/fastqc_data.txt' % (self.tmpDirName, self.fastqFname.split('.')[0])
+        outFname = os.path.join(tmpDirName, '%s_fastqc' % fastqBasename, 'fastqc_data.txt')
         fastqcArgs = ['fastqc', '--extract', '--outdir', tmpDirName, '--nogroup', fastqFname]
         fastqcProcess = subprocess.check_call(fastqcArgs)
         fastqcStats = FastqcStats(outFname)
@@ -394,7 +398,6 @@ the target genes.
         # parameters for ensuring file names don't clash, e.g. because paftolGene / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
         self.geneFnamePattern = 'gene-%s.fasta'
-        self.allowInvalidBases = False
 
     def analyse(self):
         raise StandardError('not implemented in this "abstract" base class')
@@ -750,8 +753,8 @@ class PaftolTargetSet(object):
         return n
 
     # FIXME: untested after transplant from HybpiperAnalyser
-    def sanityCheck(self, allowInvalidBases):
-        for organism in sefl.organismDict.values():
+    def sanityCheck(self, allowInvalidBases=False):
+        for organism in self.organismDict.values():
             for paftolTarget in organism.paftolTargetDict.values():
 		if not allowInvalidBases:
 		    setDiff = set(str(paftolTarget.seqRecord.seq).lower()) - set('acgt')
@@ -1044,7 +1047,6 @@ of developing this).
         self.spadesKvalList = None
         self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
-        self.readPaftolTargetSet()
 
     def setup(self, result):
         logger.debug('setting up')
@@ -1065,20 +1067,20 @@ of developing this).
             reverseReadsFname = None
         else:
             reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
-        self.bwaRunner.processBwa(self.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
+        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
-    def setRepresentativeGenes(self):
+    def setRepresentativeGenes(self, result):
         """Roughly equivalent to "distribute targets" in HybPiper."""
-        self.representativePaftolTargetDict = {}
-        for geneName in self.paftolTargetSet.paftolGeneDict:
+        result.representativePaftolTargetDict = {}
+        for geneName in result.paftolTargetSet.paftolGeneDict:
             representativePaftolTarget = None
             maxMapqSum = None
-            for organismName in self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
-                mapqSum = self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mapqSum()
+            for organismName in result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
+                mapqSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mapqSum()
                 if representativePaftolTarget is None or (mapqSum is not None and mapqSum > maxMapqSum):
-                    representativePaftolTarget = self.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
+                    representativePaftolTarget = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
                     maxMapqSum = mapqSum
-            self.representativePaftolTargetDict[geneName] = representativePaftolTarget
+            result.representativePaftolTargetDict[geneName] = representativePaftolTarget
             if representativePaftolTarget is None:
                 logger.debug('represenative for %s: none', geneName)
             else:
@@ -1087,7 +1089,7 @@ of developing this).
     def distributeSingle(self, result):
         fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
+        qnameGeneDict = result.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
             if readName in readGenedict:
@@ -1102,7 +1104,7 @@ of developing this).
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         fReverse = open(result.reverseFastq, 'r')
         fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
-        qnameGeneDict = self.paftolTargetSet.makeQnameGeneDict()
+        qnameGeneDict = result.paftolTargetSet.makeQnameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
             # FIXME: premature end of reverse fastq will trigger
@@ -1246,9 +1248,9 @@ of developing this).
 
     def reconstructCds(self, result, geneName):
         logger.debug('reconstructing CDS for gene %s', geneName)
-        if self.representativePaftolTargetDict is None:
+        if result.representativePaftolTargetDict is None:
             raise StandardError('illegal state: no represesentative genes')
-        if self.representativePaftolTargetDict[geneName] is None:
+        if result.representativePaftolTargetDict[geneName] is None:
             raise StandardError('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.assembleGeneSpades(result, geneName)
@@ -1259,7 +1261,7 @@ of developing this).
             logger.warning('gene %s: empty contig list', geneName)
             return None
         logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
-        geneProtein = self.translateGene(self.representativePaftolTargetDict[geneName].seqRecord)
+        geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
         aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
         # allow stop translation
         aminoAcidSet.add('*')
@@ -1294,7 +1296,7 @@ of developing this).
             logger.warning('gene %s: no exonerate results from supercontig', geneName)
             return None
         # not filtering for percent identity to gene again, as that is already done
-        if self.reverseFastq is not None:
+        if result.reverseFastq is not None:
             readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
         else:
             readsSpec = result.forwardFastq
@@ -1311,14 +1313,15 @@ of developing this).
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
-	paftolTargetSet.sanityCheck(True)
+        # FIXME: put allowInvalidBases in result for subsequent reference?
+	paftolTargetSet.sanityCheck(allowInvalidBases)
         result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
 	try:
-            self.setup()
+            self.setup(result)
             logger.debug('setup done')
             self.mapReadsBwa(result)
             logger.debug('BWA mapping done')
@@ -1370,7 +1373,7 @@ class HybpiperResult(HybseqResult):
     def summaryStats(self):
         if self.reconstructedCdsDict is None:
 	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
-	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
+	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
         summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
         rowDict = {}
         for columnName in summaryColumnList:
@@ -1403,6 +1406,7 @@ class HybpiperResult(HybseqResult):
         for paftolOrganism in self.paftolTargetSet.organismDict.values():
             rowDict['paftolOrganism'] = paftolOrganism.name
             for paftolTarget in paftolOrganism.paftolTargetDict.values():
+                geneName = paftolTarget.paftolGene.name
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
                 rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
@@ -1410,6 +1414,10 @@ class HybpiperResult(HybseqResult):
                 if paftolTarget.paftolGene.name in self.reconstructedCdsDict and self.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
                     hybpiperCdsLength = len(self.reconstructedCdsDict[paftolTarget.paftolGene.name])
                 rowDict['hybpiperCdsLength'] = hybpiperCdsLength
+                representativeTarget = None
+                if geneName in self.representativePaftolTargetDict:
+                    representativeTarget = self.representativePaftolTargetDict[geneName]
+                rowDict['representativeTarget'] = representativeTarget.seqRecord.id
                 summaryDataFrame.addRow(rowDict)
         return summaryDataFrame
 
