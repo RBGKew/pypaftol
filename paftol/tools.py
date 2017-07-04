@@ -674,6 +674,16 @@ class BwaRunner(object):
         return argv
 
     def indexReference(self, referenceFname):
+        """Index a reference sequence (using C{bwa index}).
+
+Notice that the index files created by BWA will be generated as a side
+effect. It is the responsibility of clients to tidy these up, if
+necessary.
+        
+@param referenceFname: the name of the reference sequence FASTA file which is to be indexed
+@type referenceFname: C{String}
+
+        """
         bwaIndexArgv = self.indexReferenceArgv(referenceFname)
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
@@ -706,6 +716,59 @@ class BwaRunner(object):
         # if samtoolsReturncode != 0:
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
+        
+class SpadesRunner(object):
+    """
+    
+"""
+    
+    SINGLE = 1
+    INTERLACED = 2
+    PAIRED = 3
+    
+    def __init__(self, numThreads=None, covCutoff=None, kvalList=None):
+        self.numThreads = numThreads
+        self.covCutoff = covCutoff
+        if kvalList is None:
+            self.kvalList = None
+        else:
+            self.kvalList = kvalList[:]
+        
+    def assemble(self, readsFname, libraryType, outputDirname, workDirname=None):
+        if libraryType == self.INTERLACED:
+            spadesInputArgs = ['--12', readsFname]
+        elif libraryType == self.SINGLE:
+            spadesInputArgs = ['-s', readsFname]
+        else:
+            raise StandardError, 'library type %d unknown / unsupported' % libraryType
+        spadesArgv = ['spades.py', '--only-assembler']
+        if self.numThreads is not None:
+            spadesArgv.extend(['--threads', '%d' % self.numThreads])
+        if self.covCutoff is not None:
+            spadesArgv.extend(['--cov-cutoff', '%s' % self.covCutoff])
+        if self.kvalList is not None:
+            spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
+        spadesArgv.extend(spadesInputArgs)
+        spadesArgv.extend(['-o', outputDirname])
+        logger.debug('%s', ' '.join(spadesArgv))
+        spadesProcess = subprocess.Popen(spadesArgv, cwd=workDirname)
+        returncode = spadesProcess.wait()
+        if returncode != 0:
+            # raise StandardError('spades process "%s" exited with %d' % (' '.join(spadesArgv), returncode))
+            logger.warning('spades process "%s" exited with %d', ' '.join(spadesArgv), returncode)
+        if workDirname is None:
+            contigFname = os.path.join(outputDirname, 'contigs.fasta')
+        else:
+            contigFname = os.path.join(workDirname, outputDirname, 'contigs.fasta')
+        # logger.debug('contigFname: %s', spadesContigFname)
+        if os.path.exists(contigFname):
+            contigList = list(Bio.SeqIO.parse(contigFname, 'fasta'))
+            # logger.debug('contigFname: %s, %d contigs', contigFname, len(contigList))
+        else:
+            contigList = None
+            # logger.debug('contigFname: %s, no contigs', contigFname)
+        return contigList
+    
         
 class DataFrame(object):
 

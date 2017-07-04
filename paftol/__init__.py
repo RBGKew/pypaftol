@@ -1026,25 +1026,29 @@ class HybpiperAnalyser(HybseqAnalyser):
     """L{HybseqAnalyser} subclass that implements an analysis process
 close to the HybPiper pipeline.
 
-Some parameters to BWA and SPAdes can be controlled via instance
-variables as documented below. Defaults of these parameters correspond
-to the defaults provided by BWA and SPAdes, respectively (at the time
-of developing this).
+Some parameters to SPAdes can be controlled via instance variables as
+documented below. Defaults of these parameters correspond to the
+defaults provided by SPAdes, respectively (at the time of developing
+this).
 
-@ivar spadesCovCutoff: SPAdes coverage cutoff (C{--cov-cutoff} option)
-@type spadesCovCutoff: C{int}
-@ivar spadesKvalList: SPAdes oligomer length value list (C{-k} option)
-@type spadesKvalList: C{list} of C{int}, or C{None}
-"""
+@ivar bwaRunner: SPAdes runner, providing instance variables for configuring BWA
+@type bwaRunner: C{paftol.tools.BwaRunner}
+@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
+@type spadesRunner: C{paftol.tools.SpadesRunner}
 
-    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None):
+    """
+
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None, spadesRunner=None):
         super(HybpiperAnalyser, self).__init__(workdirTgz, workDirname)
         if bwaRunner is None:
             self.bwaRunner = paftol.tools.BwaRunner()
         else:
             self.bwaRunner = bwaRunner
-        self.spadesCovCutoff = 8
-        self.spadesKvalList = None
+        if spadesRunner is None:
+            self.spadesRunner = paftol.tools.SpadesRunner()
+        else:
+            self.spadesRunner = spadesRunner
+        # FIXME: obsolete, should get summary stats from result now
         self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
 
@@ -1142,33 +1146,16 @@ of developing this).
         # is --eta really of any use here?
         # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
         geneFname = self.makeGeneFname(geneName)
-        if result.isPaired():
-            spadesInputArgs = ['--12', geneFname]
-        else:
-            spadesInputArgs = ['-s', geneFname]
         if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
             logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
             return None
-        # FIXME: add proper spades parameters... consider factoring out to SpadesRunner?
-        spadesArgv = ['spades.py', '--only-assembler', '--threads', '4', '--cov-cutoff', '%d' % self.spadesCovCutoff]
-        if self.spadesKvalList is not None:
-            spadesArgv.extend(['-k', ','.join(['%d' % k for k in self.spadesKvalList])])
-        spadesArgv.extend(spadesInputArgs)
-        spadesArgv.extend(['-o', self.makeGeneDirname(geneName)])
-        logger.debug('%s', ' '.join(spadesArgv))
-        spadesProcess = subprocess.Popen(spadesArgv, cwd=self.makeWorkDirname())
-        spadesReturncode = spadesProcess.wait()
-        if spadesReturncode != 0:
-            # raise StandardError('spades process "%s" exited with %d' % (' '.join(spadesArgv), spadesReturncode))
-            logger.warning('spades process "%s" exited with %d', ' '.join(spadesArgv), spadesReturncode)
-        spadesContigFname = os.path.join(self.makeGeneDirPath(geneName), 'contigs.fasta')
-        # logger.debug('spadesContigFname: %s', spadesContigFname)
-        if os.path.exists(spadesContigFname):
-            spadesContigList = list(Bio.SeqIO.parse(spadesContigFname, 'fasta'))
-            # logger.debug('spadesContigFname: %s, %d contigs', spadesContigFname, len(spadesContigList))
+        if result.isPaired():
+            # FIXME: tight implicit coupling with distributeSingle / distributePaired
+            libraryType = paftol.tools.SpadesRunner.INTERLACED
         else:
-            spadesContigList = None
-            # logger.debug('spadesContigFname: %s, no contigs', spadesContigFname)
+            libraryType = paftol.tools.SpadesRunner.SINGLE
+        spadesOutputDirname = self.makeGeneDirPath(geneName)
+        spadesContigList = self.spadesRunner.assemble(geneFname, libraryType, spadesOutputDirname, self.makeWorkDirname())
         return spadesContigList
 
     def translateGene(self, geneDna):

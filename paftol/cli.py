@@ -8,13 +8,21 @@ import Bio.Seq
 import Bio.SeqRecord
 
 import paftol
-    
+
+
+logger = logging.getLogger(__name__)
+
     
 def addBwaRunnerToParser(p):
     p.add_argument('--bwaNumThreads', type=int, help='set number of threads for BWA (see bwa mem -t)')
     p.add_argument('--bwaMinSeedLength', type=int, help='set minimum seed length for BWA (see bwa mem -k)')
     p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
     p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
+    
+    
+def addSpadesRunnerToParser(p):
+    p.add_argument('--spadesNumThreads', type=int, help='set number of threads for SPAdes (see spades -t)')
+    p.add_argument('--spadesCovCutoff', help='set coverage cutoff for SPAdes (see spades --cov-cutoff, string to allow "auto" and "off")')
 
 
 def argToBwaRunner(argNamespace):
@@ -26,13 +34,21 @@ def argToBwaRunner(argNamespace):
     return bwaRunner
 
 
+def argToSpadesRunner(argNamespace):
+    spadesRunner = paftol.tools.SpadesRunner()
+    spadesRunner.numThreads = argNamespace.spadesNumThreads
+    spadesRunner.covCutoff = argNamespace.spadesCovCutoff
+    return spadesRunner
+    
+
 def runHybseq(argNamespace):
     """Experimental.
 """
     hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
     sys.stderr.write('%s\n' % str(hybseqAnalyser))
     
-    
+
+# FIXME: obsolete -- summary stats are now provided by result (so not adding spadesRunner here)
 def runHybseqstats(argNamespace):
     bwaRunner = argToBwaRunner(argNamespace)
     fastqPairList = []
@@ -51,10 +67,15 @@ def runHybpiper(argNamespace):
     """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
 """
     bwaRunner = argToBwaRunner(argNamespace)
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.tgz, bwaRunner=bwaRunner)
+    spadesRunner = argToSpadesRunner(argNamespace)
+    # FIXME: backwards compatibility to previous implementation and to hybpiper (??)
+    if spadesRunner.covCutoff is None:
+        spadesRunner.covCutoff = 8
+        logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
+    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.tgz, bwaRunner=bwaRunner, spadesRunner=spadesRunner)
     if argNamespace.csv is not None:
         hybpiperAnalyser.statsCsvFilename = argNamespace.csv
-    hybpiperAnalyser.keepTmpDir = True
+    # hybpiperAnalyser.keepTmpDir = True
     hybpiperResult = hybpiperAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
@@ -114,6 +135,7 @@ def addHybseqstatsParser(subparsers):
     p.add_argument('-o', '--outfile', help='output file (default: stdout)')
     p.add_argument('fastqList', nargs='*', help='fastq file list')
     addBwaRunnerToParser(p)
+    addSpadesRunnerToParser(p)
     p.set_defaults(func=runHybseqstats)
 
     
@@ -140,6 +162,7 @@ def addHybpiperParser(subparsers):
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     addBwaRunnerToParser(p)
+    addSpadesRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
     p.set_defaults(func=runHybpiper)
     
