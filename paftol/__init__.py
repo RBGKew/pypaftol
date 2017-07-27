@@ -521,6 +521,52 @@ to provide fields required for Hyb-Seq analysis only.
         return e.count('M')
 
 
+class MappedRead(object):
+    """Represent a mapping of an NGS read to a PaftolTarget.
+"""
+
+    def __init__(self, paftolTarget):
+        self.paftolTarget = paftolTarget
+
+    def getReadName(self):
+        raise StandardError, 'abstract method not overridden'
+
+    def getMappingScore(self):
+        raise StandardError, 'abstract method not overridden'
+        
+
+class BwaMappedRead(MappedRead):
+
+    def __init__(self, paftolTarget, samAlignment):
+        super(BwaMappedRead, self).__init__(paftolTarget)
+	self.samAlignment = samAlignment
+
+    def getReadName(self):
+        return self.samAlignment.qname
+
+    def getMappingScore(self):
+        return self.samAlignment.mapq
+
+
+
+class BlastMappedRead(MappedRead):
+    """Represent a mapping of a read to a PaftolTarget based on BLAST.
+
+The mapping score is based on the best HSP only, other HSPs are not
+taken into account.
+"""
+
+    def __init__(self, paftolTarget, blastAlignment):
+        super(BlastMappedRead, self).__init__(paftolTarget)
+	self.blastAlignment = blastAlignment
+
+    def getReadName(self):
+        return self.blastAlignment.hit_id
+
+    def getMappingScore(self):
+        return self.blastAlignment.hsps[0].score
+
+
 class PaftolTarget(object):
 
     """Represent a PAFTOL target, specific to an organism (i.e. species, specimen etc.).
@@ -544,6 +590,7 @@ facilitating handling of multiple genes and multiple organisms.
         self.paftolGene = paftolGene
         self.seqRecord = seqRecord
         self.samAlignmentList = []
+	# self.readAssociationList = []
         if paftolGene.name in organism.paftolTargetDict or organism.name in paftolGene.paftolTargetDict:
             raise StandardError('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
         organism.paftolTargetDict[paftolGene.name] = self
@@ -712,7 +759,11 @@ class PaftolTargetSet(object):
             if geneName not in self.organismDict[organismName].paftolTargetDict:
                 raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
             paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
-            paftolTarget.addSamAlignment(samAlignment)
+	    # FIXME: pre-MappedRead add -- delete when transition complete
+            # paftolTarget.addSamAlignment(samAlignment)
+	    mappedRead = SamMappedRead(paftolTarget, samAlignment)
+
+	    paftolTarget.addMappedRead(mappedRead)
         else:
             self.numOfftargetReads = self.numOfftargetReads + 1
             
