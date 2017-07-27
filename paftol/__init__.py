@@ -535,10 +535,10 @@ class MappedRead(object):
         raise StandardError, 'abstract method not overridden'
         
 
-class BwaMappedRead(MappedRead):
+class SamMappedRead(MappedRead):
 
     def __init__(self, paftolTarget, samAlignment):
-        super(BwaMappedRead, self).__init__(paftolTarget)
+        super(SamMappedRead, self).__init__(paftolTarget)
 	self.samAlignment = samAlignment
 
     def getReadName(self):
@@ -583,40 +583,40 @@ facilitating handling of multiple genes and multiple organisms.
 @type seqRecord: C{Bio.SeqRecord.SeqRecord}
 """
 
-    csvFieldNames = ['organism', 'gene', 'seqLength', 'numSamAlignments']
+    csvFieldNames = ['organism', 'gene', 'seqLength', 'numMappedReads']
 
     def __init__(self, organism, paftolGene, seqRecord):
         self.organism = organism
         self.paftolGene = paftolGene
         self.seqRecord = seqRecord
-        self.samAlignmentList = []
+        self.mappedReadList = []
 	# self.readAssociationList = []
         if paftolGene.name in organism.paftolTargetDict or organism.name in paftolGene.paftolTargetDict:
             raise StandardError('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
         organism.paftolTargetDict[paftolGene.name] = self
         paftolGene.paftolTargetDict[organism.name] = self
 
-    def addSamAlignment(self, samAlignment):
-        self.samAlignmentList.append(samAlignment)
+    def addMappedRead(self, mappedRead):
+        self.mappedReadList.append(mappedRead)
 
-    def mapqSum(self):
-        if len(self.samAlignmentList) == 0:
+    def mappingScoreSum(self):
+        if len(self.mappedReadList) == 0:
             return None
-        return sum([a.mapq for a in self.samAlignmentList])
+        return sum([mr.getMappingScore() for mr in self.mappedReadList])
 
-    def qnameSet(self):
+    def getReadNameSet(self):
         # FIXME: may have to trim away "/1", "/2"?
-        return set([a.qname for a in self.samAlignmentList])
+        return set([mr.getReadName() for mr in self.mappedReadList])
 
-    def numSamAlignments(self):
-        return len(self.samAlignmentList)
+    def numMappedReads(self):
+        return len(self.mappedReadList)
 
     def csvRowDict(self):
         d = {}
         d['organism'] = self.organism.name
         d['gene'] = self.paftolGene.name
         d['seqLength'] = len(self.seqRecord)
-        d['numSamAlignments'] = self.numSamAlignments()
+        d['numMappedReads'] = self.numMappedReads()
         return d
 
 
@@ -630,20 +630,20 @@ class Organism(object):
 @type paftolTargetDict: C{dict} of C{PaftolTarget} instances with PAFTOL gene names as keys
 """
 
-    csvFieldNames = ['organism', 'numGenes', 'numSamAlignments']
+    csvFieldNames = ['organism', 'numGenes', 'numMappedReads']
 
     def __init__(self, name):
         self.name = name
         self.paftolTargetDict = {}
 
-    def numSamAlignments(self):
-        return sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+    def numMappedReads(self):
+        return sum([t.numMappedReads() for t in self.paftolTargetDict.values()])
 
     def csvRowDict(self):
         d = {}
         d['organism'] = self.name
         d['numGenes'] = len(self.paftolTargetDict)
-        d['numSamAlignments'] = self.numSamAlignments()
+        d['numMappedReads'] = self.numMappedReads()
         return d
 
 
@@ -662,16 +662,16 @@ organisms.
 @type paftolTargetDict: C{dict} of C{PaftolTarget} instances with organism names as keys
 """
 
-    csvFieldNames = ['gene', 'numOrganisms', 'meanSeqLength', 'numSamAlignments']
+    csvFieldNames = ['gene', 'numOrganisms', 'meanSeqLength', 'numMappedReads']
 
     def __init__(self, name):
         self.name = name
         self.paftolTargetDict = {}
 
-    def qnameSet(self):
+    def getReadNameSet(self):
         s = set()
         for paftolTarget in self.paftolTargetDict.values():
-            s = s | paftolTarget.qnameSet()
+            s = s | paftolTarget.getReadNameSet()
         return s
 
     def meanSequenceLength(self):
@@ -680,15 +680,15 @@ organisms.
         else:
             return float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
 
-    def numSamAlignments(self):
-        return sum([len(t.samAlignmentList) for t in self.paftolTargetDict.values()])
+    def numMappedReads(self):
+        return sum([t.numMappedReads() for t in self.paftolTargetDict.values()])
 
     def csvRowDict(self):
         d = {}
         d['gene'] = self.name
         d['numOrganisms'] = len(self.paftolTargetDict)
         d['meanSeqLength'] = self.meanSequenceLength()
-        d['numSamAlignments'] = self.numSamAlignments()
+        d['numMappedReads'] = self.numMappedReads()
         return d
 
 
@@ -767,14 +767,14 @@ class PaftolTargetSet(object):
         else:
             self.numOfftargetReads = self.numOfftargetReads + 1
             
-    def makeQnameGeneDict(self):
-        qnameGeneDict = {}
+    def makeReadNameGeneDict(self):
+        readNameGeneDict = {}
         for paftolGene in self.paftolGeneDict.values():
-            for qname in paftolGene.qnameSet():
-                if qname not in qnameGeneDict:
-                    qnameGeneDict[qname] = []
-                qnameGeneDict[qname].append(paftolGene)
-        return qnameGeneDict
+            for readName in paftolGene.getReadNameSet():
+                if readName not in readNameGeneDict:
+                    readNameGeneDict[readName] = []
+                readNameGeneDict[readName].append(paftolGene)
+        return readNameGeneDict
 
     def targetStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolTarget.csvFieldNames)
@@ -796,11 +796,11 @@ class PaftolTargetSet(object):
         return dataFrame
         
 
-    def numSamAlignments(self):
+    def numMappedReads(self):
         n = 0
         for organism in self.organismDict.values():
             for paftolTarget in organism.paftolTargetDict.values():
-                n = n + paftolTarget.numSamAlignments()
+                n = n + paftolTarget.numMappedReads()
         return n
 
     # FIXME: untested after transplant from HybpiperAnalyser
@@ -1129,12 +1129,12 @@ this).
         result.representativePaftolTargetDict = {}
         for geneName in result.paftolTargetSet.paftolGeneDict:
             representativePaftolTarget = None
-            maxMapqSum = None
+            maxMappingScoreSum = None
             for organismName in result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
-                mapqSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mapqSum()
-                if representativePaftolTarget is None or (mapqSum is not None and mapqSum > maxMapqSum):
+                mappingScoreSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mappingScoreSum()
+                if representativePaftolTarget is None or (mappingScoreSum is not None and mappingScoreSum > maxMappingScoreSum):
                     representativePaftolTarget = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
-                    maxMapqSum = mapqSum
+                    maxMappingScoreSum = mappingScoreSum
             result.representativePaftolTargetDict[geneName] = representativePaftolTarget
             if representativePaftolTarget is None:
                 logger.debug('represenative for %s: none', geneName)
@@ -1144,11 +1144,11 @@ this).
     def distributeSingle(self, result):
         fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        qnameGeneDict = result.paftolTargetSet.makeQnameGeneDict()
+        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
             if readName in readGenedict:
-                for paftolGene in qnameGeneDict[readName]:
+                for paftolGene in readNameGeneDict[readName]:
                     with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
         fForward.close()
@@ -1159,7 +1159,7 @@ this).
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         fReverse = open(result.reverseFastq, 'r')
         fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
-        qnameGeneDict = result.paftolTargetSet.makeQnameGeneDict()
+        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
             # FIXME: premature end of reverse fastq will trigger
@@ -1168,8 +1168,8 @@ this).
             revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
             if readName != revReadTitle.split()[0]:
                 raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
-            if readName in qnameGeneDict:
-                for paftolGene in qnameGeneDict[readName]:
+            if readName in readNameGeneDict:
+                for paftolGene in readNameGeneDict[readName]:
                     with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                         f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
@@ -1447,7 +1447,7 @@ class HybpiperResult(HybseqResult):
                 geneName = paftolTarget.paftolGene.name
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
-                rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
+                rowDict['numMappedReads'] = paftolTarget.numMappedReads()
                 hybpiperCdsLength = None
                 if paftolTarget.paftolGene.name in self.reconstructedCdsDict and self.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
                     hybpiperCdsLength = len(self.reconstructedCdsDict[paftolTarget.paftolGene.name])
@@ -1527,7 +1527,7 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
             for paftolTarget in paftolOrganism.paftolTargetDict.values():
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
-                rowDict['numMappedReads'] = len(paftolTarget.samAlignmentList)
+                rowDict['numMappedReads'] = paftolTarget.numMappedReads()
                 hybpiperCdsLength = None
                 if paftolTarget.paftolGene.name in hybpiperResult.reconstructedCdsDict and hybpiperResult.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
                     hybpiperCdsLength = len(hybpiperResult.reconstructedCdsDict[paftolTarget.paftolGene.name])
