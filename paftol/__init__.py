@@ -101,6 +101,7 @@ class FastqcStats(object):
         return l
 
     def readTableHeader(self, f):
+        # FIXME: should probably use readCompleteLine?
         l = f.readline()
         if l[0] != '#':
             raise StandardError, 'malformed FastQC table header: %s' % l.strip()
@@ -759,8 +760,6 @@ class PaftolTargetSet(object):
             if geneName not in self.organismDict[organismName].paftolTargetDict:
                 raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
             paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
-	    # FIXME: pre-MappedRead add -- delete when transition complete
-            # paftolTarget.addSamAlignment(samAlignment)
 	    mappedRead = SamMappedRead(paftolTarget, samAlignment)
 
 	    paftolTarget.addMappedRead(mappedRead)
@@ -1070,59 +1069,15 @@ conventions may be added.
         # continue here
         bwaRunner.processBwa(referenceGenomeMappingProcessor, forwardReadsFname, reverseReadsFname)
         return referenceGenomeMappingProcessor.getStatsTable(), referenceGenomeMappingProcessor.rawmapTable
-
-
+    
+    
 class HybpiperAnalyser(HybseqAnalyser):
-
-    """L{HybseqAnalyser} subclass that implements an analysis process
-close to the HybPiper pipeline.
-
-Some parameters to SPAdes can be controlled via instance variables as
-documented below. Defaults of these parameters correspond to the
-defaults provided by SPAdes, respectively (at the time of developing
-this).
-
-@ivar bwaRunner: SPAdes runner, providing instance variables for configuring BWA
-@type bwaRunner: C{paftol.tools.BwaRunner}
-@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
-@type spadesRunner: C{paftol.tools.SpadesRunner}
-
-    """
-
-    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None, spadesRunner=None):
+    
+    def __init__(self, workdirTgz, workDirname):
         super(HybpiperAnalyser, self).__init__(workdirTgz, workDirname)
-        if bwaRunner is None:
-            self.bwaRunner = paftol.tools.BwaRunner()
-        else:
-            self.bwaRunner = bwaRunner
-        if spadesRunner is None:
-            self.spadesRunner = paftol.tools.SpadesRunner()
-        else:
-            self.spadesRunner = spadesRunner
-        # FIXME: obsolete, should get summary stats from result now
-        self.statsCsvFilename = None
-        self.exoneratePercentIdentityThreshold = 65.0
-
-    def setup(self, result):
-        logger.debug('setting up')
-        self.setupTmpdir()
-	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
 
     def cleanup(self):
         self.cleanupTmpdir()
-
-    def mapReadsBwa(self, result):
-        """Map reads to gene sequences (from multiple organisms possibly).
-"""
-        logger.debug('mapping reads to gene sequences')
-        referenceFname = self.makeTargetsFname(True)
-        self.bwaRunner.indexReference(referenceFname)
-        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
-        if result.reverseFastq is None:
-            reverseReadsFname = None
-        else:
-            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
-        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
     def setRepresentativeGenes(self, result):
         """Roughly equivalent to "distribute targets" in HybPiper."""
@@ -1192,10 +1147,6 @@ this).
         return os.path.join(self.makeWorkDirname(), self.makeGeneDirname(geneName))
 
     def assembleGeneSpades(self, result, geneName):
-        # FIXME: should return file with contigs / scaffolds upon success, None otherwise
-        # consider --fg to ensure wait for all parallel processes?
-        # is --eta really of any use here?
-        # FIXME: hard-coded fasta pattern '{}_interleaved.fasta' for parallel
         geneFname = self.makeGeneFname(geneName)
         if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
             logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
@@ -1340,6 +1291,56 @@ this).
             readsSpec = result.forwardFastq
         splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
         return splicedSupercontig
+
+
+class HybpiperBwaAnalyser(HybpiperAnalyser):
+
+    """L{HybseqAnalyser} subclass that implements an analysis process
+close to the HybPiper pipeline.
+
+Some parameters to SPAdes can be controlled via instance variables as
+documented below. Defaults of these parameters correspond to the
+defaults provided by SPAdes, respectively (at the time of developing
+this).
+
+@ivar bwaRunner: SPAdes runner, providing instance variables for configuring BWA
+@type bwaRunner: C{paftol.tools.BwaRunner}
+@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
+@type spadesRunner: C{paftol.tools.SpadesRunner}
+
+    """
+
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None, spadesRunner=None):
+        super(HybpiperBwaAnalyser, self).__init__(workdirTgz, workDirname)
+        if bwaRunner is None:
+            self.bwaRunner = paftol.tools.BwaRunner()
+        else:
+            self.bwaRunner = bwaRunner
+        if spadesRunner is None:
+            self.spadesRunner = paftol.tools.SpadesRunner()
+        else:
+            self.spadesRunner = spadesRunner
+        # FIXME: obsolete, should get summary stats from result now
+        self.statsCsvFilename = None
+        self.exoneratePercentIdentityThreshold = 65.0
+
+    def setup(self, result):
+        logger.debug('setting up')
+        self.setupTmpdir()
+	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+
+    def mapReadsBwa(self, result):
+        """Map reads to gene sequences (from multiple organisms possibly).
+"""
+        logger.debug('mapping reads to gene sequences')
+        referenceFname = self.makeTargetsFname(True)
+        self.bwaRunner.indexReference(referenceFname)
+        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        if result.reverseFastq is None:
+            reverseReadsFname = None
+        else:
+            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
+        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga

@@ -63,20 +63,22 @@ def runHybseqstats(argNamespace):
             sdf.writeCsv(f)
     
 
-def runHybpiper(argNamespace):
-    """Run an analysis (currently CDS reconstruction) using a HybPiper like approach.
-"""
+def runHybpiperBwa(argNamespace):
+    """Run an analysis (currently CDS reconstruction) using a HybPiper
+like approach, unsing BWA for mapping reads to targets.
+
+    """
     bwaRunner = argToBwaRunner(argNamespace)
     spadesRunner = argToSpadesRunner(argNamespace)
     # FIXME: backwards compatibility to previous implementation and to hybpiper (??)
     if spadesRunner.covCutoff is None:
         spadesRunner.covCutoff = 8
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
-    hybpiperAnalyser = paftol.HybpiperAnalyser(argNamespace.tgz, bwaRunner=bwaRunner, spadesRunner=spadesRunner)
+    hybpiperBwaAnalyser = paftol.HybpiperBwaAnalyser(argNamespace.tgz, bwaRunner=bwaRunner, spadesRunner=spadesRunner)
     if argNamespace.csv is not None:
-        hybpiperAnalyser.statsCsvFilename = argNamespace.csv
-    # hybpiperAnalyser.keepTmpDir = True
-    hybpiperResult = hybpiperAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
+        hybpiperBwaAnalyser.statsCsvFilename = argNamespace.csv
+    # hybpiperBwaAnalyser.keepTmpDir = True
+    hybpiperResult = hybpiperBwaAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
@@ -150,8 +152,8 @@ def addHybseqParser(subparsers):
     p.set_defaults(func=runHybseq)
 
     
-def addHybpiperParser(subparsers):
-    p = subparsers.add_parser('hybpiper')
+def addHybpiperBwaParser(subparsers):
+    p = subparsers.add_parser('hybpiperBwa')
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
@@ -164,7 +166,7 @@ def addHybpiperParser(subparsers):
     addBwaRunnerToParser(p)
     addSpadesRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
-    p.set_defaults(func=runHybpiper)
+    p.set_defaults(func=runHybpiperBwa)
     
     
 def addTargetGeneScanParser(subparsers):
@@ -204,7 +206,7 @@ def paftoolsMain():
     subparsers = p.add_subparsers(title='paftools subcommands')
     addDevParser(subparsers)
     addHybseqParser(subparsers)
-    addHybpiperParser(subparsers)
+    addHybpiperBwaParser(subparsers)
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
     addHybseqstatsParser(subparsers)
