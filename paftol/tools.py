@@ -716,7 +716,62 @@ necessary.
         # if samtoolsReturncode != 0:
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
+
+class BlastRunner(object):
+    def __init__(self):
+        pass
         
+    def getFname(self, fastqFname):
+        return fastqFname.split('.')[0]
+
+    def fastqToFasta(self, fastqFname):
+        outFile = open('%s.fasta' % self.getFname(fastqFname), 'w')
+        inFile = open(fastqFname, 'r')
+        for record in Bio.SeqIO.parse(inFile, 'fastq'):
+            Bio.SeqIO.write(record, outFile, 'fasta')
+        inFile.close()
+        outFile.close()
+
+    def indexDatabase(self, readsFname):
+        self.fastqToFasta(readsFname)
+        makeblastdbArgs = ['makeblastdb', '-in', '%s.fasta' % self.getFname(    fastqFname), '-dbtype', 'nucl', '-parse_seqids']
+        makeblastdbProcess = subprocess.check_call(makeblastdbArgs)
+
+    def translateSeq(self, sr):
+        l = len(sr) - (len(sr) % 3)
+        if l < len(sr):
+            logger.warning('gene %s: length %d is not an integer multiple of     3 -- not a CDS?' % (sr.id, len(sr.id)))
+        return Bio.SeqRecord.SeqRecord(sr.seq[:l].translate(), id=sr.id, des    cription=sr.description)
+
+    def processTblastn(self, blastAlignmentProcessor, result.paftolTargetSet, paftolTargetSet, referenceFname, fastqFname):
+        tblastnArgs = ['tblastn', '-db', '%s.fasta' % self.getFname(fastqFna    me), '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
+        sys.stderr.write('%s\n' % ' '.join(tblastnArgs))
+        tblastnProcess = subprocess.Popen(tblastnArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        pid = os.fork()
+        if pid == 0:
+            tblastnProcess.stdout.close()
+            for sr in result.paftolTargetSet.getSeqRecordList():
+                protein = self.translateSeq(sr)
+                tblastnProcess.stdin.write(protein.format('fasta'))
+            tblastnProcess.stdin.close()
+            os._exit(0)
+        tblastnProcess.stdin.close()
+        for blastRecord in Bio.Blast.NCBIXML.parse(tblastnProcess.stdout):
+            raname = blastRecord.query
+            for alignment in blastRecord.alignments:
+                blastAlignment = BlastAlignment(rname, alignment)
+                result.paftolTargetSet.processSamAlignment(blastAlignment)
+        tblastnProcess.stdout.close()
+        wPid, wExit = os.waitpid(pid, 0)
+        if pid != wPid:
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPi    d, pid)
+        if wExit != 0:
+            raise StandardError, 'wait on forked process returned %d' % wExi    t
+        blastReturncode = tblastnProcess.wait()
+        if blastReturncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(blas    tArgs), blastReturncode)
+
+
 class SpadesRunner(object):
     """
     
