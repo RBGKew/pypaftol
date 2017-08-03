@@ -1388,6 +1388,101 @@ this).
             logger.debug('cleanup done')
 
             
+class HybpiperTblastnAnalyser(HybpiperAnalyser):
+
+    """L{HybseqAnalyser} subclass that implements an analysis process
+close to the HybPiper pipeline.
+
+Some parameters to SPAdes can be controlled via instance variables as
+documented below. Defaults of these parameters correspond to the
+defaults provided by SPAdes, respectively (at the time of developing
+this).
+
+@ivar tblastnRunner: tblastn runner, providing instance variables for configuring tblastn
+@type tblastnRunner: C{paftol.tools.TblastnRunner}
+@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
+@type spadesRunner: C{paftol.tools.SpadesRunner}
+
+    """
+
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', blastRunner=None, spadesRunner=None):
+        super(HybpiperTblastnAnalyser, self).__init__(workdirTgz, workDirname)
+        if tblastnRunner is None:
+            self.tblastnRunner = paftol.tools.tblastnRunner()
+        else:
+            self.tblastnRunner = tblastnRunner
+        if spadesRunner is None:
+            self.spadesRunner = paftol.tools.SpadesRunner()
+        else:
+            self.spadesRunner = spadesRunner
+        # FIXME: obsolete, should get summary stats from result now
+        self.statsCsvFilename = None
+        self.exoneratePercentIdentityThreshold = 65.0
+
+    def setup(self, result):
+        logger.debug('setting up')
+        self.setupTmpdir()
+	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+
+    def mapReadsTblastn(self, result):
+        """Map gene sequences to reads (from multiple organisms possibly).
+"""
+        logger.debug('mapping gene sequences to reads')
+        referenceFname = self.makeTargetsFname(True) ## check this holds
+        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        if result.reverseFastq is None:
+            reverseReadsFname = None
+        else:
+            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
+        for readsFname in [forwardReadsFname, reverseReadsFname]:        
+            self.tblastnRunner.indexDatabase(readsFname)
+            self.tblastnRunner.processTblastn(result.paftolTargetSet, referenceFname, readsFname)
+
+    # ideas for hybrid / consensus sequence for (multiple) re-mapping
+    # reference CDS:     atgtac------catacagaagagacgtga
+    # reconstructed CDS:    cactcatttcat---gga
+    # "consensus"        atgCACTCAATTCAT   GGAgagacgtga
+    # principe: Where reconstructed symbol is available, use that in preference.
+    #   * gap in reference: use symbols from reconstructed (must be non-gap if pairwise alignment)
+    #   * gap in reconstructed: skip symbols from reference
+    #   * ends / portions with no alignment to reconstructed: fill in from reference
+    # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
+
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases):
+        logger.debug('starting')
+	paftolTargetSet = PaftolTargetSet()
+	paftolTargetSet.readFasta(targetsSourcePath)
+        # FIXME: put allowInvalidBases in result for subsequent reference?
+	paftolTargetSet.sanityCheck(allowInvalidBases)
+        result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
+	try:
+            self.setup(result)
+            logger.debug('setup done')
+            self.mapReadsTblastn(result)
+            logger.debug('Tblastn mapping done')
+            self.distribute(result)
+            logger.debug('read distribution done')
+            self.setRepresentativeGenes(result)
+            logger.debug('representative genes selected')
+            result.reconstructedCdsDict = {}
+            for geneName in result.paftolTargetSet.paftolGeneDict:
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
+	    logger.debug('CDS reconstruction done')
+	    # FIXME: self.statsCsvFilename no longer required, caller can get that from result now
+            if self.statsCsvFilename is not None:
+                tStats = result.paftolTargetSet.targetStats()
+                with open(self.statsCsvFilename, 'w') as csvFile:
+                    tStats.writeCsv(csvFile)
+                csvFile.close()
+                logger.debug('CSV file written')
+            logger.debug('finished')
+            return result 
+        finally:
+            self.makeTgz()
+            logger.debug('tgz file made')
+            self.cleanup()
+            logger.debug('cleanup done')
+
 class HybseqResult(object):
     
     def __init__(self):
