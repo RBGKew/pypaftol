@@ -452,76 +452,6 @@ the target genes.
             shutil.move(os.path.join(self.tmpDirname, tmpTgz), self.workdirTgz)
 
 
-class SamAlignment(object):
-
-    """Class to represent a SAM record.
-This class follows the naming and definitions of the SAMv1 spec. It is incomplete
-to provide fields required for Hyb-Seq analysis only.
-
-@ivar qname: SAM query name (C{QNAME}), read or read pair ID
-@type qname: C{str}
-@ivar rname: SAM reference name (C{RNAME})
-@type rname: C{str}
-@ivar flag: SAM flag (C{FLAG})
-@type flag: C{int}
-@ivar pos: SAM mapping position (C{POS})
-@type pos: C{int}
-@ivar mapq: SAM mapping quality (C{MAPQ})
-@type mapq: C{int}
-@ivar cigar: SAM CIGAR string (unexpanded) (C{CIGAR})
-@type mapq: C{str}
-@ivar seq: SAM query (read) sequence (C{SEQ})
-@type seq: C{str}
-"""
-
-    cigarElementRe = re.compile('([0-9]+)([MIDNSHP=X])')
-
-    def __init__(self, samLine):
-        if samLine[-1] == '\n':
-            samLine = samLine[:-1]
-        w = samLine.split('\t')
-        self.qname = w[0]
-        self.flag = int(w[1])
-        self.rname = w[2]
-        self.pos = int(w[3])
-        self.mapq = int(w[4])
-        self.cigar = w[5]
-        self.seq = w[9]
-
-    def isMapped(self):
-        return self.flag & 4 == 0
-
-    def getMatchLength(self):
-        e = self.expandedCigar()
-        return e.count('M') + e.count('D')
-
-    def getEndpos(self):
-        return self.pos + self.getMatchLength()
-
-    def expandedCigar(self):
-        if self.cigar is None:
-            return None
-        e = ''
-        c = self.cigar
-        while c != '':
-            m = self.cigarElementRe.match(c)
-            if m is None:
-                raise StandardError('malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c))
-            e = e + (m.group(2) * int(m.group(1)))
-            c = c[len(m.group()):]
-        return e
-
-    def numCigarMatches(self):
-        e = self.expandedCigar()
-        if e is None:
-            return None
-        if e.count('=') > 0:
-            logger.warning('found sequence match ("=") characters, unimplemented')
-        if e.count('X') > 0:
-            logger.warning('found sequence mismatch ("X") characters, unimplemented')
-        return e.count('M')
-
-
 class MappedRead(object):
     """Represent a mapping of an NGS read to a PaftolTarget.
 """
@@ -1436,7 +1366,7 @@ this).
             reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
         for readsFname in [forwardReadsFname, reverseReadsFname]:        
             self.tblastnRunner.indexDatabase(readsFname)
-            self.tblastnRunner.processTblastn(result.paftolTargetSet, referenceFname, readsFname)
+            self.tblastnRunner.processTblastn(result, referenceFname, readsFname)
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga

@@ -124,6 +124,89 @@ def ascendingRange(rangeStart, rangeEnd):
         return rangeEnd, rangeStart
     else:
         return rangeStart, rangeEnd
+
+
+class BlastAlignment(object):
+    def __init__(self, rname, blastAlignment):
+        #self.query = query
+        self.rname = rname
+        self.qname = blastAlignment.hit_id
+        self.mapq = blastAlignment.hsps[0].score
+        #self.qnameSet = set([alignment.hit_id for alignment in blastAlignment.alignments])
+        self.expectValue = blastAlignment.hsps[0].expect
+    
+    def isMapped(self):
+        return True
+
+
+class SamAlignment(object):
+
+    """Class to represent a SAM record.
+This class follows the naming and definitions of the SAMv1 spec. It is incomplete
+to provide fields required for Hyb-Seq analysis only.
+
+@ivar qname: SAM query name (C{QNAME}), read or read pair ID
+@type qname: C{str}
+@ivar rname: SAM reference name (C{RNAME})
+@type rname: C{str}
+@ivar flag: SAM flag (C{FLAG})
+@type flag: C{int}
+@ivar pos: SAM mapping position (C{POS})
+@type pos: C{int}
+@ivar mapq: SAM mapping quality (C{MAPQ})
+@type mapq: C{int}
+@ivar cigar: SAM CIGAR string (unexpanded) (C{CIGAR})
+@type mapq: C{str}
+@ivar seq: SAM query (read) sequence (C{SEQ})
+@type seq: C{str}
+"""
+
+    cigarElementRe = re.compile('([0-9]+)([MIDNSHP=X])')
+
+    def __init__(self, samLine):
+        if samLine[-1] == '\n':
+            samLine = samLine[:-1]
+        w = samLine.split('\t')
+        self.qname = w[0]
+        self.flag = int(w[1])
+        self.rname = w[2]
+        self.pos = int(w[3])
+        self.mapq = int(w[4])
+        self.cigar = w[5]
+        self.seq = w[9]
+
+    def isMapped(self):
+        return self.flag & 4 == 0
+
+    def getMatchLength(self):
+        e = self.expandedCigar()
+        return e.count('M') + e.count('D')
+
+    def getEndpos(self):
+        return self.pos + self.getMatchLength()
+
+    def expandedCigar(self):
+        if self.cigar is None:
+            return None
+        e = ''
+        c = self.cigar
+        while c != '':
+            m = self.cigarElementRe.match(c)
+            if m is None:
+                raise StandardError('malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c))
+            e = e + (m.group(2) * int(m.group(1)))
+            c = c[len(m.group()):]
+        return e
+
+    def numCigarMatches(self):
+        e = self.expandedCigar()
+        if e is None:
+            return None
+        if e.count('=') > 0:
+            logger.warning('found sequence match ("=") characters, unimplemented')
+        if e.count('X') > 0:
+            logger.warning('found sequence mismatch ("X") characters, unimplemented')
+        return e.count('M')
     
     
 class ExonerateResult(object):
@@ -704,7 +787,7 @@ necessary.
         while samLine != '':
             # logger.debug(samLine)
             if samLine[0] != '@':
-                samAlignment = paftol.SamAlignment(samLine)
+                samAlignment = SamAlignment(samLine)
                 samAlignmentProcessor.processSamAlignment(samAlignment)
             samLine = bwaProcess.stdout.readline()
         bwaProcess.stdout.close()
@@ -736,7 +819,7 @@ class TblastnRunner(object):
 
     def indexDatabase(self, readsFname):
         self.fastqToFasta(readsFname)
-        makeblastdbArgs = ['makeblastdb', '-in', '%s.fasta' % self.getFname(    fastqFname), '-dbtype', 'nucl', '-parse_seqids']
+        makeblastdbArgs = ['makeblastdb', '-in', '%s.fasta' % self.getFname(readsFname), '-dbtype', 'nucl', '-parse_seqids']
         makeblastdbProcess = subprocess.check_call(makeblastdbArgs)
 
     def translateSeq(self, sr):
@@ -745,7 +828,7 @@ class TblastnRunner(object):
             logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?' % (sr.id, len(sr.id)))
         return Bio.SeqRecord.SeqRecord(sr.seq[:l].translate(), id=sr.id, description=sr.description)
 
-    def processTblastn(self, blastAlignmentProcessor, result, referenceFname, fastqFname):
+    def processTblastn(self, result, referenceFname, fastqFname):
         tblastnArgs = ['tblastn', '-db', '%s.fasta' % self.getFname(fastqFname), '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
         sys.stderr.write('%s\n' % ' '.join(tblastnArgs))
         tblastnProcess = subprocess.Popen(tblastnArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -759,7 +842,7 @@ class TblastnRunner(object):
             os._exit(0)
         tblastnProcess.stdin.close()
         for blastRecord in Bio.Blast.NCBIXML.parse(tblastnProcess.stdout):
-            raname = blastRecord.query
+            rname = blastRecord.query
             for alignment in blastRecord.alignments:
                 blastAlignment = BlastAlignment(rname, alignment)
                 result.paftolTargetSet.processSamAlignment(blastAlignment)
@@ -771,7 +854,7 @@ class TblastnRunner(object):
             raise StandardError, 'wait on forked process returned %d' % wExit
         blastReturncode = tblastnProcess.wait()
         if blastReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(blastArgs), blastReturncode)
+            raise StandardError, 'process "%s" returned %d' % (' '.join(tblastnArgs), blastReturncode)
 
 
 class SpadesRunner(object):
