@@ -717,11 +717,13 @@ necessary.
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
 
-class BlastRunner(object):
+class TblastnRunner(object):
+
     def __init__(self):
         pass
         
     def getFname(self, fastqFname):
+        # FIXME: will probably malfunction if fastqFname contains multiple dots, doesn't check for "extension" -- consider using regular expression
         return fastqFname.split('.')[0]
 
     def fastqToFasta(self, fastqFname):
@@ -740,11 +742,11 @@ class BlastRunner(object):
     def translateSeq(self, sr):
         l = len(sr) - (len(sr) % 3)
         if l < len(sr):
-            logger.warning('gene %s: length %d is not an integer multiple of     3 -- not a CDS?' % (sr.id, len(sr.id)))
-        return Bio.SeqRecord.SeqRecord(sr.seq[:l].translate(), id=sr.id, des    cription=sr.description)
+            logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?' % (sr.id, len(sr.id)))
+        return Bio.SeqRecord.SeqRecord(sr.seq[:l].translate(), id=sr.id, description=sr.description)
 
-    def processTblastn(self, blastAlignmentProcessor, result.paftolTargetSet, paftolTargetSet, referenceFname, fastqFname):
-        tblastnArgs = ['tblastn', '-db', '%s.fasta' % self.getFname(fastqFna    me), '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
+    def processTblastn(self, blastAlignmentProcessor, result, referenceFname, fastqFname):
+        tblastnArgs = ['tblastn', '-db', '%s.fasta' % self.getFname(fastqFname), '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
         sys.stderr.write('%s\n' % ' '.join(tblastnArgs))
         tblastnProcess = subprocess.Popen(tblastnArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         pid = os.fork()
@@ -764,12 +766,12 @@ class BlastRunner(object):
         tblastnProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPi    d, pid)
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
         if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExi    t
+            raise StandardError, 'wait on forked process returned %d' % wExit
         blastReturncode = tblastnProcess.wait()
         if blastReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(blas    tArgs), blastReturncode)
+            raise StandardError, 'process "%s" returned %d' % (' '.join(blastArgs), blastReturncode)
 
 
 class SpadesRunner(object):

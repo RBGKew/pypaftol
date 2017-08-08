@@ -1405,7 +1405,7 @@ this).
 
     """
 
-    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', blastRunner=None, spadesRunner=None):
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', tblastnRunner=None, spadesRunner=None):
         super(HybpiperTblastnAnalyser, self).__init__(workdirTgz, workDirname)
         if tblastnRunner is None:
             self.tblastnRunner = paftol.tools.tblastnRunner()
@@ -1482,6 +1482,7 @@ this).
             logger.debug('tgz file made')
             self.cleanup()
             logger.debug('cleanup done')
+
 
 class HybseqResult(object):
     
