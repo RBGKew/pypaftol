@@ -422,17 +422,20 @@ the target genes.
             raise StandardError('illegal state: no temporary directory and hence no working directory')
         # logger.debug('tmpDirname = %s, workDirname = %s', self.tmpDirname, self.workDirname)
         return os.path.join(self.tmpDirname, self.workDirname)
+    
+    def makeWorkdirPath(self, filename):
+        return os.path.join(self.makeWorkDirname(), filename)
 
     def makeTargetsFname(self, absolutePath=False):
         if absolutePath:
-            return os.path.join(self.makeWorkDirname(), self.targetsFname)
+            return self.makeWorkdirPath(self.targetsFname)
         else:
             return self.targetsFname
 
     def makeGeneFname(self, geneName, absolutePath=False):
         geneFname = self.geneFnamePattern % geneName
         if absolutePath:
-            return os.path.join(self.makeWorkDirname(), geneFname)
+            return self.makeWorkdirPath(geneFname)
         else:
             return geneFname
 
@@ -477,7 +480,6 @@ class SamMappedRead(MappedRead):
 
     def getMappingScore(self):
         return self.samAlignment.mapq
-
 
 
 class BlastMappedRead(MappedRead):
@@ -679,22 +681,31 @@ class PaftolTargetSet(object):
         srList = self.getSeqRecordList()
         sys.stderr.write('writeFasta: writing %d sequences\n' % len(srList))
         Bio.SeqIO.write(srList, fastaHandle, 'fasta')
+        
+    def checkOrganismAndGene(self, organismName, geneName):
+        if organismName not in self.organismDict:
+            raise StandardError('unknown organism: %s' % organismName)
+        if geneName not in self.paftolGeneDict:
+            raise StandardError('unknown gene: %s' % geneName)
+        if geneName not in self.organismDict[organismName].paftolTargetDict:
+            raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
 
     def processSamAlignment(self, samAlignment):
         if samAlignment.isMapped():
             organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
-            if organismName not in self.organismDict:
-                raise StandardError('unknown organism: %s' % organismName)
-            if geneName not in self.paftolGeneDict:
-                raise StandardError('unknown gene: %s' % geneName)
-            if geneName not in self.organismDict[organismName].paftolTargetDict:
-                raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
+            self.checkOrganismAndGene(organismName, geneName)
             paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
 	    mappedRead = SamMappedRead(paftolTarget, samAlignment)
-
 	    paftolTarget.addMappedRead(mappedRead)
         else:
             self.numOfftargetReads = self.numOfftargetReads + 1
+
+    def processBlastAlignment(self, query, blastAlignment):
+        organismName, geneName = self.extractOrganismAndGeneNames(query)
+        self.checkOrganismAndGene(organismName, geneName)
+        paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
+        mappedRead = BlastMappedRead(paftolTarget, blastAlignment)
+        paftolTarget.addMappedRead(mappedRead)
             
     def makeReadNameGeneDict(self):
         readNameGeneDict = {}
@@ -996,7 +1007,6 @@ conventions may be added.
 
     def mapReadsStatsBwaMem(self, bwaRunner, forwardReadsFname, reverseReadsFname=None):
         referenceGenomeMappingProcessor = ReferenceGenomeMappingProcessor(self)
-        # continue here
         bwaRunner.processBwa(referenceGenomeMappingProcessor, forwardReadsFname, reverseReadsFname)
         return referenceGenomeMappingProcessor.getStatsTable(), referenceGenomeMappingProcessor.rawmapTable
     
@@ -1074,11 +1084,11 @@ class HybpiperAnalyser(HybseqAnalyser):
         return 'spades-%s' % geneName
 
     def makeGeneDirPath(self, geneName):
-        return os.path.join(self.makeWorkDirname(), self.makeGeneDirname(geneName))
+        return self.makeWorkdirPath(self.makeGeneDirname(geneName))
 
     def assembleGeneSpades(self, result, geneName):
         geneFname = self.makeGeneFname(geneName)
-        if not os.path.exists(os.path.join(self.makeWorkDirname(), geneFname)):
+        if not os.path.exists(self.makeWorkdirPath(geneFname)):
             logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
             return None
         if result.isPaired():
@@ -1092,6 +1102,7 @@ class HybpiperAnalyser(HybseqAnalyser):
 
     def translateGene(self, geneDna):
         # FIXME: add support for gene specific translation table setting
+        # FIXME: not really an instance method -- static?
         l = len(geneDna) - (len(geneDna) % 3)
         if l < len(geneDna):
             logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?', geneDna.id, len(geneDna))
@@ -1257,6 +1268,7 @@ this).
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
+        # FIXME: is writing the targets fasta file really part of setup?
 	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
 
     def mapReadsBwa(self, result):
@@ -1348,25 +1360,30 @@ this).
         # FIXME: obsolete, should get summary stats from result now
         self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
-
+        self.forwardFasta = 'fwd.fasta'
+        self.reverseFasta = 'rev.fasta'
+        
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
 	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+        forwardFastaPath = self.makeWorkdirPath(self.forwardFasta)
+        paftol.tools.fastqToFasta(result.forwardFastq, forwardFastaPath)
+        self.tblastnRunner.indexDatabase(forwardFastaPath)
+        if result.reverseFastq is not None:
+            reverseFastaPath = self.makeWorkdirPath(self.reverseFasta)
+            paftol.tools.fastqToFasta(result.reverseFastq, reverseFastaPath)
+            self.tblastnRunner.indexDatabase(reverseFastaPath)
 
     def mapReadsTblastn(self, result):
         """Map gene sequences to reads (from multiple organisms possibly).
 """
         logger.debug('mapping gene sequences to reads')
         referenceFname = self.makeTargetsFname(True) ## check this holds
-        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        targetProteinList = [self.translateGene(geneSr) for geneSr in result.paftolTargetSet.getSeqRecordList()]
+        self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.forwardFasta), targetProteinList)
         if result.reverseFastq is None:
-            reverseReadsFname = None
-        else:
-            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
-        for readsFname in [forwardReadsFname, reverseReadsFname]:        
-            self.tblastnRunner.indexDatabase(readsFname)
-            self.tblastnRunner.processTblastn(result, referenceFname, readsFname)
+            self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.reverseFasta), targetProteinList)
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga
@@ -1389,7 +1406,7 @@ this).
             self.setup(result)
             logger.debug('setup done')
             self.mapReadsTblastn(result)
-            logger.debug('Tblastn mapping done')
+            logger.debug('tblastn mapping done')
             self.distribute(result)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)

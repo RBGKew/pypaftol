@@ -29,6 +29,13 @@ import paftol
 logger = logging.getLogger(__name__)
 
 
+def fastqToFasta(fastqFname, fastaFname):
+    with open(fastqFname, 'r') as fastqFile:
+        with open(fastaFname, 'w') as fastaFile:
+            for record in Bio.SeqIO.parse(fastqFile, 'fastq'):
+                Bio.SeqIO.write(record, fastaFile, 'fasta')
+
+
 def alignCdsByProtein(alignedProteinSeqRecord, cdsSeqRecord):
     u = str(alignedProteinSeqRecord.seq)
     c = str(cdsSeqRecord.seq)
@@ -127,7 +134,9 @@ def ascendingRange(rangeStart, rangeEnd):
 
 
 class BlastAlignment(object):
+    
     def __init__(self, rname, blastAlignment):
+        raise StandardError, 'obsolete'
         #self.query = query
         self.rname = rname
         self.qname = blastAlignment.hit_id
@@ -717,7 +726,7 @@ the caller's responsibility to close it.
         d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(self.targetCdsSeq)
         self.csvDictWriter.writerow(d)
 
-        
+
 class BwaRunner(object):
     """Hold parameters for C{bwa} and provide argument vectors on that basis.
     
@@ -779,7 +788,7 @@ necessary.
         self.indexReference(referenceFname)
         bwaArgv = self.mappingMemArgv(referenceFname, forwardReadsFname, reverseReadsFname)
         logger.debug('%s', ' '.join(bwaArgv))
-        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd = self.workingDirectory)
+        bwaProcess = subprocess.Popen(bwaArgv, stdout=subprocess.PIPE, cwd=self.workingDirectory)
         # samtoolsArgv = ['samtools', 'view', '-h', '-S', '-F', '4', '-']
         # logger.debug('%s', ' '.join(samtoolsArgv))
         # samtoolsProcess = subprocess.Popen(samtoolsArgv, stdin=bwaProcess.stdout.fileno(), stdout=subprocess.PIPE, cwd = self.workingDirectory)
@@ -805,56 +814,35 @@ class TblastnRunner(object):
     def __init__(self):
         pass
         
-    def getFname(self, fastqFname):
-        # FIXME: will probably malfunction if fastqFname contains multiple dots, doesn't check for "extension" -- consider using regular expression
-        return fastqFname.split('.')[0]
+    def indexDatabase(self, databaseFname):
+        makeblastdbArgv = ['makeblastdb', '-dbtype', 'nucl', '-in', databaseFname, '-parse_seqids']
+        logger.debug('%s', ' '.join(makeblastdbArgv))
+        makeblastdbProcess = subprocess.check_call(makeblastdbArgv)
 
-    def fastqToFasta(self, fastqFname):
-        outFile = open('%s.fasta' % self.getFname(fastqFname), 'w')
-        inFile = open(fastqFname, 'r')
-        for record in Bio.SeqIO.parse(inFile, 'fastq'):
-            Bio.SeqIO.write(record, outFile, 'fasta')
-        inFile.close()
-        outFile.close()
-
-    def indexDatabase(self, readsFname):
-        self.fastqToFasta(readsFname)
-        makeblastdbArgs = ['makeblastdb', '-in', '%s.fasta' % self.getFname(readsFname), '-dbtype', 'nucl', '-parse_seqids']
-        makeblastdbProcess = subprocess.check_call(makeblastdbArgs)
-
-    def translateSeq(self, sr):
-        l = len(sr) - (len(sr) % 3)
-        if l < len(sr):
-            logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?' % (sr.id, len(sr.id)))
-        return Bio.SeqRecord.SeqRecord(sr.seq[:l].translate(), id=sr.id, description=sr.description)
-
-    def processTblastn(self, result, referenceFname, fastqFname):
-        tblastnArgs = ['tblastn', '-db', '%s.fasta' % self.getFname(fastqFname), '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
-        sys.stderr.write('%s\n' % ' '.join(tblastnArgs))
-        tblastnProcess = subprocess.Popen(tblastnArgs, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
+        tblastnArgv = ['tblastn', '-db', databaseFname, '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
+        logger.debug('%s', ' '.join(tblastnArgv))
+        tblastnProcess = subprocess.Popen(tblastnArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         pid = os.fork()
         if pid == 0:
             tblastnProcess.stdout.close()
-            for sr in result.paftolTargetSet.getSeqRecordList():
-                protein = self.translateSeq(sr)
-                tblastnProcess.stdin.write(protein.format('fasta'))
+            for query in queryList:
+                tblastnProcess.stdin.write(query.format('fasta'))
             tblastnProcess.stdin.close()
             os._exit(0)
         tblastnProcess.stdin.close()
         for blastRecord in Bio.Blast.NCBIXML.parse(tblastnProcess.stdout):
-            rname = blastRecord.query
             for alignment in blastRecord.alignments:
-                blastAlignment = BlastAlignment(rname, alignment)
-                result.paftolTargetSet.processSamAlignment(blastAlignment)
+                blastAlignmentProcessor.processBlastAlignment(blastRecord.query, alignment)
         tblastnProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
             raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
         if wExit != 0:
             raise StandardError, 'wait on forked process returned %d' % wExit
-        blastReturncode = tblastnProcess.wait()
-        if blastReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(tblastnArgs), blastReturncode)
+        tblastnReturncode = tblastnProcess.wait()
+        if tblastnReturncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(tblastnArgv), tblastnReturncode)
 
 
 class SpadesRunner(object):
