@@ -1262,7 +1262,6 @@ this).
         else:
             self.spadesRunner = spadesRunner
         # FIXME: obsolete, should get summary stats from result now
-        self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
 
     def setup(self, result):
@@ -1314,13 +1313,6 @@ this).
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
 	    logger.debug('CDS reconstruction done')
-	    # FIXME: self.statsCsvFilename no longer required, caller can get that from result now
-            if self.statsCsvFilename is not None:
-                tStats = result.paftolTargetSet.targetStats()
-                with open(self.statsCsvFilename, 'w') as csvFile:
-                    tStats.writeCsv(csvFile)
-                csvFile.close()
-                logger.debug('CSV file written')
             logger.debug('finished')
             return result 
         finally:
@@ -1357,8 +1349,6 @@ this).
             self.spadesRunner = paftol.tools.SpadesRunner()
         else:
             self.spadesRunner = spadesRunner
-        # FIXME: obsolete, should get summary stats from result now
-        self.statsCsvFilename = None
         self.exoneratePercentIdentityThreshold = 65.0
         self.forwardFasta = 'fwd.fasta'
         self.reverseFasta = 'rev.fasta'
@@ -1415,13 +1405,6 @@ this).
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
 	    logger.debug('CDS reconstruction done')
-	    # FIXME: self.statsCsvFilename no longer required, caller can get that from result now
-            if self.statsCsvFilename is not None:
-                tStats = result.paftolTargetSet.targetStats()
-                with open(self.statsCsvFilename, 'w') as csvFile:
-                    tStats.writeCsv(csvFile)
-                csvFile.close()
-                logger.debug('CSV file written')
             logger.debug('finished')
             return result 
         finally:
