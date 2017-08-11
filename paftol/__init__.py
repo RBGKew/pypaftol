@@ -1155,28 +1155,50 @@ class HybpiperAnalyser(HybseqAnalyser):
     # contig2:      ca--actcga
     # trim contig2 because it has (more) gaps in the overlap region??
     # compute consensus -- along overlapping regions, or along entire query?
-    def filterByOverlap(self, exonerateResultList):
+    def filterByOverlap(self, exonerateResultList, strictOverlapFiltering):
+        
+        def isPreferred(exonerateResult, other):
+            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
+                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
+            if exonerateResult.rawScore != other.rawScore:
+                return exonerateResult.rawScore > other.rawScore
+            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
+                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
+            # FIXME: arbitrary tie breaking
+            if exonerateResult.queryAlignmentStart != other.queryAlignmentStart:
+                return exonerateResult.queryAlignmentStart < other.queryAlignmentStart
+            if exonerateResult.queryAlignmentEnd != other.queryAlignmentEnd:
+                return exonerateResult.queryAlignmentEnd < other.queryAlignmentEnd
+            if exonerateResult.targetId != other.targetId:
+                return exonerateResult.targetId < other.targetId
+            raise StanddardError('cannot break tie of overlapping contigs: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
+
         logger.warning('scanning for overlaps but not resolving them, pending development of concept')
         nonOverlappingExonerateResultList = []
         for exonerateResult in exonerateResultList:
+            isOverlapping = False
             for other in exonerateResultList:
                 if exonerateResult is not other:
                     if exonerateResult.overlapsQueryAlignmentRange(other):
-                        logger.warning('overlap found, but not resolved: %s, %s', str(exonerateResult), str(other))
-            nonOverlappingExonerateResultList.append(exonerateResult)
+                        if strictOverlapFiltering:
+                            isOverlapping = isOverlapping or (not isPreferred(exonerateResult, other))
+                        else:
+                            logger.warning('overlap found, but not resolved: %s, %s', str(exonerateResult), str(other))
+            if not isOverlapping:
+                nonOverlappingExonerateResultList.append(exonerateResult)
         return nonOverlappingExonerateResultList
 
-    def filterExonerateResultList(self, geneName, exonerateResultList):
+    def filterExonerateResultList(self, geneName, exonerateResultList, strictOverlapFiltering):
         logger.debug('gene %s: %d exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
         logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
         logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
-        exonerateResultList = self.filterByOverlap(exonerateResultList)
+        exonerateResultList = self.filterByOverlap(exonerateResultList, strictOverlapFiltering)
         logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
         return exonerateResultList
 
-    def reconstructCds(self, result, geneName):
+    def reconstructCds(self, result, geneName, strictOverlapFiltering):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if result.representativePaftolTargetDict is None:
             raise StandardError('illegal state: no represesentative genes')
@@ -1211,7 +1233,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             if exonerateResult.targetStrand == '-':
                 exonerateResult.reverseComplementTarget()
         logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
-        filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList)
+        filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList, strictOverlapFiltering)
         if len(filteredExonerateResultList) == 0:
             logger.warning('gene %s: no exonerate results left after filtering', geneName)
             return None
@@ -1293,7 +1315,7 @@ this).
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
@@ -1311,7 +1333,7 @@ this).
             logger.debug('representative genes selected')
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
-                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
 	    logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result 
@@ -1385,7 +1407,7 @@ this).
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
@@ -1403,7 +1425,7 @@ this).
             logger.debug('representative genes selected')
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
-                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName)
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
 	    logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result 

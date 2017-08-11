@@ -85,7 +85,7 @@ like approach, unsing BWA for mapping reads to targets.
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
     hybpiperBwaAnalyser = paftol.HybpiperBwaAnalyser(argNamespace.tgz, bwaRunner=bwaRunner, spadesRunner=spadesRunner)
     # hybpiperBwaAnalyser.keepTmpDir = True
-    hybpiperResult = hybpiperBwaAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
+    hybpiperResult = hybpiperBwaAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
@@ -109,7 +109,7 @@ like approach, unsing tblastn for mapping reads to targets.
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
     hybpiperTblastnAnalyser = paftol.HybpiperTblastnAnalyser(argNamespace.tgz, tblastnRunner=tblastnRunner, spadesRunner=spadesRunner)
     # hybpiperTblastnAnalyser.keepTmpDir = True
-    hybpiperResult = hybpiperTblastnAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases)
+    hybpiperResult = hybpiperTblastnAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
@@ -189,6 +189,7 @@ def addHybpiperBwaParser(subparsers):
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
+    p.add_argument('--strictOverlapFiltering', action='store_true', help='filter contigs so that no region of the reference target is covered by multiple (overlapping) contigs')
     p.add_argument('--summaryCsv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
@@ -203,6 +204,7 @@ def addHybpiperTblastnParser(subparsers):
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
+    p.add_argument('--strictOverlapFiltering', action='store_true', help='filter contigs so that no region of the reference target is covered by multiple (overlapping) contigs')
     p.add_argument('--summaryCsv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
