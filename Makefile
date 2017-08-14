@@ -1,3 +1,6 @@
+default:
+	python setup.py build
+
 hinstall :
 	python setup.py install --home=$${HOME}
 
@@ -7,5 +10,5 @@ doc :
 clean :
 	rm -rf html build dist paftol.egg-info
 
-.PHONY : doc clean hinstall
+.PHONY : default doc clean hinstall
 
