@@ -811,8 +811,15 @@ necessary.
 
 class TblastnRunner(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, numThreads=None, gapOpen=None, gapExtend=None, maxTargetSeqs=None, numAlignments=None, maxHsps=None, evalue=None, windowSize=None):
+        self.numThreads = numThreads
+        self.gapOpen = gapOpen
+        self.gapExtend = gapExtend
+        self.maxTargetSeqs = maxTargetSeqs
+        self.numAlignments = numAlignments
+        self.maxHsps = maxHsps
+        self.evalue = evalue
+        self.windowSize = windowSize
         
     def indexDatabase(self, databaseFname):
         makeblastdbArgv = ['makeblastdb', '-dbtype', 'nucl', '-in', databaseFname, '-parse_seqids']
@@ -820,7 +827,24 @@ class TblastnRunner(object):
         makeblastdbProcess = subprocess.check_call(makeblastdbArgv)
 
     def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
-        tblastnArgv = ['tblastn', '-db', databaseFname, '-outfmt', '5', '-max_target_seqs', '10000000', '-max_hsps', '1']
+        tblastnArgv = ['tblastn']
+        if self.numThreads is not None:
+            tblastnArgv.extend(['-num_threads', '%d' % self.numThreads])
+        if self.gapOpen is not None:
+            tblastnArgv.extend(['-gapopen', '%d' % self.gapOpen])
+        if self.gapExtend is not None:
+            tblastnArgv.extend(['-gapextend', '%d' % self.gapExtend])
+        if self.maxTargetSeqs is not None:
+            tblastnArgv.extend(['-max_target_seqs', '%d' % self.maxTargetSeqs])
+        if self.numAlignments is not None:
+            tblastnArgv.extend(['-num_alignments', '%d' % self.numAlignments])
+        if self.maxHsps is not None:
+            tblastnArgv.extend(['-max_hsps', '%d' % self.maxHsps])
+        if self.evalue is not None:
+            tblastnArgv.extend(['-evalue', '%1.12g' % self.evalue])
+        if self.windowSize is not None:
+            tblastnArgv.extend(['-window_size', '%d' % self.windowSize])
+        tblastnArgv.extend(['-db', databaseFname, '-outfmt', '5'])
         logger.debug('%s', ' '.join(tblastnArgv))
         tblastnProcess = subprocess.Popen(tblastnArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         pid = os.fork()

@@ -19,9 +19,17 @@ def addBwaRunnerToParser(p):
     p.add_argument('--bwaScoreThreshold', type=int, help='set minimum score for BWA (see bwa mem -T)')
     p.add_argument('--bwaReseedTrigger', type=float, help='set re-seed trigger BWA (see bwa mem -r)')
 
+    
+def addBlastRunnerToParser(p):
+    p.add_argument('--blastNumThreads', type=int, help='set number of threads for blast program (see -num_threads)')
+    p.add_argument('--blastGapOpen', type=int, help='cost of opening a gap (see -gapopen)')
+    p.add_argument('--blastGapExtend', type=int, help='cost of extending a gap (see -gapextend)')
+    p.add_argument('--blastEvalue', type=float, help='E value threshold (see -evalue)')
+    p.add_argument('--blastWindowSize', type=int, help='multiple hits window size (see -window_size)')
+
 
 def addTblastnRunnerToParser(p):
-    pass
+    addBlastRunnerToParser(p)
 
     
 def addSpadesRunnerToParser(p):
@@ -38,8 +46,18 @@ def argToBwaRunner(argNamespace):
     return bwaRunner
 
 
+def argToBlastRunnerParams(argNamespace, blastRunner):
+    blastRunner.numThreads = argNamespace.blastNumThreads
+    blastRunner.gapOpen = argNamespace.blastGapOpen
+    blastRunner.gapExtend = argNamespace.blastGapExtend
+    blastRunner.evalue = argNamespace.blastEvalue
+    blastRunner.windowSize = argNamespace.blastWindowSize
+    return blastRunner
+
+
 def argToTblastnRunner(argNamespace):
     tblastnRunner = paftol.tools.TblastnRunner()
+    argToBlastRunnerParams(argNamespace, tblastnRunner)
     return tblastnRunner
 
 

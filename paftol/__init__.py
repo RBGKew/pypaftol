@@ -1283,7 +1283,6 @@ this).
             self.spadesRunner = paftol.tools.SpadesRunner()
         else:
             self.spadesRunner = spadesRunner
-        # FIXME: obsolete, should get summary stats from result now
         self.exoneratePercentIdentityThreshold = 65.0
 
     def setup(self, result):
@@ -1348,6 +1347,10 @@ class HybpiperTblastnAnalyser(HybpiperAnalyser):
 
     """L{HybseqAnalyser} subclass that implements an analysis process
 close to the HybPiper pipeline.
+    
+The C{tblastnRunner} and C{spadesRunner} should be considered "owned" by
+the analyser, i.e. they may be modified by the analyser (e.g. to set parameters
+as required), so they should not be modified or otherwise be used by clients.
 
 Some parameters to SPAdes can be controlled via instance variables as
 documented below. Defaults of these parameters correspond to the
@@ -1393,6 +1396,9 @@ this).
         logger.debug('mapping gene sequences to reads')
         referenceFname = self.makeTargetsFname(True) ## check this holds
         targetProteinList = [self.translateGene(geneSr) for geneSr in result.paftolTargetSet.getSeqRecordList()]
+        # FIXME: check these parameters, consider numAlignments?
+        self.tblastnRunner.maxTargetSeqs = 10000000
+        self.tblastnRunner.maxHsps = 1
         self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.forwardFasta), targetProteinList)
         if result.reverseFastq is None:
             self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.reverseFasta), targetProteinList)
