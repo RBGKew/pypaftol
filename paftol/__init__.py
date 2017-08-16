@@ -635,8 +635,18 @@ class PaftolTargetSet(object):
         self.numOfftargetReads = 0
         self.fastaHandleStr = None
 
+    # FIXME: static?
     def makeFastaId(organismName, geneName):
         return '%s-%s' % (organismName, geneName)
+    
+    def getGeneSeqRecordList(self, geneNameList):
+        srList = []
+        for geneName in geneNameList:
+            if geneName not in self.paftolGeneDict:
+                raise StandardError, 'gene %s not found in this target set' % geneName
+            for paftolTarget in self.paftolGeneDict[geneName].paftolTargetDict.values():
+                srList.append(paftolTarget.seqRecord)
+        return srList
 
     def extractOrganismAndGeneNames(self, s):
         m = self.paftolTargetRe.match(s)

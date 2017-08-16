@@ -171,6 +171,24 @@ def runGenomeReadScan(argNamespace):
         with open(argNamespace.outfile, 'w') as csvFile:
             statsTable.writeCsv(csvFile)
 
+            
+def runSelectgenes(argNamespace):
+    geneNameSet = set(argNamespace.gene)
+    if argNamespace.genefile is not None:
+        with open(argNamespace.genefile) as f:
+            for line in f:
+                geneNameSet.add(line.strip())
+    paftolTargetSet = paftol.PaftolTargetSet()
+    if argNamespace.targetsfile is None:
+        paftolTargetSet.readFasta(sys.stdin)
+    else:
+        paftolTargetSet.readFasta(argNamespace.targetsfile)
+    srList = paftolTargetSet.getGeneSeqRecordList(geneNameSet)
+    if argNamespace.outfile is None:
+        Bio.SeqIO.write(srList, sys.stdout, 'fasta')
+    else:
+        Bio.SeqIO.write(srList, argNamespace.outfile, 'fasta')
+
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev')
@@ -255,6 +273,15 @@ def addGenomeReadScanParser(subparsers):
     p.set_defaults(func=runGenomeReadScan)
     
     
+def addSelectgenesParser(subparsers):
+    p = subparsers.add_parser('selectgenes', help='select genes by name from a PAFTOL target set')
+    p.add_argument('-g', '--gene', action='append', help='specify gene name on command line')
+    p.add_argument('-f', '--genefile', help='specify file containing gene names')
+    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
+    p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
+    p.set_defaults(func=runSelectgenes)
+    
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -274,6 +301,7 @@ def paftoolsMain():
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
     addHybseqstatsParser(subparsers)
+    addSelectgenesParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
