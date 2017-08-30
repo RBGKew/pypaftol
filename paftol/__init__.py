@@ -497,6 +497,7 @@ taken into account.
         return self.blastAlignment.hit_id
 
     def getMappingScore(self):
+        # FIXME: returning score of HSP #0, ignoring all subsequent HSPs
         return self.blastAlignment.hsps[0].score
 
 
@@ -528,6 +529,9 @@ facilitating handling of multiple genes and multiple organisms.
             raise StandardError('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
         organism.paftolTargetDict[paftolGene.name] = self
         paftolGene.paftolTargetDict[organism.name] = self
+        
+    def getName(self):
+        return '%s-%s' % (self.organism.name, self.paftolGene.name)
 
     def addMappedRead(self, mappedRead):
         self.mappedReadList.append(mappedRead)
@@ -600,6 +604,7 @@ organisms.
     def __init__(self, name):
         self.name = name
         self.paftolTargetDict = {}
+        self.annotationDict = {}
 
     def getReadNameSet(self):
         s = set()
@@ -1204,8 +1209,10 @@ class HybpiperAnalyser(HybseqAnalyser):
         logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
         logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
+        logger.debug('gene %s: non-contained contig list: %s', geneName, ', '.join([e.targetId for e in exonerateResultList]))
         exonerateResultList = self.filterByOverlap(exonerateResultList, strictOverlapFiltering)
-        logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
+        # logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
+        logger.debug('gene %s: %d non-overlapping contig list [strict=%s]: %s', geneName, len(exonerateResultList), str(strictOverlapFiltering), ', '.join(['%s; tcdsLen=%d' % (e.targetId, len(e.targetCdsSeq.seq)) for e in exonerateResultList]))
         return exonerateResultList
 
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
@@ -1224,6 +1231,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             return None
         logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
         geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
+        Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
         aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
         # allow stop translation
         aminoAcidSet.add('*')
@@ -1242,18 +1250,20 @@ class HybpiperAnalyser(HybseqAnalyser):
         for exonerateResult in exonerateResultList:
             if exonerateResult.targetStrand == '-':
                 exonerateResult.reverseComplementTarget()
-        logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
+        # logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
         filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList, strictOverlapFiltering)
         if len(filteredExonerateResultList) == 0:
             logger.warning('gene %s: no exonerate results left after filtering', geneName)
             return None
         supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % geneName)
+        logger.debug('gene %s: supercontig length %d', geneName, len(supercontig))
         if len(supercontig) == 0:
             logger.warning('gene %s: empty supercontig', geneName)
             return None
         supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
         Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
         supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', len(contigList))
+        logger.debug('gene %s: %d supercontig exonerate results', geneName, len(supercontigErList))
         if len(supercontigErList) == 0:
             logger.warning('gene %s: no exonerate results from supercontig', geneName)
             return None
@@ -1263,6 +1273,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             readsSpec = result.forwardFastq
         splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
+        logger.debug('gene %s: spicedSupercontig length %d', geneName, len(splicedSupercontig))
         return splicedSupercontig
 
 
