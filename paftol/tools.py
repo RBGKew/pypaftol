@@ -828,7 +828,7 @@ class BlastRunner(object):
         makeblastdbProcess = subprocess.check_call(makeblastdbArgv)
         
     def makeBlastArgv(self, blastProgram, databaseFname):
-        blastArgv = blastProgram
+        blastArgv = [blastProgram]
         if self.numThreads is not None:
             blastArgv.extend(['-num_threads', '%d' % self.numThreads])
         if self.gapOpen is not None:
