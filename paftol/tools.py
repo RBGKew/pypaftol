@@ -828,7 +828,7 @@ class BlastRunner(object):
         makeblastdbProcess = subprocess.check_call(makeblastdbArgv)
         
     def makeBlastArgv(self, blastProgram, databaseFname):
-        blastArgv = ['blastn']
+        blastArgv = blastProgram
         if self.numThreads is not None:
             blastArgv.extend(['-num_threads', '%d' % self.numThreads])
         if self.gapOpen is not None:
@@ -880,7 +880,7 @@ class BlastnRunner(BlastRunner):
         super(BlastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
         
     def indexDatabase(self, databaseFname):
-        self.indexDatabase(databaseFname, 'nucl')
+        super(BlastnRunner, self).indexDatabase(databaseFname, 'nucl')
 
     def processBlast(self, blastAlignmentProcessor, databaseFname, queryList):
         logger.debug('BlastnRunner.processBlast')
@@ -893,49 +893,10 @@ class TblastnRunner(BlastRunner):
         super(TblastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
         
     def indexDatabase(self, databaseFname):
-        self.indexDatabase(databaseFname, 'nucl')
+        super(TblastnRunner, self).indexDatabase(databaseFname, 'nucl')
 
     def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
-        tblastnArgv = ['tblastn']
-        if self.numThreads is not None:
-            tblastnArgv.extend(['-num_threads', '%d' % self.numThreads])
-        if self.gapOpen is not None:
-            tblastnArgv.extend(['-gapopen', '%d' % self.gapOpen])
-        if self.gapExtend is not None:
-            tblastnArgv.extend(['-gapextend', '%d' % self.gapExtend])
-        if self.maxTargetSeqs is not None:
-            tblastnArgv.extend(['-max_target_seqs', '%d' % self.maxTargetSeqs])
-        if self.numAlignments is not None:
-            tblastnArgv.extend(['-num_alignments', '%d' % self.numAlignments])
-        if self.maxHsps is not None:
-            tblastnArgv.extend(['-max_hsps', '%d' % self.maxHsps])
-        if self.evalue is not None:
-            tblastnArgv.extend(['-evalue', '%1.12g' % self.evalue])
-        if self.windowSize is not None:
-            tblastnArgv.extend(['-window_size', '%d' % self.windowSize])
-        tblastnArgv.extend(['-db', databaseFname, '-outfmt', '5'])
-        logger.debug('%s', ' '.join(tblastnArgv))
-        tblastnProcess = subprocess.Popen(tblastnArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        pid = os.fork()
-        if pid == 0:
-            tblastnProcess.stdout.close()
-            for query in queryList:
-                tblastnProcess.stdin.write(query.format('fasta'))
-            tblastnProcess.stdin.close()
-            os._exit(0)
-        tblastnProcess.stdin.close()
-        for blastRecord in Bio.Blast.NCBIXML.parse(tblastnProcess.stdout):
-            for alignment in blastRecord.alignments:
-                blastAlignmentProcessor.processBlastAlignment(blastRecord.query, alignment)
-        tblastnProcess.stdout.close()
-        wPid, wExit = os.waitpid(pid, 0)
-        if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
-        if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
-        tblastnReturncode = tblastnProcess.wait()
-        if tblastnReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(tblastnArgv), tblastnReturncode)
+        super(TblastnRunner, self).processBlast('tblastn', blastAlignmentProcessor, databaseFname, queryList)
 
 
 class SpadesRunner(object):
