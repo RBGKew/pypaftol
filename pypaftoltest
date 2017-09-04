@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+import sys
+import unittest
+
+import paftol
+import paftol.tools
+
+
+class TestPypaftol(unittest.TestCase):
+
+    def test_dataframe(self):
+	dataFrame = paftol.tools.DataFrame(['x', 'y'])
+	dataFrame.addRow({'x': 1,'y': 2})
+	dataFrame.addRow({'x': 2,'y': 3})
+	dataFrame.addRow({'x': 3,'y': 4})
+	m = dataFrame.colMeanAndStddev('x')
+	self.assertEqual(m.mean, 2)
+
+    def test_blastrunner(self):
+        tblastnRunner = paftol.tools.TblastnRunner()
+	a = tblastnRunner.makeBlastArgv('blastprg', 'blastdb.fasta')
+	self.assertEqual(a, ['blastprg', '-db', 'blastdb.fasta', '-outfmt', '5'])
+	# sys.stderr.write('%s\n' % str(a))
+
+
+class TestSomething(unittest.TestCase):
+
+    def setUp(self):
+        sys.stderr.write('setting up something\n')
+
+    def test_something(self):
+        sys.stderr.write('testing something\n')
+
+
+if __name__ == '__main__':
+    unittest.main()
