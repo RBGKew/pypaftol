@@ -57,6 +57,7 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
 
 
 def generateFastqcDataFrame(fastqFname):
+    # FIXME: returns fastqcstats, which has several FastqcDataFrame attributes, so function name is misleading
     """Method that runs fastqc and returns C{FastqcStats}.
 
 @param fastqFname: fastq file name
@@ -105,7 +106,7 @@ class FastqcStats(object):
         l = f.readline()
         if l[0] != '#':
             raise StandardError, 'malformed FastQC table header: %s' % l.strip()
-        return l[1:].strip().split('\t')
+        return l[1:].strip().split('\t')        
 
     def checkFastqcVersion(self, f):
         # FIXME: need to check for empty string (premature EOF) -- check all readline() uses for parsing
@@ -116,14 +117,18 @@ class FastqcStats(object):
         v = m.group(1)
         if v != '0.11.5':
             raise StandardError, 'unsupported FastQC version %s' % v
-
-    def parseBasicStatistics(self, f):
+    
+    def nextModuleDescription(self, f):
         l = self.readCompleteLine(f)
         m = self.fastqcModuleStartRe.match(l)
         if m is None:
-            raise StandardError, 'malformed FastQC module start (Basic Statistics): %s' % l.strip()
+            raise StandardError, 'malformed FastQC module start: %s' % l.strip()
         description = m.group(1)
         result = m.group(2)
+        return description, result
+
+    def parseBasicStatistics(self, f):
+        description, result = self.nextModuleDescription(f)
         if description != 'Basic Statistics':
             raise StandardError, 'expected "Basic Statistics" module but found "%s"' % description
         if self.readTableHeader(f) != ['Measure', 'Value']:
@@ -139,12 +144,7 @@ class FastqcStats(object):
         self.basicStatistics = fastqcDataFrame
 
     def parsePerBaseSequenceQuality(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per base sequence quality): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
+        description, result = self.nextModuleDescription(f)
         if description != 'Per base sequence quality':
             raise StandardError, 'expected "Per base sequency quality" module but found "%s"' % description
         if self.readTableHeader(f) != ['Base', 'Mean', 'Median', 'Lower Quartile', 'Upper Quartile', '10th Percentile', '90th Percentile']:
@@ -159,15 +159,7 @@ class FastqcStats(object):
             l = self.readCompleteLine(f)
         self.perBaseSequenceQuality = fastqcDataFrame
 
-    def parsePerTileSequenceQuality(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per tile sequence quality): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
-        if description != 'Per tile sequence quality':
-            raise StandardError, 'expected "Per tile sequence quality" module but found "%s"' % description
+    def parsePerTileSequenceQualityBody(self, f, description, result):
         if self.readTableHeader(f) != ['Tile', 'Base', 'Mean']:
             raise StandardError, 'malformed "Per tile sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
         fastqcDataFrame = FastqcDataFrame(['tile', 'base', 'mean'], description, result)
@@ -180,15 +172,7 @@ class FastqcStats(object):
             l = self.readCompleteLine(f)
         self.perTileSequenceQuality = fastqcDataFrame
 
-    def parsePerSequenceQualityScores(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per Sequence Quality Scores): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
-        if description != 'Per sequence quality scores':
-            raise StandardError, 'expected "Per sequence quality scores" module but found "%s"' % description
+    def parsePerSequenceQualityScoresBody(self, f, description, result):
         if self.readTableHeader(f) != ['Quality', 'Count']:
             raise StandardError, 'malformed "Per sequence quality scores" header: %s' % ', '.join(self.readTableHeader(f))
         fastqcDataFrame = FastqcDataFrame(['quality', 'count'], description, result)
@@ -202,12 +186,7 @@ class FastqcStats(object):
         self.perSequenceQualityScores = fastqcDataFrame
 
     def parsePerBaseSequenceContent(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per base sequence content): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
+        description, result = self.nextModuleDescription(f)
         if description != 'Per base sequence content':
             raise StandardError, 'expected "Per base sequence content" module but found "%s"' % description
         if self.readTableHeader(f) != ['Base', 'G', 'A', 'T', 'C']:
@@ -223,12 +202,7 @@ class FastqcStats(object):
         self.perBaseSequenceContent = fastqcDataFrame
 
     def parsePerSequenceGCContent(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per sequence GC content): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
+        description, result = self.nextModuleDescription(f)
         if description != 'Per sequence GC content':
             raise StandardError, 'expected "Per sequence GC content" module but found "%s"' % description
         if self.readTableHeader(f) != ['GC Content', 'Count']:
@@ -244,12 +218,7 @@ class FastqcStats(object):
         self.perSequenceGCContent = fastqcDataFrame
 
     def parsePerBaseNContent(self, f):
-        l = self.readCompleteLine(f)
-        m = self.fastqcModuleStartRe.match(l)
-        if m is None:
-            raise StandardError, 'malformed FastQC module start (Per base N content): %s' % l.strip()
-        description = m.group(1)
-        result = m.group(2)
+        description, result = self.nextModuleDescription(f)
         if description != 'Per base N content':
             raise StandardError, 'expected "Per base N content" module but found "%s"' % description
         if self.readTableHeader(f) != ['Base', 'N-Count']:
@@ -306,8 +275,13 @@ class FastqcStats(object):
             self.checkFastqcVersion(f)
             self.parseBasicStatistics(f)
             self.parsePerBaseSequenceQuality(f)
-            self.parsePerTileSequenceQuality(f)
-            self.parsePerSequenceQualityScores(f)
+            description, result = self.nextModuleDescription(f)
+            if description == 'Per tile sequence quality':
+                self.parsePerTileSequenceQualityBody(f, description, result)
+            elif description == 'Per sequence quality scores':
+                self.parsePerSequenceQualityScoresBody(f, description, result)
+            else:
+                raise StandardError, 'expected "Per tile sequence quality" or "Per sequence quality scores" module but found "%s"' % description
             self.parsePerBaseSequenceContent(f)
             self.parsePerSequenceGCContent(f)
             self.parsePerBaseNContent(f)
@@ -819,6 +793,12 @@ class ReferenceGene(object):
             if 'product' in cdsFeature.qualifiers:
                 return cdsFeature.qualifiers['product'][0]
         return None
+    
+    def makeGenomicSeqRecord(self, seqId=None):
+        s = self.geneFeature.extract(self.seqRecord.seq)
+        if seqId is None:
+            seqId = self.geneId
+        return Bio.SeqRecord.SeqRecord(s, id=seqId, description='sequence extracted from gene feature')
 
 
 class ReferenceGenomeMappingProcessor(object):
@@ -1057,7 +1037,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
         for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
             readName = fwdReadTitle.split()[0]
-            if readName in readGenedict:
+            if readName in readNameGeneDict:
                 for paftolGene in readNameGeneDict[readName]:
                     with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
@@ -1488,33 +1468,46 @@ class HybpiperResult(HybseqResult):
         if self.reconstructedCdsDict is None:
 	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
 	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
+        fqDataFrameFwd = generateFastqcDataFrame(self.forwardFastq)
+        perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
+        perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
+        if self.reverseFastq is not None:
+            fqDataFrameRev = generateFastqcDataFrame(self.reverseFastq)
+            perBaseSequenceContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseSequenceContent)
+            perBaseNContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseNContent)
         summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
         rowDict = {}
         for columnName in summaryColumnList:
             rowDict[columnName] = None
         rowDict['numReadsFwd'] = paftol.tools.countSeqRecords(self.forwardFastq, 'fastq')
-        rowDict['numReadsRev'] = paftol.tools.countSeqRecords(self.reverseFastq, 'fastq')
         paftolSampleId = extractPaftolSampleId(self.forwardFastq)
         rowDict['sampleName'] = paftolSampleId
         rowDict['targetsFile'] = self.paftolTargetSet.fastaHandleStr
-        fqDataFrameFwd = generateFastqcDataFrame(self.forwardFastq)
-        fqDataFrameRev = generateFastqcDataFrame(self.reverseFastq)
         rowDict['qual28Fwd'] = getQual28(fqDataFrameFwd.perBaseSequenceQuality)
-        rowDict['qual28Rev'] = getQual28(fqDataFrameRev.perBaseSequenceQuality)
-        perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
-        perBaseSequenceContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseSequenceContent)
-        rowDict['meanA'] = (perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / 2.0 
-        rowDict['stddevA'] = (perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / 2.0
-        rowDict['meanC'] = (perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / 2.0
-        rowDict['stddevC'] = (perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / 2.0
-        rowDict['meanG'] = (perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / 2.0
-        rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
-        rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
-        rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
-        perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
-        perBaseNContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseNContent)
-        rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
-        rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
+        if self.reverseFastq is not None:
+            rowDict['numReadsRev'] = paftol.tools.countSeqRecords(self.reverseFastq, 'fastq')
+            rowDict['qual28Rev'] = getQual28(fqDataFrameRev.perBaseSequenceQuality)
+            rowDict['meanA'] = (perBaseSequenceContentFwd['a'].mean + perBaseSequenceContentRev['a'].mean) / 2.0 
+            rowDict['stddevA'] = (perBaseSequenceContentFwd['a'].std + perBaseSequenceContentRev['a'].std) / 2.0
+            rowDict['meanC'] = (perBaseSequenceContentFwd['c'].mean + perBaseSequenceContentRev['c'].mean) / 2.0
+            rowDict['stddevC'] = (perBaseSequenceContentFwd['c'].std + perBaseSequenceContentRev['c'].std) / 2.0
+            rowDict['meanG'] = (perBaseSequenceContentFwd['g'].mean + perBaseSequenceContentRev['g'].mean) / 2.0
+            rowDict['stddevG'] = (perBaseSequenceContentFwd['g'].std + perBaseSequenceContentRev['g'].std) / 2.0
+            rowDict['meanT'] = (perBaseSequenceContentFwd['t'].mean + perBaseSequenceContentRev['t'].mean) / 2.0
+            rowDict['stddevT'] = (perBaseSequenceContentFwd['t'].std + perBaseSequenceContentRev['t'].std) / 2.0
+            rowDict['meanN'] = (perBaseNContentFwd['nCount'].mean + perBaseNContentRev['nCount'].mean) / 2.0
+            rowDict['stddevN'] = (perBaseNContentFwd['nCount'].std + perBaseNContentRev['nCount'].std) / 2.0
+        else:
+            rowDict['meanA'] = perBaseSequenceContentFwd['a'].mean
+            rowDict['stddevA'] = perBaseSequenceContentFwd['a'].std
+            rowDict['meanC'] = perBaseSequenceContentFwd['c'].mean
+            rowDict['stddevC'] = perBaseSequenceContentFwd['c'].std
+            rowDict['meanG'] = perBaseSequenceContentFwd['g'].mean
+            rowDict['stddevG'] = perBaseSequenceContentFwd['g'].std
+            rowDict['meanT'] = perBaseSequenceContentFwd['t'].mean
+            rowDict['stddevT'] = perBaseSequenceContentFwd['t'].std
+            rowDict['meanN'] = perBaseNContentFwd['nCount'].mean
+            rowDict['stddevN'] = perBaseNContentFwd['nCount'].std
         rowDict['totNumUnmappedReads'] = self.paftolTargetSet.numOfftargetReads 
         targetSeqRecordList = self.paftolTargetSet.getSeqRecordList()
         for paftolOrganism in self.paftolTargetSet.organismDict.values():
