@@ -793,12 +793,34 @@ class ReferenceGene(object):
             if 'product' in cdsFeature.qualifiers:
                 return cdsFeature.qualifiers['product'][0]
         return None
-    
+
     def makeGenomicSeqRecord(self, seqId=None):
         s = self.geneFeature.extract(self.seqRecord.seq)
         if seqId is None:
             seqId = self.geneId
         return Bio.SeqRecord.SeqRecord(s, id=seqId, description='sequence extracted from gene feature')
+
+    def makeMrnaSeqRecord(self, seqId=None):
+        if len(self.mrnaFeatureList) == 0:
+            return None
+        if len(self.mrnaFeatureList) > 1:
+            logger.warning('reference gene %s: %d mRNA features, using #0 to extract sequence', self.geneId, len(self.mrnaFeatureList))
+        mrnaFeature = self.mrnaFeatureList[0]
+        s = mrnaFeature.extract(self.seqRecord.seq)
+        if seqId is None:
+            seqId = self.geneId
+        return Bio.SeqRecord.SeqRecord(s, id=seqId, description='sequence extracted from mRNA feature')
+
+    def makeCdsSeqRecord(self, seqId=None):
+        if len(self.cdsFeatureList) == 0:
+            return None
+        if len(self.cdsFeatureList) > 1:
+            logger.warning('reference gene %s: %d CDS features, using #0 to extract sequence', self.geneId, len(self.cdsFeatureList))
+        cdsFeature = self.cdsFeatureList[0]
+        s = cdsFeature.extract(self.seqRecord.seq)
+        if seqId is None:
+            seqId = self.geneId
+        return Bio.SeqRecord.SeqRecord(s, id=seqId, description='sequence extracted from CDS feature')
 
 
 class ReferenceGenomeMappingProcessor(object):

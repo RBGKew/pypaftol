@@ -986,6 +986,57 @@ class DataFrame(object):
         for columnName in self.columnHeaderList:
             d[columnHeader] = self.colMeanAndStddev(columnName)
         return d
+    
+    
+class PairwiseAlignmentRunner(object):
+    
+    def __init__(self):
+        pass
+    
+    def align(self, sr0, sr1):
+        raise StandardError, 'abstract method'
+    
+    
+class NeedleRunner(PairwiseAlignmentRunner):
+    
+    def __init__(self):
+        super(NeedleRunner, self).__init__()
+
+    def align(self, sra, srbList):
+        logger.debug('starting')
+        # FIXME: hard-coded to generate temporary bsequence file in cwd
+        bsequenceFd, bsequenceFname = tempfile.mkstemp('.fasta', 'needle_b', '.')
+        try:
+            bsequenceFile = os.fdopen(bsequenceFd, 'w')
+            Bio.SeqIO.write(srbList, bsequenceFile, 'fasta')
+            bsequenceFile.close()
+            sys.stderr.write('wrote bsequence file %s\n' % bsequenceFname)
+            needleArgv = ['needle', '-asequence', 'stdin', '-bsequence', bsequenceFname, '-outfile', 'stdout', '-auto']
+            logger.debug('%s', ' '.join(needleArgv))
+            needleProcess = subprocess.Popen(needleArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            pid = os.fork()
+            if pid == 0:
+                needleProcess.stdout.close()
+                Bio.SeqIO.write([sra], needleProcess.stdin, 'fasta')
+                needleProcess.stdin.close()
+                os._exit(0)
+            needleProcess.stdin.close()
+            alignmentList = list(Bio.AlignIO.parse(needleProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            needleProcess.stdout.close()
+            wPid, wExit = os.waitpid(pid, 0)
+            if pid != wPid:
+                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+            if wExit != 0:
+                raise StandardError('wait on forked process returned %d' % wExit)
+            r = needleProcess.wait()
+            if r != 0:
+                raise StandardError('needle process exited with %d' % r)
+        finally:
+            if paftol.keepTmp:
+                logger.warning('not deleting needle bsequence file %s', bsequenceFname)
+            else:
+                os.unlink(bsequenceFname)
+        return alignmentList
 
 
 class MeanAndStddev(object):
