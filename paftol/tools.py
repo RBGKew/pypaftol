@@ -821,7 +821,7 @@ class BlastRunner(object):
         self.maxHsps = maxHsps
         self.evalue = evalue
         self.windowSize = windowSize
-        
+
     def indexDatabase(self, databaseFname, dbtype):
         makeblastdbArgv = ['makeblastdb', '-dbtype', dbtype, '-in', databaseFname, '-parse_seqids']
         logger.debug('%s', ' '.join(makeblastdbArgv))
@@ -986,14 +986,85 @@ class DataFrame(object):
         for columnName in self.columnHeaderList:
             d[columnHeader] = self.colMeanAndStddev(columnName)
         return d
+
+    
+def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
+    if len(sr1) != len(sr2):
+        raise StandardError, 'sequences %s and %s differ in length: %d != %d' % (sr1.id, sr2.id, len(sr1), len(sr2))
+    gapChar = None
+    if isinstance(sr1.seq.alphabet, Bio.Alphabet.Gapped) and isinstance(sr2.seq.alphabet, Bio.Alphabet.Gapped):
+        if sr1.seq.alphabet.gap_char == sr2.seq.alphabet.gap_char:
+            gapChar = sr1.seq.alphabet.gap_char
+    s1 = str(sr1.seq)
+    s2 = str(sr2.seq)
+    if ignoreCase:
+        s1 = s1.lower()
+        s2 = s2.lower()
+    n = 0
+    for i in xrange(len(s1)):
+        if s1[i] == s2[i]:
+            if gapChar is None or s1[i] != gapChar:
+                n = n + 1
+    return n
+
+
+def addGapClassAnnotation(sr):
+    if not isinstance(sr.seq.alphabet, Bio.Alphabet.Gapped):
+        raise StandardError, 'sequence is not gapped (not an aligned sequence?)'
+    s = str(sr.seq)
+    gapClass = [None] * len(sr)
+    for i in xrange(len(s)):
+        if s[i] == sr.seq.alphabet.gap_char:
+            gapClass[i] = 'i'
+    i = 0
+    while i < len(sr) and gapClass[i] == 'i':
+        gapClass[i] = 't'
+        i = i + 1
+    if i < len(sr):
+        i = len(sr) - 1
+        while s[i] == sr.seq.alphabet.gap_char:
+            gapClass[i] = 't'
+            i = i - 1
+    sr.letter_annotations['gapClass'] = gapClass
+    return gapClass
     
     
+def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
+    alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
+    for k in sr1Dict.keys():
+        if k not in sr2Dict:
+            logger.warning('no sequence with key %s in sr2Dict, skipping', k)
+        else:
+            sr1 = sr1Dict[k]
+            sr2 = sr2Dict[k]
+            alignmentList = alignmentRunner.align(sr1, sr2)
+            alignment = alignmentList[0]
+            a1 = alignment[0]
+            a2 = alignment[1]
+            a1gc = addGapClassAnnotation(a1)
+            a2gc = addGapClassAnnotation(a2)
+            rowDict = {}
+            rowDict['seqKey'] = k
+            rowDict['seqId1'] = sr1.id
+            rowDict['seqId2'] = sr2.id
+            rowDict['alignmentLength'] = alignment.get_alignment_length()
+            rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
+            rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
+            rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
+            rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
+            rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
+            rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
+            rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
+            alignmentStatsFrame.addRow(rowDict)
+    return alignmentStatsFrame
+
+
 class PairwiseAlignmentRunner(object):
     
     def __init__(self):
         pass
     
-    def align(self, sr0, sr1):
+    def align(self, sra, srbList):
         raise StandardError, 'abstract method'
     
     
@@ -1010,7 +1081,7 @@ class NeedleRunner(PairwiseAlignmentRunner):
             bsequenceFile = os.fdopen(bsequenceFd, 'w')
             Bio.SeqIO.write(srbList, bsequenceFile, 'fasta')
             bsequenceFile.close()
-            sys.stderr.write('wrote bsequence file %s\n' % bsequenceFname)
+            # sys.stderr.write('wrote bsequence file %s\n' % bsequenceFname)
             needleArgv = ['needle', '-asequence', 'stdin', '-bsequence', bsequenceFname, '-outfile', 'stdout', '-auto']
             logger.debug('%s', ' '.join(needleArgv))
             needleProcess = subprocess.Popen(needleArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)

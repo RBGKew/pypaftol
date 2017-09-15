@@ -618,6 +618,7 @@ class PaftolTargetSet(object):
     def makeFastaId(organismName, geneName):
         return '%s-%s' % (organismName, geneName)
     
+    # deprecated, use getSeqRecordSelection instead
     def getGeneSeqRecordList(self, geneNameList):
         srList = []
         for geneName in geneNameList:
@@ -625,6 +626,26 @@ class PaftolTargetSet(object):
                 raise StandardError, 'gene %s not found in this target set' % geneName
             for paftolTarget in self.paftolGeneDict[geneName].paftolTargetDict.values():
                 srList.append(paftolTarget.seqRecord)
+        return srList
+    
+    def getSeqRecordSelection(self, organismNameList=None, geneNameList=None):
+        if organismNameList is None:
+            organismList = self.organismDict.values()
+        else:
+            organismList = []
+            for organismName in organismNameList:
+                if organismName not in self.organismDict:
+                    raise StandardError, 'organism %s not found in this target set' % organismName
+                organismList.append(self.organismDict[organismName])
+        if geneNameList is not None:
+            for geneName in geneNameList:
+                if geneName not in self.paftolGeneDict:
+                    raise StandardError, 'gene %s not found in this target set' % geneName
+        srList = []
+        for organism in organismList:
+            for geneName in organism.paftolTargetDict:
+                if geneNameList is None or geneName in geneNameList:
+                    srList.append(organism.paftolTargetDict[geneName].seqRecord)
         return srList
 
     def extractOrganismAndGeneNames(self, s):
@@ -666,7 +687,7 @@ class PaftolTargetSet(object):
                 srList.append(paftolTarget.seqRecord)
         return srList
 
-    def writeFasta(self, fastaHandle):
+    def writeFasta(Self, Fastahandle):
         srList = self.getSeqRecordList()
         sys.stderr.write('writeFasta: writing %d sequences\n' % len(srList))
         Bio.SeqIO.write(srList, fastaHandle, 'fasta')

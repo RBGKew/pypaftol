@@ -173,25 +173,44 @@ def runGenomeReadScan(argNamespace):
 
             
 def runSelectgenes(argNamespace):
-    geneNameSet = set(argNamespace.gene)
+    organismNameSet = None
+    if argNamespace.organism is not None:
+        organismNameSet = set(argNamespace.organism)
+    geneNameSet = []
+    if argNamespace.gene is not None:
+        geneNameSet = set(argNamespace.gene)
     if argNamespace.genefile is not None:
         with open(argNamespace.genefile) as f:
             for line in f:
                 geneNameSet.add(line.strip())
+    if len(geneNameSet) == 0:
+        geneNameSet = None
     paftolTargetSet = paftol.PaftolTargetSet()
     if argNamespace.targetsfile is None:
         paftolTargetSet.readFasta(sys.stdin)
     else:
         paftolTargetSet.readFasta(argNamespace.targetsfile)
-    srList = paftolTargetSet.getGeneSeqRecordList(geneNameSet)
+    srList = paftolTargetSet.getSeqRecordSelection(organismNameSet, geneNameSet)
     if argNamespace.outfile is None:
         Bio.SeqIO.write(srList, sys.stdout, 'fasta')
     else:
         Bio.SeqIO.write(srList, argNamespace.outfile, 'fasta')
+        
+        
+def runNeedleComparison(argNamespace):
+    sr1Dict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(argNamespace.seqfile1, 'fasta'))
+    sr2Dict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(argNamespace.seqfile2, 'fasta'))
+    needleRunner = paftol.tools.NeedleRunner()
+    cmpStats = paftol.tools.pairwiseAlignmentStats(sr1Dict, sr2Dict, needleRunner)
+    if argNamespace.outfile is None:
+        cmpStats.writeCsv(sys.stdout)
+    else:
+        with open(argNamespace.outfile, 'w') as csvFile:
+            cmpStats.writeCsv(csvFile)
 
 
 def addDevParser(subparsers):
-    p = subparsers.add_parser('dev')
+    p = subparsers.add_parser('dev', help='for testing argparse')
     p.add_argument('-s', '--str', help='set a parameter')
     p.add_argument('-i', '--int', type=int, help='set an integer')
     p.add_argument('-f', '--flag', action='store_true', help='set a flag')
@@ -199,7 +218,7 @@ def addDevParser(subparsers):
 
     
 def addHybseqstatsParser(subparsers):
-    p = subparsers.add_parser('hybseqstats')
+    p = subparsers.add_parser('hybseqstats', help='(obsolete)')
     p.add_argument('-t', '--targetseqs', help='target sequences FASTA file')
     p.add_argument('-o', '--outfile', help='output file (default: stdout)')
     p.add_argument('fastqList', nargs='*', help='fastq file list')
@@ -209,7 +228,7 @@ def addHybseqstatsParser(subparsers):
 
     
 def addHybseqParser(subparsers):
-    p = subparsers.add_parser('hybseq')
+    p = subparsers.add_parser('hybseq', help='test / demo')
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
@@ -220,7 +239,7 @@ def addHybseqParser(subparsers):
 
     
 def addHybpiperBwaParser(subparsers):
-    p = subparsers.add_parser('hybpiperBwa')
+    p = subparsers.add_parser('hybpiperBwa', help='recover PAFTOL gene sequences using BWA for associating reads to genes')
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
@@ -236,7 +255,7 @@ def addHybpiperBwaParser(subparsers):
     
     
 def addHybpiperTblastnParser(subparsers):
-    p = subparsers.add_parser('hybpiperTblastn')
+    p = subparsers.add_parser('hybpiperTblastn', help='recover PAFTOL gene sequences using tblastn for associating reads to genes')
     p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
@@ -251,7 +270,7 @@ def addHybpiperTblastnParser(subparsers):
     
     
 def addTargetGeneScanParser(subparsers):
-    p = subparsers.add_parser('genescan')
+    p = subparsers.add_parser('genescan', help='identify PAFTOL genes within a reference genome')
     p.add_argument('-r', '--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
     p.add_argument('-g', '--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
@@ -261,7 +280,7 @@ def addTargetGeneScanParser(subparsers):
     
     
 def addGenomeReadScanParser(subparsers):
-    p = subparsers.add_parser('readscan')
+    p = subparsers.add_parser('readscan', help='map reads to reference genome and compute stats of unmapped / mapping to gene / mapping to intergenic region')
     p.add_argument('--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
     p.add_argument('--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
@@ -271,15 +290,24 @@ def addGenomeReadScanParser(subparsers):
     addBwaRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)
-    
-    
+
+
 def addSelectgenesParser(subparsers):
     p = subparsers.add_parser('selectgenes', help='select genes by name from a PAFTOL target set')
+    p.add_argument('-o', '--organism', action='append', help='specify organism name on command line')
     p.add_argument('-g', '--gene', action='append', help='specify gene name on command line')
     p.add_argument('-f', '--genefile', help='specify file containing gene names')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runSelectgenes)
+
+
+def addNeedleComparisonParser(subparsers):
+    p = subparsers.add_parser('needlecmp', help='compare two sets of sequences by pairwise alignment using EMBOSS needle')
+    p.add_argument('seqfile1', help='sequence file 1 (required)')
+    p.add_argument('seqfile2', help='sequence file 2 (required)')
+    p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
+    p.set_defaults(func=runNeedleComparison)
     
     
 def showArgs(args):
@@ -302,6 +330,7 @@ def paftoolsMain():
     addGenomeReadScanParser(subparsers)
     addHybseqstatsParser(subparsers)
     addSelectgenesParser(subparsers)
+    addNeedleComparisonParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
