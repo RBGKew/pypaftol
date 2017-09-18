@@ -687,7 +687,7 @@ class PaftolTargetSet(object):
                 srList.append(paftolTarget.seqRecord)
         return srList
 
-    def writeFasta(Self, Fastahandle):
+    def writeFasta(self, Fastahandle):
         srList = self.getSeqRecordList()
         sys.stderr.write('writeFasta: writing %d sequences\n' % len(srList))
         Bio.SeqIO.write(srList, fastaHandle, 'fasta')
