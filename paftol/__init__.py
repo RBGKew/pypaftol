@@ -279,7 +279,7 @@ class FastqcStats(object):
             if description == 'Per tile sequence quality':
                 self.parsePerTileSequenceQualityBody(f, description, result)
                 description, result = self.nextModuleDescription(f)
-                if description == 'Per sequence quality scores':
+                if description != 'Per sequence quality scores':
                     raise StandardError, 'expected "Per sequence quality scores" module but found "%s"' % description
                 self.parsePerSequenceQualityScoresBody(f, description, result)
             elif description == 'Per sequence quality scores':

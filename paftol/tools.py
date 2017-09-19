@@ -1030,7 +1030,7 @@ def addGapClassAnnotation(sr):
     
     
 def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
-    alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
+    alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'seqLength1', 'seqLength2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
     for k in sr1Dict.keys():
         if k not in sr2Dict:
             logger.warning('no sequence with key %s in sr2Dict, skipping', k)
@@ -1047,6 +1047,8 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
             rowDict['seqKey'] = k
             rowDict['seqId1'] = sr1.id
             rowDict['seqId2'] = sr2.id
+            rowDict['seqLength1'] = len(sr1)
+            rowDict['seqLength2'] = len(sr2)
             rowDict['alignmentLength'] = alignment.get_alignment_length()
             rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
             rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
