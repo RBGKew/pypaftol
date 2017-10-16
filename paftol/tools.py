@@ -1004,7 +1004,9 @@ def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
     for i in xrange(len(s1)):
         if s1[i] == s2[i]:
             if gapChar is None or s1[i] != gapChar:
+                # logger.debug('s1[%d] = %s, s2[%d] = %s', i, s1[i], i, s2[i])
                 n = n + 1
+    # logger.debug('%s / %s, length: %d, n: %d, gapChar: %s', sr1.id, sr2.id, len(sr1), n, str(gapChar))
     return n
 
 
@@ -1027,6 +1029,23 @@ def addGapClassAnnotation(sr):
             i = i - 1
     sr.letter_annotations['gapClass'] = gapClass
     return gapClass
+
+
+def pairwiseAlignmentStatsRowDict(alignment):
+    a1 = alignment[0]
+    a2 = alignment[1]
+    a1gc = addGapClassAnnotation(a1)
+    a2gc = addGapClassAnnotation(a2)
+    rowDict = {}
+    rowDict['alignmentLength'] = alignment.get_alignment_length()
+    rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
+    rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
+    rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
+    rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
+    rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
+    rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
+    rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
+    return rowDict
     
     
 def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
@@ -1039,24 +1058,12 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
             sr2 = sr2Dict[k]
             alignmentList = alignmentRunner.align(sr1, sr2)
             alignment = alignmentList[0]
-            a1 = alignment[0]
-            a2 = alignment[1]
-            a1gc = addGapClassAnnotation(a1)
-            a2gc = addGapClassAnnotation(a2)
-            rowDict = {}
+            rowDict = pairwiseAlignmentStatsRowDict(alignment)
             rowDict['seqKey'] = k
             rowDict['seqId1'] = sr1.id
             rowDict['seqId2'] = sr2.id
             rowDict['seqLength1'] = len(sr1)
             rowDict['seqLength2'] = len(sr2)
-            rowDict['alignmentLength'] = alignment.get_alignment_length()
-            rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
-            rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
-            rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
-            rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
-            rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
-            rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
-            rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
             alignmentStatsFrame.addRow(rowDict)
     return alignmentStatsFrame
 
