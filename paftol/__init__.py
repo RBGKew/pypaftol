@@ -1039,7 +1039,16 @@ conventions may be added.
         blastnReturncode = blastnProcess.wait()
         if blastnReturncode != 0:
             raise StandardError('blastn process exited with %d' % blastnReturncode)
-        return targetGeneTable
+        cdsList = []
+        for targetId in targetIdToGeneDict:
+            for gene in targetIdToGeneDict[targetId]:
+                cds = gene.makeCdsSeqRecord()
+                if cds is None:
+                    logger.debug('gene %s (target %s): no CDS', gene.geneId, targetId)
+                else:
+                    cds.description = '%s, matched to target %s' % (cds.description, targetId)
+                    cdsList.append(cds)
+        return targetGeneTable, cdsList
 
     def findGeneIdForSamAlignment(self, samAlignment):
         # FIXME: clumsy linear search

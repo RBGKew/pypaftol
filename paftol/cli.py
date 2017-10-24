@@ -149,12 +149,14 @@ def runTargetGeneScan(argNamespace):
     referenceGenome = paftol.ReferenceGenome(argNamespace.scanMethod, argNamespace.refFasta, argNamespace.refGenbank)
     referenceGenome.scanGenes(argNamespace.scanMethod)
     sys.stderr.write('read reference genome and scanned %d genes\n' % len(referenceGenome.geneList))
-    targetGeneTable = referenceGenome.blastTargetSet(paftolTargetSet)
+    targetGeneTable, cdsList = referenceGenome.blastTargetSet(paftolTargetSet)
     if argNamespace.outfile is None:
         targetGeneTable.writeCsv(sys.stdout)
     else:
         with open(argNamespace.outfile, 'w') as csvFile:
             targetGeneTable.writeCsv(csvFile)
+    if argNamespace.cdsFasta is not None:
+        Bio.SeqIO.write(cdsList, argNamespace.cdsFasta, 'fasta')
             
             
 def runGenomeReadScan(argNamespace):
@@ -274,6 +276,7 @@ def addTargetGeneScanParser(subparsers):
     p.add_argument('-r', '--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
     p.add_argument('-g', '--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
     p.add_argument('-m', '--scanMethod', help='method for scanning for genes in reference genome', required=True)
+    p.add_argument('-c', '--cdsFasta', help='output FASTA of coding sequences of matched genes')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runTargetGeneScan)
