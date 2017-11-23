@@ -1523,7 +1523,7 @@ class HybpiperResult(HybseqResult):
     def summaryStats(self):
         if self.reconstructedCdsDict is None:
 	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
-	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
+	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
         fqDataFrameFwd = generateFastqcDataFrame(self.forwardFastq)
         perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
         perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
@@ -1564,7 +1564,7 @@ class HybpiperResult(HybseqResult):
             rowDict['stddevT'] = perBaseSequenceContentFwd['t'].std
             rowDict['meanN'] = perBaseNContentFwd['nCount'].mean
             rowDict['stddevN'] = perBaseNContentFwd['nCount'].std
-        rowDict['totNumUnmappedReads'] = self.paftolTargetSet.numOfftargetReads 
+        rowDict['totNumUnmappedReads'] = self.paftolTargetSet.numOfftargetReads
         targetSeqRecordList = self.paftolTargetSet.getSeqRecordList()
         for paftolOrganism in self.paftolTargetSet.organismDict.values():
             rowDict['paftolOrganism'] = paftolOrganism.name
@@ -1572,6 +1572,7 @@ class HybpiperResult(HybseqResult):
                 geneName = paftolTarget.paftolGene.name
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
+                rowDict['numMappedReadsPerGene'] = len(paftolTarget.paftolGene.getReadNameSet())
                 rowDict['numMappedReads'] = paftolTarget.numMappedReads()
                 hybpiperCdsLength = None
                 if paftolTarget.paftolGene.name in self.reconstructedCdsDict and self.reconstructedCdsDict[paftolTarget.paftolGene.name] is not None:
