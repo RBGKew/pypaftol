@@ -809,6 +809,17 @@ necessary.
         # if samtoolsReturncode != 0:
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
+        
+class BlastAlignmentProcessor(object):
+    
+    def __init__(self):
+        self.blastAlignmentDict = {}
+        
+    def processBlastAlignment(self, query, blastAlignment):
+        if query not in self.blastAlignmentDict:
+            self.blastAlignmentDict[query] = []
+        self.blastAlignmentDict[query].append(blastAlignment)
+        
 
 class BlastRunner(object):
 
@@ -1048,8 +1059,9 @@ def pairwiseAlignmentStatsRowDict(alignment):
     return rowDict
     
     
-def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
+def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFname=None):
     alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'seqLength1', 'seqLength2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
+    alignmentSaveList = []
     for k in sr1Dict.keys():
         if k not in sr2Dict:
             logger.warning('no sequence with key %s in sr2Dict, skipping', k)
@@ -1058,6 +1070,7 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
             sr2 = sr2Dict[k]
             alignmentList = alignmentRunner.align(sr1, sr2)
             alignment = alignmentList[0]
+            alignmentSaveList.append(alignment)
             rowDict = pairwiseAlignmentStatsRowDict(alignment)
             rowDict['seqKey'] = k
             rowDict['seqId1'] = sr1.id
@@ -1065,6 +1078,8 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner):
             rowDict['seqLength1'] = len(sr1)
             rowDict['seqLength2'] = len(sr2)
             alignmentStatsFrame.addRow(rowDict)
+    if alignmentFastaFname is not None:
+        Bio.AlignIO.write(alignmentSaveList, alignmentFastaFname, 'fasta')
     return alignmentStatsFrame
 
 
@@ -1114,6 +1129,48 @@ class NeedleRunner(PairwiseAlignmentRunner):
         finally:
             if paftol.keepTmp:
                 logger.warning('not deleting needle bsequence file %s', bsequenceFname)
+            else:
+                os.unlink(bsequenceFname)
+        return alignmentList
+    
+    
+class WaterRunner(PairwiseAlignmentRunner):
+    
+    def __init__(self):
+        super(WaterRunner, self).__init__()
+
+    def align(self, sra, srbList):
+        logger.debug('starting')
+        # FIXME: hard-coded to generate temporary bsequence file in cwd
+        bsequenceFd, bsequenceFname = tempfile.mkstemp('.fasta', 'water_b', '.')
+        try:
+            bsequenceFile = os.fdopen(bsequenceFd, 'w')
+            Bio.SeqIO.write(srbList, bsequenceFile, 'fasta')
+            bsequenceFile.close()
+            # sys.stderr.write('wrote bsequence file %s\n' % bsequenceFname)
+            waterArgv = ['water', '-asequence', 'stdin', '-bsequence', bsequenceFname, '-outfile', 'stdout', '-auto']
+            logger.debug('%s', ' '.join(waterArgv))
+            waterProcess = subprocess.Popen(waterArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            pid = os.fork()
+            if pid == 0:
+                waterProcess.stdout.close()
+                Bio.SeqIO.write([sra], waterProcess.stdin, 'fasta')
+                waterProcess.stdin.close()
+                os._exit(0)
+            waterProcess.stdin.close()
+            alignmentList = list(Bio.AlignIO.parse(waterProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            waterProcess.stdout.close()
+            wPid, wExit = os.waitpid(pid, 0)
+            if pid != wPid:
+                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+            if wExit != 0:
+                raise StandardError('wait on forked process returned %d' % wExit)
+            r = waterProcess.wait()
+            if r != 0:
+                raise StandardError('water process exited with %d' % r)
+        finally:
+            if paftol.keepTmp:
+                logger.warning('not deleting water bsequence file %s', bsequenceFname)
             else:
                 os.unlink(bsequenceFname)
         return alignmentList
