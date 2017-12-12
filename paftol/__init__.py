@@ -439,12 +439,18 @@ class MappedRead(object):
 
     def __init__(self, paftolTarget):
         self.paftolTarget = paftolTarget
+        self.forwardRead = None
+        self.reverseRead = None
 
     def getReadName(self):
         raise StandardError, 'abstract method not overridden'
 
     def getMappingScore(self):
         raise StandardError, 'abstract method not overridden'
+    
+    def writeFasta(self, fastaHandle):
+        # FIXME: continue here
+        pass
         
 
 class SamMappedRead(MappedRead):
@@ -493,6 +499,8 @@ facilitating handling of multiple genes and multiple organisms.
 @type paftolGene: C{PaftolGene}
 @ivar seqRecord: the sequence of this gene in this organism
 @type seqRecord: C{Bio.SeqRecord.SeqRecord}
+@ivar mappedReadList: the list of reads mapped to this target
+@type seqRecord: C{list} of C{MappedRead}
 """
 
     csvFieldNames = ['organism', 'gene', 'seqLength', 'numMappedReads']
@@ -533,6 +541,10 @@ facilitating handling of multiple genes and multiple organisms.
         d['seqLength'] = len(self.seqRecord)
         d['numMappedReads'] = self.numMappedReads()
         return d
+    
+    def writeMappedReadsFasta(self, fastaHandle):
+        for mappedRead in self.mappedReadList:
+            mappedRead.writeFasta(fastaHandle)
 
 
 class Organism(object):
@@ -720,7 +732,7 @@ class PaftolTargetSet(object):
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
         mappedRead = BlastMappedRead(paftolTarget, blastAlignment)
         paftolTarget.addMappedRead(mappedRead)
-            
+
     def makeReadNameGeneDict(self):
         readNameGeneDict = {}
         for paftolGene in self.paftolGeneDict.values():
@@ -729,6 +741,18 @@ class PaftolTargetSet(object):
                     readNameGeneDict[readName] = []
                 readNameGeneDict[readName].append(paftolGene)
         return readNameGeneDict
+    
+    def makeReadNameMappedReadDict(self):
+        # FIXME: not exactly exemplary for following law of Demeter -- inner parts of loop probably want to be PaftolTarget or MappedRead methods
+        readNameMappedReadDict = {}
+        for paftolGene in self.paftolGeneDict.values():
+            for paftolTarget in paftolGene.paftolTargetDict.values():
+                for mappedRead in paftolTarget.mappedReadList:
+                    readName = mappedRead.getReadName()
+                    if readName not in readNameMappedReadDict:
+                        readNameMappedreadDict[readName] = []
+                    readNameMappedreadDict[readName].append(mappedRead)
+        return readNameMappedReadDict
 
     def targetStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolTarget.csvFieldNames)
@@ -748,7 +772,6 @@ class PaftolTargetSet(object):
         for organism in self.organismDict.values():
             dataFrame.addRow(organism.csvRowDict())
         return dataFrame
-        
 
     def numMappedReads(self):
         n = 0
@@ -756,6 +779,12 @@ class PaftolTargetSet(object):
             for paftolTarget in organism.paftolTargetDict.values():
                 n = n + paftolTarget.numMappedReads()
         return n
+    
+    def writeMappedReadsFasta(self, fastaFname):
+        with open(fastaFname, 'w') as fastaFile:
+            for organism in self.organismDict.values():
+                for paftolTarget in organism.paftolTargetDict.values():
+                    paftolTarget.writeMappedReadsFasta(fastaFile)
 
     # FIXME: untested after transplant from HybpiperAnalyser
     def sanityCheck(self, allowInvalidBases=False):
@@ -1086,6 +1115,44 @@ class HybpiperAnalyser(HybseqAnalyser):
                 logger.debug('represenative for %s: none', geneName)
             else:
                 logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
+
+    def readMappedReadsSingle(self, result):
+        with open(result.forwardFastq, 'r') as forwardFile:
+        forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
+        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
+        for readSr in fowardParser:
+            readName = readSr.id
+            if readName in readNameGeneDict:
+                for mappedRead in readNameMappedReadDoct[readName]:
+                    if mappedRead.fowardRead is not None:
+                        raise StandardError, 'duplicate forward read for %s' % readName
+                    mappedRead.forwardRead = readSr
+
+    def distributePaired(self, result):
+        # FIXME: consider try...finally to ensure files are closed
+        fForward = open(result.forwardFastq, 'r')
+        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        fReverse = open(result.reverseFastq, 'r')
+        fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
+        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
+        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
+            readName = fwdReadTitle.split()[0]
+            # FIXME: premature end of reverse fastq will trigger
+            # StopIteration and premature end of forward will leave
+            # rest of reverse ignored
+            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+            if readName != revReadTitle.split()[0]:
+                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
+            if readName in readNameGeneDict:
+                for paftolGene in readNameGeneDict[readName]:
+                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
+                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                        f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
+        # FIXME: check for dangling stuff in reverse: should trigger
+        # an exception:
+        # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+        fForward.close()
+        fReverse.close()
 
     def distributeSingle(self, result):
         fForward = open(result.forwardFastq, 'r')
@@ -1457,7 +1524,8 @@ this).
         self.tblastnRunner.maxTargetSeqs = 10000000
         self.tblastnRunner.maxHsps = 1
         self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.forwardFasta), targetProteinList)
-        if result.reverseFastq is None:
+        # FIXME: should be not None (!!!)
+        if result.reverseFastq is not None:
             self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.reverseFasta), targetProteinList)
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
