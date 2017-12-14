@@ -447,11 +447,7 @@ class MappedRead(object):
 
     def getMappingScore(self):
         raise StandardError, 'abstract method not overridden'
-    
-    def writeFasta(self, fastaHandle):
-        # FIXME: continue here
-        pass
-        
+
 
 class SamMappedRead(MappedRead):
 
@@ -541,10 +537,6 @@ facilitating handling of multiple genes and multiple organisms.
         d['seqLength'] = len(self.seqRecord)
         d['numMappedReads'] = self.numMappedReads()
         return d
-    
-    def writeMappedReadsFasta(self, fastaHandle):
-        for mappedRead in self.mappedReadList:
-            mappedRead.writeFasta(fastaHandle)
 
 
 class Organism(object):
@@ -618,6 +610,27 @@ organisms.
         d['meanSeqLength'] = self.meanSequenceLength()
         d['numMappedReads'] = self.numMappedReads()
         return d
+    
+    def makeMappedReadsUniqueList(self, includeForward=True, includeReverse=True):
+        readNameSet = set()
+        srList = []
+        for paftolTarget in self.paftolTargetDict.values():
+            for mappedRead in paftolTarget.mappedReadList:
+                readName = mappedRead.getReadName()
+                if readName not in readNameSet:
+                    readNameSet.add(readName)
+                    if includeForward:
+                        if mappedRead.forwardRead is None:
+                            raise StandardError, 'mapped read %s: no forward read SeqRecord' % mappedRead.getReadName()
+                        srList.append(mappedRead.forwardRead)
+                    if includeReverse:
+                        if mappedRead.reverseRead is None:
+                            raise StandardError, 'mapped read %s: no reverse read SeqRecord' % mappedRead.getReadName()
+                        srList.append(mappedRead.reverseRead)
+        return srList
+    
+    def writeMappedReadsFasta(self, fastaHandle, writeForward=True, writeReverse=True):
+        Bio.SeqIO.write(self.makeMappedReadsUniqueList(writeForward, writeReverse), fastaHandle, 'fasta')
 
 
 class PaftolTargetSet(object):
@@ -631,7 +644,7 @@ class PaftolTargetSet(object):
         self.fastaHandleStr = None
 
     # FIXME: static?
-    def makeFastaId(organismName, geneName):
+    def makeFastaId(self, organismName, geneName):
         return '%s-%s' % (organismName, geneName)
     
     # deprecated, use getSeqRecordSelection instead
@@ -750,8 +763,8 @@ class PaftolTargetSet(object):
                 for mappedRead in paftolTarget.mappedReadList:
                     readName = mappedRead.getReadName()
                     if readName not in readNameMappedReadDict:
-                        readNameMappedreadDict[readName] = []
-                    readNameMappedreadDict[readName].append(mappedRead)
+                        readNameMappedReadDict[readName] = []
+                    readNameMappedReadDict[readName].append(mappedRead)
         return readNameMappedReadDict
 
     def targetStats(self):
@@ -1117,44 +1130,50 @@ class HybpiperAnalyser(HybseqAnalyser):
                 logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
 
     def readMappedReadsSingle(self, result):
-        with open(result.forwardFastq, 'r') as forwardFile:
-        forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
         readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
-        for readSr in fowardParser:
-            readName = readSr.id
-            if readName in readNameGeneDict:
-                for mappedRead in readNameMappedReadDoct[readName]:
-                    if mappedRead.fowardRead is not None:
-                        raise StandardError, 'duplicate forward read for %s' % readName
-                    mappedRead.forwardRead = readSr
+        with open(result.forwardFastq, 'r') as forwardFile:
+            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
+            for forwardRead in fowardParser:
+                readName = forwardRead.id
+                if readName in readNameMappedReadDict:
+                    for mappedRead in readNameMappedReadDict[readName]:
+                        if mappedRead.fowardRead is not None:
+                            raise StandardError, 'duplicate forward read for %s' % readName
+                        mappedRead.forwardRead = forwardRead
 
-    def distributePaired(self, result):
-        # FIXME: consider try...finally to ensure files are closed
-        fForward = open(result.forwardFastq, 'r')
-        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        fReverse = open(result.reverseFastq, 'r')
-        fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
-        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
-        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
-            readName = fwdReadTitle.split()[0]
-            # FIXME: premature end of reverse fastq will trigger
-            # StopIteration and premature end of forward will leave
-            # rest of reverse ignored
-            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
-            if readName != revReadTitle.split()[0]:
-                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
-            if readName in readNameGeneDict:
-                for paftolGene in readNameGeneDict[readName]:
-                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
-                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                        f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
-        # FIXME: check for dangling stuff in reverse: should trigger
-        # an exception:
-        # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
-        fForward.close()
-        fReverse.close()
+    def readMappedReadsPaired(self, result):
+        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
+        with open(result.forwardFastq, 'r') as forwardFile:
+            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
+            with open(result.reverseFastq, 'r') as reverseFile:
+                reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
+                for forwardRead in forwardParser:
+                    reverseRead = reverseParser.next()
+                    if reverseRead.id != forwardRead.id:
+                        raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
+                    readName = forwardRead.id
+                    if readName in readNameMappedReadDict:
+                        for mappedRead in readNameMappedReadDict[readName]:
+                            if mappedRead.forwardRead is not None:
+                                raise StandardError, 'duplicate forward read for %s' % readName
+                            mappedRead.forwardRead = forwardRead
+                            mappedRead.reverseRead = reverseRead
+                # FIXME: check for dangling stuff in reverse: reverse.next() should trigger exception (StopIteration?)
+                
+    def writeMappedReadsFasta(self, result):
+        for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
+            with open(self.makeGeneFname(paftolGene.name, True), 'w') as fastaFile:
+                paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None)
 
     def distributeSingle(self, result):
+        self.readMappedReadsSingle(result)
+        self.writeMappedReadsFasta(result)
+        
+    def distributePaired(self, result):
+        self.readMappedReadsPaired(result)
+        self.writeMappedReadsFasta(result)
+        
+    def distributeSingleOld(self, result):
         fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
         readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
@@ -1166,7 +1185,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
         fForward.close()
 
-    def distributePaired(self, result):
+    def distributePairedOld(self, result):
         # FIXME: consider try...finally to ensure files are closed
         fForward = open(result.forwardFastq, 'r')
         fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
