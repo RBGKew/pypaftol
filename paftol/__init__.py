@@ -377,6 +377,7 @@ the target genes.
         # parameters for ensuring file names don't clash, e.g. because paftolGene / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
         self.geneReadFnamePattern = 'gene-%s.fasta'
+        self.geneRepresentativeFnamePattern = 'generep-%s.fasta'
 
     def analyse(self):
         raise StandardError('not implemented in this "abstract" base class')
@@ -416,6 +417,13 @@ the target genes.
             return self.makeWorkdirPath(geneReadFname)
         else:
             return geneReadFname
+
+    def makeGeneRepresentativeFname(self, geneName, absolutePath=False):
+        geneRepresentativeFname = self.geneRepresentativeFnamePattern % geneName
+        if absolutePath:
+            return self.makeWorkdirPath(geneRepresentativeFname)
+        else:
+            return geneRepresentativeFname
 
     def makeTgz(self):
         if self.workdirTgz is not None:
@@ -538,6 +546,8 @@ facilitating handling of multiple genes and multiple organisms.
         d['numMappedReads'] = self.numMappedReads()
         return d
 
+    def writeFasta(self, fastaHandle):
+        Bio.SeqIO.write([self.seqRecord], fastaHandle, 'fasta')
 
 class Organism(object):
 
@@ -1128,6 +1138,11 @@ class HybpiperAnalyser(HybseqAnalyser):
                 logger.debug('represenative for %s: none', geneName)
             else:
                 logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
+                
+    def writeRepresentativeGenes(self, result):
+        for geneName in result.representativePaftolTargetDict:
+            paftolTarget = result.representativePaftolTargetDict[geneName]
+            paftolTarget.writeFasta(self.makeGeneRepresentativeFname(geneName, True))
 
     def readMappedReadsSingle(self, result):
         readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
@@ -1472,6 +1487,7 @@ this).
             self.distribute(result)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)
+            self.writeRepresentativeGenes(result)
             logger.debug('representative genes selected')
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
@@ -1572,6 +1588,7 @@ this).
             self.distribute(result)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)
+            self.writeRepresentativeGenes(result)
             logger.debug('representative genes selected')
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
