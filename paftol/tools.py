@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import types
 import sys
 import re
 import os
@@ -575,14 +576,20 @@ class ExonerateRunner(object):
         exonerateResult.equivalencedSimilarity = self.parseInt(f, 'equivalencedSimilarity')
         exonerateResult.equivalencedMismatches = self.parseInt(f, 'equivalencedMismatches')
         exonerateResult.vulgar = self.parseString(f, 'vulgar')
+        exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
+        exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateResult, 'qaln'))
+        exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
+        exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
         if exonerateResult.exonerateModel == 'protein2genome:local':
-            # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
-            self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
+            # FIXME: would seem better to not include fields that don't apply and that exonerate populates with garbage
             exonerateResult.queryCdsSeq = None
-            exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateResult, 'qaln'))
-            exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
-            exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
+        elif exonerateResult.exonerateModel == 'affine:local:dna2dna':
+            exonerateResult.targetCdsStart = None
+            exonerateResult.targetCdsEnd = None
+            exonerateResult.targetCdsLength = None
+            exonerateResult.queryCdsSeq = None
+            exonerateResult.targetCdsSeq = None
         else:
             raise StandardError('unsupported exonerate model: %s' % exonerateResult.exonerateModel)
         line = self.nextLine(f)
@@ -590,7 +597,7 @@ class ExonerateRunner(object):
             raise StandardError('malformed input: ryoEnd missing')
         return exonerateResult
 
-    def parse(self, querySeq, targetFname, exonerateModel, bestn):
+    def parse(self, querySeq, targetFname, exonerateModel, bestn=None, minPercentIdentity=None):
         """Run C{exonerate} and return a C{list} of C{ExonerateResult}s.
 
 @param querySeq: the query sequence
@@ -600,7 +607,9 @@ class ExonerateRunner(object):
 @param exonerateModel: the alignment model
 @type exonerateModel: C{String}
 @param bestn: max. number of hits
-@type bestn: C{int}
+@type bestn: C{int}, or C{None} to use default
+@param minPercentIdentity: minimum percent identity threshold for reporting alignments
+@type minPercentIdentity: C{float}, or C{None} to use default
 @return: list of results
 @rtype: C{list} of L{ExonerateResult}
 """
@@ -610,9 +619,12 @@ class ExonerateRunner(object):
             queryScratchFile = os.fdopen(queryScratchFd, 'w')
             Bio.SeqIO.write(querySeq, queryScratchFile, 'fasta')
             queryScratchFile.close()
-            exonerateArgv = [
-                'exonerate', '--model', exonerateModel, '--bestn', '%d' % bestn, '--verbose', '0', '--showalignment',
-                'no', '--showvulgar', 'no', '--ryo', 'ryoStart\\nexonerateModel: %m\\nqueryId: %qi\\nqueryDef: %qd\\nqueryStrand: %qS\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetStrand: %tS\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\npercentIdentity: %pi\\npercentSimilarity: %ps\\nequivalencedTotal: %et\\nequivalencedIdentity: %ei\\nequivalencedSimilarity: %es\\nequivalencedMismatches: %em\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname]
+            exonerateArgv = ['exonerate', '--model', exonerateModel, '--verbose', '0', '--showalignment', 'no', '--showvulgar', 'no']
+            if bestn is not None:
+                exonerateArgv.extend(['--bestn', '%d' % bestn])
+            if minPercentIdentity is not None:
+                exonerateArgv.extend(['--percent', '%f' % minPercentIdentity])
+            exonerateArgv.extend(['--ryo', 'ryoStart\\nexonerateModel: %m\\nqueryId: %qi\\nqueryDef: %qd\\nqueryStrand: %qS\\nqueryAlignmentStart: %qab\\nqueryAlignmentEnd: %qae\\nqueryAlignmentLength: %qal\\nqueryCdsStart: NA\\nqueryCdsEnd: NA\\nqueryCdsLength: NA\\ntargetId: %ti\\ntargetDef: %td\\ntargetStrand: %tS\\ntargetAlignmentStart: %tab\\ntargetAlignmentEnd: %tae\\ntargetAlignmentLength: %tal\\ntargetCdsStart: %tcb\\ntargetCdsEnd: %tce\\ntargetCdsLength: %tcl\\nrawScore: %s\\npercentIdentity: %pi\\npercentSimilarity: %ps\\nequivalencedTotal: %et\\nequivalencedIdentity: %ei\\nequivalencedSimilarity: %es\\nequivalencedMismatches: %em\\nvulgar: %V\\nseqStart queryCds\\n%qcsseqEnd\\nseqStart queryAlignment\\n%qasseqEnd\\nseqStart targetCds\\n%tcsseqEnd\\nseqStart targetAlignment\\n%tasseqEnd\\nryoEnd\\n', queryScratchFname, targetFname])
             logger.debug('%s', ' '.join(exonerateArgv))
             p = subprocess.Popen(exonerateArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             pid = os.fork()
@@ -650,13 +662,13 @@ class ExonerateCsvDictWriter(object):
 """
 
     csvFieldnames = [
-        'querySeqId', 'genomeName', 'querySeqLength',
+        'querySeqId', 'targetFname', 'genomeName', 'querySeqLength',
         'queryId',
         'queryAlignmentStart', 'queryAlignmentEnd', 'queryAlignmentLength',
-        'queryCdsStart', 'queryCdsEnd', 'queryCdsLength',
+        'queryCdsStart', 'queryCdsEnd', 'queryCdsLength', 'queryStrand',
         'targetId',
         'targetAlignmentStart', 'targetAlignmentEnd', 'targetAlignmentLength',
-        'targetCdsStart', 'targetCdsEnd', 'targetCdsLength',
+        'targetCdsStart', 'targetCdsEnd', 'targetCdsLength', 'targetStrand',
         'rawScore','percentIdentity','percentSimilarity',
         'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
         'targetCdsSeqLength']
@@ -710,6 +722,7 @@ the caller's responsibility to close it.
         d['queryCdsStart'] = exonerateResult.queryCdsStart
         d['queryCdsEnd'] = exonerateResult.queryCdsEnd
         d['queryCdsLength'] = exonerateResult.queryCdsLength
+        d['queryStrand'] = exonerateResult.queryStrand
         d['targetId'] = exonerateResult.targetId
         d['targetAlignmentStart'] = exonerateResult.targetAlignmentStart
         d['targetAlignmentEnd'] = exonerateResult.targetAlignmentEnd
@@ -717,6 +730,7 @@ the caller's responsibility to close it.
         d['targetCdsStart'] = exonerateResult.targetCdsStart
         d['targetCdsEnd'] = exonerateResult.targetCdsEnd
         d['targetCdsLength'] = exonerateResult.targetCdsLength
+        d['targetStrand'] = exonerateResult.targetStrand
         d['rawScore'] = exonerateResult.rawScore
         d['percentIdentity'] = exonerateResult.percentIdentity
         d['percentSimilarity'] = exonerateResult.percentSimilarity
@@ -724,7 +738,7 @@ the caller's responsibility to close it.
         d['equivalencedIdentity'] = exonerateResult.equivalencedIdentity
         d['equivalencedSimilarity'] = exonerateResult.equivalencedSimilarity
         d['equivalencedMismatches'] = exonerateResult.equivalencedMismatches
-        d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(self.targetCdsSeq)
+        d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(exonerateResult.targetCdsSeq)
         self.csvDictWriter.writerow(d)
 
 
