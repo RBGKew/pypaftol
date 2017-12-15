@@ -376,7 +376,7 @@ the target genes.
         self.tmpDirname = None
         # parameters for ensuring file names don't clash, e.g. because paftolGene / organism name is same as targets basename etc.
         self.targetsFname = 'targets.fasta'
-        self.geneFnamePattern = 'gene-%s.fasta'
+        self.geneReadFnamePattern = 'gene-%s.fasta'
 
     def analyse(self):
         raise StandardError('not implemented in this "abstract" base class')
@@ -410,12 +410,12 @@ the target genes.
         else:
             return self.targetsFname
 
-    def makeGeneFname(self, geneName, absolutePath=False):
-        geneFname = self.geneFnamePattern % geneName
+    def makeGeneReadFname(self, geneName, absolutePath=False):
+        geneReadFname = self.geneReadFnamePattern % geneName
         if absolutePath:
-            return self.makeWorkdirPath(geneFname)
+            return self.makeWorkdirPath(geneReadFname)
         else:
-            return geneFname
+            return geneReadFname
 
     def makeTgz(self):
         if self.workdirTgz is not None:
@@ -1162,7 +1162,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                 
     def writeMappedReadsFasta(self, result):
         for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
-            with open(self.makeGeneFname(paftolGene.name, True), 'w') as fastaFile:
+            with open(self.makeGeneReadFname(paftolGene.name, True), 'w') as fastaFile:
                 paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None)
 
     def distributeSingle(self, result):
@@ -1181,7 +1181,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             readName = fwdReadTitle.split()[0]
             if readName in readNameGeneDict:
                 for paftolGene in readNameGeneDict[readName]:
-                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
+                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
         fForward.close()
 
@@ -1202,7 +1202,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                 raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
             if readName in readNameGeneDict:
                 for paftolGene in readNameGeneDict[readName]:
-                    with open(self.makeGeneFname(paftolGene.name, True), 'a') as f:
+                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
                         f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
                         f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
         # FIXME: check for dangling stuff in reverse: should trigger
@@ -1224,9 +1224,9 @@ class HybpiperAnalyser(HybseqAnalyser):
         return self.makeWorkdirPath(self.makeGeneDirname(geneName))
 
     def assembleGeneSpades(self, result, geneName):
-        geneFname = self.makeGeneFname(geneName)
-        if not os.path.exists(self.makeWorkdirPath(geneFname)):
-            logger.debug('gene fasta file %s does not exist (no reads?)', geneFname)
+        geneReadFname = self.makeGeneReadFname(geneName)
+        if not os.path.exists(self.makeWorkdirPath(geneReadFname)):
+            logger.debug('gene fasta file %s does not exist (no reads?)', geneReadFname)
             return None
         if result.isPaired():
             # FIXME: tight implicit coupling with distributeSingle / distributePaired
@@ -1234,7 +1234,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             libraryType = paftol.tools.SpadesRunner.SINGLE
         spadesOutputDirname = self.makeGeneDirPath(geneName)
-        spadesContigList = self.spadesRunner.assemble(geneFname, libraryType, spadesOutputDirname, self.makeWorkDirname())
+        spadesContigList = self.spadesRunner.assemble(geneReadFname, libraryType, spadesOutputDirname, self.makeWorkDirname())
         return spadesContigList
 
     def translateGene(self, geneDna):
