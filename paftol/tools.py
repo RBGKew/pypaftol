@@ -227,6 +227,8 @@ roll your own (ryo) formatting facility.
 
 @ivar querySeq: query sequence (first free parameter to C{exonerate})
 @type querySeq: C{Bio.SeqRecord.SeqRecord}
+@ivar targetSeq: target sequence file (second free parameter to C{exonerate})
+@type targetSeq: C{Bio.SeqRecord.SeqRecord}, or C{None} if adding of target sequences was not requested
 @ivar targetFname: name of a FASTA file of sequences to be scanned
 @type targetFname: C{String}
 @ivar exonerateModel: alignment model, currently only C{protein2genome:local} is really supported
@@ -300,6 +302,7 @@ roll your own (ryo) formatting facility.
     def __init__(self, querySeq, targetFname):
         self.querySeq = querySeq
         self.targetFname = targetFname
+        self.targetSeq = None
         self.exonerateModel = None
         self.queryId = None
         self.queryDef = None
@@ -383,7 +386,52 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 @rtype: C{bool}
 """
         return self.queryAlignmentOverlap(other) is not None
-    
+
+    def nucleotideAlignment(self):
+        """Construct an alignment of the protein query and target sequences in this result.
+@return: the protein sequence alignment
+@rtype: C{Bio.Align.MultipleSeqAlignment}
+"""
+        if self.exonerateModel != 'affine:local:dna2dna':
+            raise StandardError('nucleotideAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
+        v = self.vulgar.split()
+        qAln = ''
+        tAln = ''
+        qPos = 0
+        tPos = 0
+        # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
+        # logger.debug('%s', str(self.targetAlignmentSeq.seq))
+        for i in xrange(0, len(v), 3):
+            vLabel = v[i]
+            vQueryLength = int(v[i + 1])
+            vTargetLength = int(v[i + 2])
+            # logger.debug('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', qPos, tPos, vLabel, vQueryLength, vTargetLength)
+            if vLabel == 'M':
+                qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
+                tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+            elif vLabel == 'G':
+                if vQueryLength == 0:
+                    qAln = qAln + '-' * vTargetLength
+                    tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+                elif vTargetLength == 0:
+                    qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
+                    tAln = tAln + '-' * vQueryLength
+            else:
+                raise StandardError, 'unsupported VULGAR label: %s' % vLabel
+            qPos = qPos + vQueryLength
+            tPos = tPos + vTargetLength
+            # logger.debug('%d: qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', i, qPos, tPos, vLabel, vQueryLength, vTargetLength)
+            # logger.debug('qAln: %s', qAln)
+            # logger.debug('tAln: %s', tAln)
+            # s = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+            # s3 = s[:(len(s) - len(s) % 3)]
+            # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
+        #FIXME: should not unconditionally assume unambiguous_dna
+        qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
+        tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
+        return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnSeq, id=self.targetAlignmentSeq.id)])
+
     def proteinAlignment(self):
         """Construct an alignment of the protein query and target sequences in this result.
 @return: the protein sequence alignment
@@ -430,7 +478,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
         tAlnProt = translateGapped(tAlnSeq)
         return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnProt, id='%s_pep' % self.targetAlignmentSeq.id)])
-    
+
     def __str__(self):
         """String representation of this C{ExonerateResult} instance.
 
@@ -541,7 +589,7 @@ class ExonerateRunner(object):
     def makeSeqId(self, exonerateResult, seqType):
         return('%s_%s_%s' % (exonerateResult.queryId, exonerateResult.targetId, seqType))
     
-    def parseExonerateResult(self, f, exonerateResult):
+    def parseExonerateResult(self, f, exonerateResult, targetSeqDict):
         line = f.readline()
         if line == '':
             return None
@@ -560,6 +608,10 @@ class ExonerateRunner(object):
         exonerateResult.queryCdsEnd = self.parseInt(f, 'queryCdsEnd')
         exonerateResult.queryCdsLength = self.parseInt(f, 'queryCdsLength')
         exonerateResult.targetId = self.parseString(f, 'targetId')
+        if targetSeqDict is not None:
+            if exonerateResult.targetId not in targetSeqDict:
+                raise StandardError, 'found targetId %s but no corresponding sequence' % exonerateResult.targetId
+            exonerateResult.targetSeq = targetSeqDict[exonerateResult.targetId]
         exonerateResult.targetDef = self.parseString(f, 'targetDef')
         exonerateResult.targetStrand = self.parseString(f, 'targetStrand')
         exonerateResult.targetAlignmentStart = self.parseInt(f, 'targetAlignmentStart')
@@ -597,7 +649,7 @@ class ExonerateRunner(object):
             raise StandardError('malformed input: ryoEnd missing')
         return exonerateResult
 
-    def parse(self, querySeq, targetFname, exonerateModel, bestn=None, minPercentIdentity=None):
+    def parse(self, querySeq, targetFname, exonerateModel, bestn=None, minPercentIdentity=None, addRawTargetSeqs=False):
         """Run C{exonerate} and return a C{list} of C{ExonerateResult}s.
 
 @param querySeq: the query sequence
@@ -610,10 +662,15 @@ class ExonerateRunner(object):
 @type bestn: C{int}, or C{None} to use default
 @param minPercentIdentity: minimum percent identity threshold for reporting alignments
 @type minPercentIdentity: C{float}, or C{None} to use default
+@param addRawTargetSeqs: whether to add C{SeqRecord}s of target sequences to L{ExonerateResult} instances
+@type addRawTargetSeqs: C{bool}
 @return: list of results
 @rtype: C{list} of L{ExonerateResult}
 """
         # FIXME: hard-coded to generate query scratch file in cwd
+        targetSeqDict = None
+        if addRawTargetSeqs:
+            targetSeqDict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(targetFname, 'fasta'))
         queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
         try:
             queryScratchFile = os.fdopen(queryScratchFd, 'w')
@@ -636,10 +693,10 @@ class ExonerateRunner(object):
                 os._exit(0)
             p.stdin.close()
             exonerateResultList = []
-            exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname))
+            exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname), targetSeqDict)
             while exonerateResult is not None:
                 exonerateResultList.append(exonerateResult)
-                exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname))
+                exonerateResult = self.parseExonerateResult(p.stdout, ExonerateResult(querySeq, targetFname), targetSeqDict)
             p.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
