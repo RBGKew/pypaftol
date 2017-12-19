@@ -387,11 +387,13 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 """
         return self.queryAlignmentOverlap(other) is not None
 
-    def nucleotideAlignment(self):
+    def nucleotideAlignment(self, appendFlanking=False):
         """Construct an alignment of the protein query and target sequences in this result.
 @return: the protein sequence alignment
 @rtype: C{Bio.Align.MultipleSeqAlignment}
 """
+        #FIXME: take gapChar from alphabet or parameter?
+        gapChar = '-'
         if self.exonerateModel != 'affine:local:dna2dna':
             raise StandardError('nucleotideAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
         v = self.vulgar.split()
@@ -399,6 +401,32 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         tAln = ''
         qPos = 0
         tPos = 0
+        qSeq = str(self.querySeq.seq)
+        qLeftFlank = qSeq[:self.queryAlignmentStart].lower()
+        qAligned = qSeq[self.queryAlignmentStart:self.queryAlignmentEnd].upper()
+        if qAligned != str(self.queryAlignmentSeq.seq).upper():
+            sys.stderr.write('%s:\nqseq: %s\nqaln: %s\n' % (self.queryId, qAligned, str(self.querySeq.seq)))
+            raise StandardError, 'query sequence and query alignment sequence mismatch'
+        qRightFlank = qSeq[self.queryAlignmentEnd:].lower()
+        sys.stderr.write('%s: tas = %d, tae = %d, strand = %s\n' % (self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, self.targetStrand))
+        if self.targetStrand == '+':
+            tSeq = str(self.targetSeq.seq)
+            tLeftFlank = tSeq[:self.targetAlignmentStart].lower()
+            tAligned = tSeq[self.targetAlignmentStart:self.targetAlignmentEnd].upper()
+            if tAligned != str(self.targetAlignmentSeq.seq).upper():
+                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\n' % (self.targetId, tAligned, str(self.targetSeq.seq)))
+                raise StandardError, 'target sequence and target alignment sequence mismatch'
+            tRightFlank = tSeq[self.targetAlignmentEnd:].lower()
+        elif self.targetStrand == '-':
+            tSeq = str(self.targetSeq.reverse_complement().seq)
+            tLeftFlank = tSeq[:self.targetAlignmentEnd].lower()
+            tAligned = tSeq[self.targetAlignmentEnd:self.targetAlignmentStart].upper()
+            if tAligned != str(self.targetAlignmentSeq.seq).upper():
+                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\n' % (self.targetId, tAligned, str(self.targetSeq.seq)))
+                raise StandardError, 'target sequence and target alignment sequence mismatch'
+            tRightFlank = tSeq[self.targetAlignmentStart:].lower()
+        else:
+            raise StandardError, 'need target strand orientation +/-'
         # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
         # logger.debug('%s', str(self.targetAlignmentSeq.seq))
         for i in xrange(0, len(v), 3):
@@ -407,15 +435,15 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             vTargetLength = int(v[i + 2])
             # logger.debug('qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', qPos, tPos, vLabel, vQueryLength, vTargetLength)
             if vLabel == 'M':
-                qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
-                tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+                qAln = qAln + qAligned[qPos:(qPos + vQueryLength)]
+                tAln = tAln + tAligned[tPos:(tPos + vTargetLength)]
             elif vLabel == 'G':
                 if vQueryLength == 0:
-                    qAln = qAln + '-' * vTargetLength
-                    tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
+                    qAln = qAln + gapChar * vTargetLength
+                    tAln = tAln + tAligned[tPos:(tPos + vTargetLength)]
                 elif vTargetLength == 0:
-                    qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
-                    tAln = tAln + '-' * vQueryLength
+                    qAln = qAln + qAligned[qPos:(qPos + vQueryLength)]
+                    tAln = tAln + gapChar * vQueryLength
             else:
                 raise StandardError, 'unsupported VULGAR label: %s' % vLabel
             qPos = qPos + vQueryLength
@@ -427,6 +455,19 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             # s3 = s[:(len(s) - len(s) % 3)]
             # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
         #FIXME: should not unconditionally assume unambiguous_dna
+        if appendFlanking:
+            lfDiff = len(qLeftFlank) - len(tLeftFlank)
+            if lfDiff > 0:
+                tLeftFlank = gapChar * lfDiff + tLeftFlank
+            elif lfDiff < 0:
+                qLeftFlank = gapChar * (-lfDiff) + qLeftFlank
+            rfDiff = len(qRightFlank) - len(tRightFlank)
+            if rfDiff > 0:
+                tRightFlank = tRightFlank + gapChar * rfDiff
+            elif rfDiff < 0:
+                qRightFlank = qRightFlank + gapChar * (-rfDiff)
+            qAln = qLeftFlank + qAln + qRightFlank
+            tAln = tLeftFlank + tAln + tRightFlank
         qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
         tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
@@ -437,6 +478,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 @return: the protein sequence alignment
 @rtype: C{Bio.Align.MultipleSeqAlignment}
 """
+        gapChar = '-'
         if self.exonerateModel != 'protein2genome:local':
             raise StandardError('proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
         v = self.vulgar.split()
@@ -458,11 +500,11 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
                 if vQueryLength == 0:
                     if vTargetLength % 3 != 0:
                         raise StandardError('cannot process nucleotide gaps with length not a multiple of 3')
-                    qAln = qAln + '-' * (vTargetLength / 3)
+                    qAln = qAln + gapChar * (vTargetLength / 3)
                     tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
                 elif vTargetLength == 0:
                     qAln = qAln + str(self.queryAlignmentSeq[qPos:(qPos + vQueryLength)].seq)
-                    tAln = tAln + '-' * (vQueryLength * 3)
+                    tAln = tAln + gapChar * (vQueryLength * 3)
             elif vLabel == '5' or vLabel == '3' or vLabel == 'I' or vLabel == 'F':
                 pass
             qPos = qPos + vQueryLength
