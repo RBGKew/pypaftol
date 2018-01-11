@@ -408,23 +408,31 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             sys.stderr.write('%s:\nqseq: %s\nqaln: %s\n' % (self.queryId, qAligned, str(self.querySeq.seq)))
             raise StandardError, 'query sequence and query alignment sequence mismatch'
         qRightFlank = qSeq[self.queryAlignmentEnd:].lower()
-        sys.stderr.write('%s: tas = %d, tae = %d, strand = %s\n' % (self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, self.targetStrand))
+        # sys.stderr.write('%s: tas = %d, tae = %d, strand = %s\n' % (self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, self.targetStrand))
         if self.targetStrand == '+':
             tSeq = str(self.targetSeq.seq)
             tLeftFlank = tSeq[:self.targetAlignmentStart].lower()
             tAligned = tSeq[self.targetAlignmentStart:self.targetAlignmentEnd].upper()
+            # sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, len(tSeq), len(tAligned), self.targetAlignmentStart, self.targetAlignmentEnd))
+            # sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
             if tAligned != str(self.targetAlignmentSeq.seq).upper():
-                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\n' % (self.targetId, tAligned, str(self.targetSeq.seq)))
+                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
                 raise StandardError, 'target sequence and target alignment sequence mismatch'
             tRightFlank = tSeq[self.targetAlignmentEnd:].lower()
         elif self.targetStrand == '-':
             tSeq = str(self.targetSeq.reverse_complement().seq)
-            tLeftFlank = tSeq[:self.targetAlignmentEnd].lower()
-            tAligned = tSeq[self.targetAlignmentEnd:self.targetAlignmentStart].upper()
+            rcTas = len(tSeq) - self.targetAlignmentStart
+            rcTae = len(tSeq) - self.targetAlignmentEnd
+            tLeftFlank = tSeq[:rcTas].lower()
+            tAligned = tSeq[rcTas:rcTae].upper()
+            # tAligned = str(self.targetSeq[self.targetAlignmentEnd:self.targetAlignmentStart].reverse_complement().seq).upper()
+            sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
+            sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
             if tAligned != str(self.targetAlignmentSeq.seq).upper():
-                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\n' % (self.targetId, tAligned, str(self.targetSeq.seq)))
+                sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
+                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
                 raise StandardError, 'target sequence and target alignment sequence mismatch'
-            tRightFlank = tSeq[self.targetAlignmentStart:].lower()
+            tRightFlank = tSeq[rcTae:].lower()
         else:
             raise StandardError, 'need target strand orientation +/-'
         # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
