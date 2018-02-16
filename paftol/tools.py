@@ -78,7 +78,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
 @param seq: sequence to be translated
 @type seq: C{Bio.Seq.Seq}
 @param table: translation table, passed to BioPython C{translate} method
-@type table: C{int} or C{String} (any type suitable for C{translate})
+@type table: C{int} or C{str} (any type suitable for C{translate})
 @return: translated sequence
 @rtype: C{Bio.Seq.Seq}
 """
@@ -230,15 +230,15 @@ roll your own (ryo) formatting facility.
 @ivar targetSeq: target sequence file (second free parameter to C{exonerate})
 @type targetSeq: C{Bio.SeqRecord.SeqRecord}, or C{None} if adding of target sequences was not requested
 @ivar targetFname: name of a FASTA file of sequences to be scanned
-@type targetFname: C{String}
+@type targetFname: C{str}
 @ivar exonerateModel: alignment model, currently only C{protein2genome:local} is really supported
-@type exonerateModel: C{String}
+@type exonerateModel: C{str}
 @ivar queryId: query ID (C{%qi} conversion)
-@type queryId: C{String}
+@type queryId: C{str}
 @ivar queryDef: query definition (C{%qd} conversion)
-@type queryDef: C{String}
+@type queryDef: C{str}
 @ivar queryStrand: query strand (C{%qS} conversion)
-@type queryStrand: C{String}
+@type queryStrand: C{str}
 @ivar queryAlignmentStart: query alignment start (C{%qab} conversion)
 @type queryAlignmentStart: C{int}
 @ivar queryAlignmentEnd: query alignment end (C{%qae} conversion)
@@ -252,11 +252,11 @@ roll your own (ryo) formatting facility.
 @ivar queryCdsLength: query coding sequence length (C{%qcl} conversion)
 @type queryCdsLength: C{int}
 @ivar targetId: target ID (C{%ti} conversion)
-@type targetId: C{String}
+@type targetId: C{str}
 @ivar targetDef: target definition (C{%td} conversion)
-@type targetDef: C{String}
+@type targetDef: C{str}
 @ivar targetStrand: target strand (C{%tS} conversion)
-@type targetStrand: C{String}
+@type targetStrand: C{str}
 @ivar targetAlignmentStart: target alignment start (C{%tab} conversion)
 @type targetAlignmentStart: C{int}
 @ivar targetAlignmentEnd: target alignment end (C{%tae} conversion)
@@ -399,6 +399,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         v = self.vulgar.split()
         qAln = ''
         tAln = ''
+        vulgarLetterAnnotation = []
         qPos = 0
         tPos = 0
         qSeq = str(self.querySeq.seq)
@@ -454,6 +455,8 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
                     tAln = tAln + gapChar * vQueryLength
             else:
                 raise StandardError, 'unsupported VULGAR label: %s' % vLabel
+            vLength = max(vQueryLength, vTargetLength)
+            vulgarLetterAnnotation.extend([vLabel] * vLength)
             qPos = qPos + vQueryLength
             tPos = tPos + vTargetLength
             # logger.debug('%d: qPos = %d, tPos = %d, vLabel = %s, vql = %d, vtl = %d', i, qPos, tPos, vLabel, vQueryLength, vTargetLength)
@@ -463,6 +466,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             # s3 = s[:(len(s) - len(s) % 3)]
             # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
         #FIXME: should not unconditionally assume unambiguous_dna
+        sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
         if appendFlanking:
             lfDiff = len(qLeftFlank) - len(tLeftFlank)
             if lfDiff > 0:
@@ -476,10 +480,13 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
                 qRightFlank = qRightFlank + gapChar * (-rfDiff)
             qAln = qLeftFlank + qAln + qRightFlank
             tAln = tLeftFlank + tAln + tRightFlank
+            vulgarLetterAnnotation = ([None] * len(qLeftFlank)) + vulgarLetterAnnotation + ([None] * len(qRightFlank))
+        # logger.debug('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d', len(qAln), len(tAln), len(vulgarLetterAnnotation))
+        sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
         qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
         tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
-        return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnSeq, id=self.targetAlignmentSeq.id)])
+        return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id, letter_annotations = {'vulgar': vulgarLetterAnnotation[:]}), Bio.SeqRecord.SeqRecord(tAlnSeq, id=self.targetAlignmentSeq.id, letter_annotations = {'vulgar': vulgarLetterAnnotation[:]})])
 
     def proteinAlignment(self):
         """Construct an alignment of the protein query and target sequences in this result.
@@ -533,7 +540,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         """String representation of this C{ExonerateResult} instance.
 
 @return: string representation
-@rtype: C{String}
+@rtype: C{str}
 """
         return '%s, query: %s %s(%d -> %d), target: %s:%s %s(%d -> %d), target CDS %dnt' % (self.exonerateModel, self.queryId, self.queryStrand, self.queryAlignmentStart, self.queryAlignmentEnd, self.targetFname, self.targetId, self.targetStrand, self.targetAlignmentStart, self.targetAlignmentEnd, len(self.targetCdsSeq))
 
@@ -705,9 +712,9 @@ class ExonerateRunner(object):
 @param querySeq: the query sequence
 @type querySeq: C{Bio.SeqRecord.SeqRecord}
 @param targetFname: the name of the FASTA sequence file containing the targets
-@type targetFname: C{String}
+@type targetFname: C{str}
 @param exonerateModel: the alignment model
-@type exonerateModel: C{String}
+@type exonerateModel: C{str}
 @param bestn: max. number of hits
 @type bestn: C{int}, or C{None} to use default
 @param minPercentIdentity: minimum percent identity threshold for reporting alignments
@@ -789,7 +796,7 @@ the file will be opened for writing, thus erasing any previous
 content.
 
 @param csvfile: The file to write to
-@type csvfile: C{String} or file like
+@type csvfile: C{str} or file like
 """
         if isinstance(csvfile, types.StringType):
             self.csvfile = open(csvfile, 'w')
@@ -850,18 +857,26 @@ the caller's responsibility to close it.
 
 
 class BwaRunner(object):
-    """Hold parameters for C{bwa} and provide argument vectors on that basis.
+    """Wrapper class for running C{bwa}.
     
+Instance variables are passed to C{bwa} via its CLI. C{None} means no
+command line option / parameter to be specified, which usually results
+in C{bwa} using a default (which may depend on the C{bwa} version).
+
 @ivar numThreads: BWA number of threads (C{-t} option)
-@type numThreads: C{int}
+@type numThreads: C{int}, or C{None}
 @ivar minSeedLength: BWA minimum seed length (C{-k} option)
-@type minSeedLength: C{int}
+@type minSeedLength: C{int}, or C{None}
 @ivar scoreThreshold: BWA score threshold for recording reads as mapped (C{-T} option)
-@type scoreThreshold: C{int}
+@type scoreThreshold: C{int}, or C{None}
 @ivar reseedTrigger: BWA re-seed trigger (C{-r} option)
-@type reseedTrigger: C{float}
+@type reseedTrigger: C{float}, or C{None}
 """
     def __init__(self, numThreads=None, minSeedLength=None, scoreThreshold=None, reseedTrigger=None, workingDirectory=None):
+        """Constructor.
+
+Parameters correspond to instance variables, see their documentation.
+"""
         self.numThreads = numThreads
         self.minSeedLength = minSeedLength
         self.scoreThreshold = scoreThreshold
@@ -895,7 +910,7 @@ effect. It is the responsibility of clients to tidy these up, if
 necessary.
         
 @param referenceFname: the name of the reference sequence FASTA file which is to be indexed
-@type referenceFname: C{String}
+@type referenceFname: C{str}
 
         """
         bwaIndexArgv = self.indexReferenceArgv(referenceFname)
@@ -903,7 +918,25 @@ necessary.
         subprocess.check_call(bwaIndexArgv)
     
     def processBwa(self, samAlignmentProcessor, referenceFname, forwardReadsFname, reverseReadsFname=None):
-        """Map reads to to reference sequences.
+        """Process reads mapped to to reference sequences.
+
+This method runs C{bwa} with the reference sequence, forwards reads
+file and reverse reads file as specified by the respective parameters.
+The C{samAlignmentProcessor} must implement a C{processSamAlignment}
+method which is called for each SAM alignment emitted by C{bwa}.
+
+In other words, by implementing a C{processSamAlignment} method, a
+class is of a suitable "duck type" to be used as a
+C{samAlignmentProcessor}.
+        
+@param samAlignmentProcessor: the object for processing SAM alignments
+@type samAlignmentProcessor: object of suitable "duck type"
+@param referenceFname: name of the reference sequence file (FASTA format)
+@type referenceFname: C{str}
+@param forwardReadsFname: name of the forward reads file (FASTQ format)
+@type forwardReadsFname: C{str}
+@param reverseReadsFname: name of the reverse reads file (FASTQ format)
+@type reverseReadsFname: C{str}, or C{None}
 """
         sys.stderr.write('effective mapReadsBwa logging level: %d\n' % logger.getEffectiveLevel())
         logger.debug('mapping reads to gene sequences')
@@ -932,18 +965,59 @@ necessary.
 
         
 class BlastAlignmentProcessor(object):
-    
+    """Simple BLAST alignment processor.
+
+This class provides a dictionary in its C{blastAlignmentDict} instance
+variable. Keys are query names and values are lists of
+L{BlastAlignment} instances. The C{processBlastAlignment} method
+appends BLAST alignment to the appropriate list, adding an empty list
+to the C{blastAlignmentDict} when necessary.
+
+@ivar blastAlignmentDict: dictionary of lists of BLAST alignments
+@type blastAlignmentDict: C{dict}
+"""
     def __init__(self):
+        """Constructor.
+"""
         self.blastAlignmentDict = {}
         
     def processBlastAlignment(self, query, blastAlignment):
+        """Process a BLAST alignment.
+"""
         if query not in self.blastAlignmentDict:
             self.blastAlignmentDict[query] = []
         self.blastAlignmentDict[query].append(blastAlignment)
         
 
 class BlastRunner(object):
+    """Wrapper class for running BLAST programs.
 
+This is a base class for runners that wrap specific BLAST programs
+(C{blastn}, C{tblastn} etc.), and that should therefore be considered
+abstract, i.e. it should not be instantiated.
+    
+Instance variables correspond to command line options that are the
+same for all BLAST programs. Setting an instance variable to C{None}
+means no command line options are generated, usually resulting in a
+default to be used.
+
+@ivar numThreads: number of threads
+@type numThreads: C{int}, or C{None}
+@ivar gapOpen: gap open penalty
+@type gapOpen: C{int}, or C{None}
+@ivar gapExtend: gap extension penalty
+@type gapExtend: C{int}, or C{None}
+@ivar maxTargetSeqs: maximum number of target sequences
+@type maxTargetSeqs: C{int}, or C{None}
+@ivar numAlignments: number of sequences to show alignments for
+@type numAlignments: C{int}, or C{None}
+@ivar maxHsps: maximum number of HSPs per subject sequence
+@type maxHsps: C{int}, or C{None}
+@ivar evalue: E-value threshold for reporting hits
+@type evalue: C{float}, or C{None}
+@ivar windowSize: multiple hits window size
+@type windowSize: C{int}, or C{None}
+"""
     def __init__(self, numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize):
         self.numThreads = numThreads
         self.gapOpen = gapOpen
@@ -981,6 +1055,25 @@ class BlastRunner(object):
         return blastArgv
 
     def processBlast(self, blastProgram, blastAlignmentProcessor, databaseFname, queryList):
+        """Run a BLAST program and process the alignments output by it.
+        
+The C{blastAlignmentProcessor} object needs to provide a
+C{processBlastAlignment} method that takes the name of the query and a
+corresponding BLAST alignment as a parameter.
+        
+In other words, by implementing a C{processBlastAlignment} method, a
+class is of a suitable "duck type" to be used as a
+C{blastAlignmentProcessor}.
+
+@param blastProgram: the BLAST program to be used, provided by the subclass
+@type blastProgram: C{str}
+@param blastAlignmentProcessor: the BLAST alignment processor
+@type blastAlignmentProcessor: suitable duck type
+@param databaseFname: the database to be used, needs to be suitable indexed by C{makeblastdb}
+@type databaseFname: C{str}
+@param queryList: List of query sequences
+@type queryList: C{list} of C{Bio.SeqRecordSeqRecord} instances
+"""
         blastArgv = self.makeBlastArgv(blastProgram, databaseFname)
         logger.debug('%s', ' '.join(blastArgv))
         blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)

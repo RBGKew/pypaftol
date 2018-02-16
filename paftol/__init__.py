@@ -61,7 +61,7 @@ def generateFastqcDataFrame(fastqFname):
     """Method that runs fastqc and returns C{FastqcStats}.
 
 @param fastqFname: fastq file name
-@type fastFname: C{str}
+@type fastqFname: C{str}
 @return: C{FastqcStats}
 """
     m = re.match('(.*)\\.fastq', fastqFname)
@@ -644,6 +644,10 @@ organisms.
 
 
 class PaftolTargetSet(object):
+    """Represent a set of PAFTOL targets.
+
+This class supports mapping using C{bwa} and C{tblastn} by implementing the 
+"""
 
     paftolTargetRe = re.compile('([^-]+)-([^-]+)')
 
