@@ -1100,6 +1100,8 @@ C{blastAlignmentProcessor}.
     
     
 class BlastnRunner(BlastRunner):
+    """Runner for C{blastn}.
+"""
 
     def __init__(self, numThreads=None, gapOpen=None, gapExtend=None, maxTargetSeqs=None, numAlignments=None, maxHsps=None, evalue=None, windowSize=None):
         super(BlastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
@@ -1113,6 +1115,8 @@ class BlastnRunner(BlastRunner):
 
 
 class TblastnRunner(BlastRunner):
+    """Runner for C{tblastn}.
+"""
 
     def __init__(self, numThreads=None, gapOpen=None, gapExtend=None, maxTargetSeqs=None, numAlignments=None, maxHsps=None, evalue=None, windowSize=None):
         super(TblastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
