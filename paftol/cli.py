@@ -6,6 +6,7 @@ import Bio
 import Bio.SeqIO
 import Bio.Seq
 import Bio.SeqRecord
+import Bio.AlignIO
 
 import paftol
 
@@ -197,8 +198,8 @@ def runSelectgenes(argNamespace):
         Bio.SeqIO.write(srList, sys.stdout, 'fasta')
     else:
         Bio.SeqIO.write(srList, argNamespace.outfile, 'fasta')
-        
-        
+
+
 def runNeedleComparison(argNamespace):
     sr1Dict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(argNamespace.seqfile1, 'fasta'))
     sr2Dict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(argNamespace.seqfile2, 'fasta'))
@@ -209,6 +210,20 @@ def runNeedleComparison(argNamespace):
     else:
         with open(argNamespace.outfile, 'w') as csvFile:
             cmpStats.writeCsv(csvFile)
+
+
+def runExonerateStarAlignment(argNamespace):
+    reference = Bio.SeqIO.read(argNamespace.reference, 'fasta')
+    fastaFname = argNamespace.seqfile
+    exonerateStarAlignment = paftol.tools.ExonerateStarAlignment(reference, fastaFname)
+    if argNamespace.epsfname is not None:
+        with open(argNamespace.epsfname,  'w') as epsfile:
+            exonerateStarAlignment.epsSketch(epsfile)
+    if argNamespace.outfile is None:
+        Bio.AlignIO.write(exonerateStarAlignment.xstarAlignment, sys.stdout, 'fasta')
+    else:
+        with open(argNamespace.outfile, 'w') as f:
+            Bio.AlignIO.write(exonerateStarAlignment.xstarAlignment, f, 'fasta')
 
 
 def addDevParser(subparsers):
@@ -311,6 +326,15 @@ def addNeedleComparisonParser(subparsers):
     p.add_argument('seqfile2', help='sequence file 2 (required)')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runNeedleComparison)
+
+
+def addExonerateStarAlignmentParser(subparsers):
+    p = subparsers.add_parser('xstar', help='compute a star multiple alignment around a reference sequence using exonerate')
+    p.add_argument('reference', help='reference sequence file')
+    p.add_argument('seqfile', help='further sequences for constructing the star alignment (required)')
+    p.add_argument('outfile', nargs='?', help='output file, default stdout')
+    p.add_argument('--epsfname', help='sketch (encapsulated postscript)')
+    p.set_defaults(func=runExonerateStarAlignment)
     
     
 def showArgs(args):
@@ -334,6 +358,7 @@ def paftoolsMain():
     addHybseqstatsParser(subparsers)
     addSelectgenesParser(subparsers)
     addNeedleComparisonParser(subparsers)
+    addExonerateStarAlignmentParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)

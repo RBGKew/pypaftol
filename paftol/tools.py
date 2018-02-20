@@ -427,11 +427,11 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             tLeftFlank = tSeq[:rcTas].lower()
             tAligned = tSeq[rcTas:rcTae].upper()
             # tAligned = str(self.targetSeq[self.targetAlignmentEnd:self.targetAlignmentStart].reverse_complement().seq).upper()
-            sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
-            sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
+            # sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
+            # sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
             if tAligned != str(self.targetAlignmentSeq.seq).upper():
-                sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
-                sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
+                # sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
+                # sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
                 raise StandardError, 'target sequence and target alignment sequence mismatch'
             tRightFlank = tSeq[rcTae:].lower()
         else:
@@ -466,7 +466,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             # s3 = s[:(len(s) - len(s) % 3)]
             # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
         #FIXME: should not unconditionally assume unambiguous_dna
-        sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
+        # sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
         if appendFlanking:
             lfDiff = len(qLeftFlank) - len(tLeftFlank)
             if lfDiff > 0:
@@ -482,7 +482,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             tAln = tLeftFlank + tAln + tRightFlank
             vulgarLetterAnnotation = ([None] * len(qLeftFlank)) + vulgarLetterAnnotation + ([None] * len(qRightFlank))
         # logger.debug('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d', len(qAln), len(tAln), len(vulgarLetterAnnotation))
-        sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
+        # sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
         qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
         tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
@@ -854,6 +854,168 @@ the caller's responsibility to close it.
         d['equivalencedMismatches'] = exonerateResult.equivalencedMismatches
         d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(exonerateResult.targetCdsSeq)
         self.csvDictWriter.writerow(d)
+        
+
+def alignMerge(pairwiseAlignmentList):
+    gapChar = '-'
+    alphabet = pairwiseAlignmentList[0][0].seq.alphabet
+    refId  = pairwiseAlignmentList[0][0].id
+    refseqList = []
+    otherseqList = []
+    refSymbolSeq = []
+    otherSymbolSeqList = []
+    vulgarLetterAnnotationList = []
+    staralignLetterAnnotationList = []
+    for i in xrange(len(pairwiseAlignmentList)):
+        if 'vulgar' in pairwiseAlignmentList[i][1].letter_annotations:
+            vulgarLetterAnnotationList.append([])
+        else:
+            vulgarLetterAnnotationList.append(None)
+        staralignLetterAnnotationList.append([])
+    for pairwiseAlignment in pairwiseAlignmentList:
+        refseqList.append(str(pairwiseAlignment[0].seq))
+        otherseqList.append(str(pairwiseAlignment[1].seq))
+        otherSymbolSeqList.append([])
+    i = [0] * len(pairwiseAlignmentList)
+    while max([len(refseqList[n]) - i[n] for n in xrange(len(pairwiseAlignmentList))]) > 0:
+        refGap = False
+        refSym = None
+        refSymAlignIndex = None
+        for n in xrange(len(pairwiseAlignmentList)):
+            # sys.stderr.write('n = %d, i[n] = %d, l = %d\n' % (n, i[n], len(refseqList[n])))
+            if i[n] == len(refseqList[n]):
+                r  = gapChar
+                # Bio.AlignIO.write(pairwiseAlignmentList[n], sys.stderr, 'fasta')
+            else:
+                r = refseqList[n][i[n]].lower()
+            if r == gapChar:
+                refGap = True
+            elif refSym is None:
+                refSym = r
+                refSymAlignIndex = n
+            else:
+                if r != refSym:
+                    raise StandardError, 'reference sequences inconsistent, found symbols %s (%s:%d) and %s (%s:%d)' % (refSym, pairwiseAlignmentList[refSymAlignIndex][1].id, refSymAlignIndex, r, pairwiseAlignmentList[n][1].id, n)
+        if refGap:
+            refSymbolSeq.append(gapChar)
+            for n in xrange(len(pairwiseAlignmentList)):
+                if i[n] ==len(otherseqList[n]):
+                    otherSymbolSeqList[n].append(gapChar)
+                    vulgarLetterAnnotationList[n].append(None)
+                    staralignLetterAnnotationList[n].append(None)
+                else:
+                    if refseqList[n][i[n]] == gapChar:
+                        otherSymbolSeqList[n].append(otherseqList[n][i[n]])
+                        if 'vulgar' in pairwiseAlignmentList[n][1].letter_annotations:
+                            vulgarLetterAnnotationList[n].append(pairwiseAlignmentList[n][1].letter_annotations['vulgar'][i[n]])
+                        staralignLetterAnnotationList[n].append(i[n])
+                        i[n] = i[n] + 1
+                    elif refseqList[n][i[n]].lower() == refSym:
+                        otherSymbolSeqList[n].append(gapChar)
+                        if 'vulgar' in pairwiseAlignmentList[n][1].letter_annotations:
+                            vulgarLetterAnnotationList[n].append(None)
+                        staralignLetterAnnotationList[n].append(None)
+                    else:
+                        raise StandardError, 'weird: refSym = %s, refseqsym = %s, n = %d, i[n] = %d, id = %s' % (refSym, refseqList[n][i[n]], n, i[n], pairwiseAlignmentList[n][1].id)
+        else:
+            refSymbolSeq.append(refSym)
+            for n in xrange(len(pairwiseAlignmentList)):
+                otherSymbolSeqList[n].append(otherseqList[n][i[n]])
+                if 'vulgar' in pairwiseAlignmentList[n][1].letter_annotations:
+                    vulgarLetterAnnotationList[n].append(pairwiseAlignmentList[n][1].letter_annotations['vulgar'][i[n]])
+                staralignLetterAnnotationList[n].append(i[n])
+                i[n] = i[n] + 1
+    refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id=refId)
+    srList = [refSr]
+    # sys.stderr.write('ref. %s: length: %d\n' % (refSr.id, len(refSr)))
+    for n in xrange(len(pairwiseAlignmentList)):
+        letter_annotations = {}
+        if vulgarLetterAnnotationList[n] is not None:
+            letter_annotations['vulgar'] = vulgarLetterAnnotationList[n]
+        letter_annotations['staralign'] = staralignLetterAnnotationList[n]
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n]), alphabet=alphabet), id=pairwiseAlignmentList[n][1].id, letter_annotations = letter_annotations)
+        # sys.stderr.write('%s: length %d\n' % (sr.id, len(sr)))
+        srList.append(sr)
+    # Bio.SeqIO.write(srList, sys.stderr, 'fasta')
+    return Bio.Align.MultipleSeqAlignment(srList)
+
+
+class ExonerateStarAlignment(object):
+
+    def __init__(self, reference, fastaFname):
+        self.reference = reference
+        self.fastaFname = fastaFname
+        self.xstarAlignment = None
+        self.makeStarAlignment()
+        
+    def makeExonerateResult(self, seqRecord, exonerateRunner):
+        tmpFastaFd, tmpFastaFname = tempfile.mkstemp('.fasta', 'xstar', '.')
+        try:
+            with os.fdopen(tmpFastaFd, 'w') as tmpFastaFile:
+                Bio.SeqIO.write([seqRecord], tmpFastaFile, 'fasta')
+            # only best alignment for now, extending to multiple local alignments will require name fiddling...
+            exonerateResultList = exonerateRunner.parse(self.reference, tmpFastaFname, 'affine:local', bestn=1, addRawTargetSeqs=True)
+        except StandardError as e:
+            raise e
+        finally:
+            # FIXME: check keepTmp when moving this into pypaftol
+            os.unlink(tmpFastaFname)
+            pass
+        return exonerateResultList
+        
+    def makeStarAlignment(self):
+        exonerateRunner = paftol.tools.ExonerateRunner()
+        exonerateResultList = []
+        for seqRecord in Bio.SeqIO.parse(self.fastaFname, 'fasta'):
+            exonerateResultList.extend(self.makeExonerateResult(seqRecord, exonerateRunner))
+        # sys.stderr.write('got %d exonerate results\n')
+        exonerateResultList.sort(lambda e1, e2: cmp(e1.queryAlignmentStart, e2.queryAlignmentStart))
+        pairwiseAlignmentList = [er.nucleotideAlignment(appendFlanking=True) for er in exonerateResultList]
+        self.xstarAlignment = alignMerge(pairwiseAlignmentList)
+
+    def epsSketchSr(self, sr, epsFile, y, symbolWidth, symbolHeight, symbolRgb, gapRgb, unalignedRgb):
+        gapChar = '-'
+        s = str(sr.seq)
+        v = None
+        if 'vulgar' in sr.letter_annotations:
+            v = sr.letter_annotations['vulgar']
+        x = 0.0
+        epsFile.write('%% sequence %s\n' % sr.id)
+        for i in xrange(len(sr)):
+            if v is not None and v[i] is None:
+                rgb = unalignedRgb
+            else:
+                if s[i] == gapChar:
+                    rgb = gapRgb
+                else:
+                    rgb = symbolRgb
+            epsFile.write('%f %f %f setrgbcolor\n' % rgb)
+            epsFile.write('%f %f moveto %f 0 rlineto stroke\n' % (x, y, symbolWidth))
+            x = x + symbolWidth
+
+    def epsSketch(self, epsFile, width=None, height=None):
+        if self.xstarAlignment is None:
+            raise StandardError, 'no star alignment to sketch'
+        if width is None:
+            width = self.xstarAlignment.get_alignment_length()
+        if height is None:
+            height = len(self.xstarAlignment)
+        symbolWidth = width / self.xstarAlignment.get_alignment_length()
+        lineHeight = height / len(self.xstarAlignment)
+        symbolHeight = lineHeight * 0.8
+        y = height - symbolHeight
+        epsFile.write('%!PS-Adobe-3.0 EPSF-3.0\n')
+        epsFile.write('%%%%BoundingBox: 0 0 %f %f\n' % (width, height))
+        epsFile.write('%%Creator: exonerateStarAlignment.epsSketch\n')
+        epsFile.write('%%Title: star alignment sketch\n')
+        epsFile.write('%%EndComments\n')
+        epsFile.write('%s setlinewidth 0 setlinecap\n' % symbolHeight)
+        self.epsSketchSr(self.xstarAlignment[0], epsFile, height - 0.5 * symbolHeight, symbolWidth, symbolHeight, (0.0, 0.0, 1.0, ), (0.3, 0.3, 1.0, ), (1.0, 0.0, 0.0, ))
+        y = lineHeight * (len(self.xstarAlignment) - 1.5)
+        for sr in self.xstarAlignment[1:]:
+            self.epsSketchSr(sr, epsFile, y, symbolWidth, symbolHeight, (0.0, 0.0, 0.0, ), (0.3, 0.3, 0.3, ), (0.7, 0.7, 0.7, ))
+            y = y - lineHeight
+        epsFile.write('%%EOF\n')
 
 
 class BwaRunner(object):
