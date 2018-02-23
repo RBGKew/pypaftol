@@ -925,7 +925,7 @@ def alignMerge(pairwiseAlignmentList):
                     vulgarLetterAnnotationList[n].append(pairwiseAlignmentList[n][1].letter_annotations['vulgar'][i[n]])
                 staralignLetterAnnotationList[n].append(i[n])
                 i[n] = i[n] + 1
-    refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id=refId)
+    refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id='%s_ref' % refId)
     srList = [refSr]
     # sys.stderr.write('ref. %s: length: %d\n' % (refSr.id, len(refSr)))
     for n in xrange(len(pairwiseAlignmentList)):
@@ -933,7 +933,7 @@ def alignMerge(pairwiseAlignmentList):
         if vulgarLetterAnnotationList[n] is not None:
             letter_annotations['vulgar'] = vulgarLetterAnnotationList[n]
         letter_annotations['staralign'] = staralignLetterAnnotationList[n]
-        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n]), alphabet=alphabet), id=pairwiseAlignmentList[n][1].id, letter_annotations = letter_annotations)
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n]), alphabet=alphabet), id='%s_%05d' % (pairwiseAlignmentList[n][1].id, n), letter_annotations = letter_annotations)
         # sys.stderr.write('%s: length %d\n' % (sr.id, len(sr)))
         srList.append(sr)
     # Bio.SeqIO.write(srList, sys.stderr, 'fasta')
@@ -979,19 +979,28 @@ class ExonerateStarAlignment(object):
         v = None
         if 'vulgar' in sr.letter_annotations:
             v = sr.letter_annotations['vulgar']
-        x = 0.0
+        rgbList = [symbolRgb, gapRgb, unalignedRgb]
+        lastRgbIndex = None
+        rgbIndex = None
+        lastRgbStart = None
         epsFile.write('%% sequence %s\n' % sr.id)
         for i in xrange(len(sr)):
-            if v is not None and v[i] is None:
-                rgb = unalignedRgb
-            else:
-                if s[i] == gapChar:
-                    rgb = gapRgb
+            if s[i] == gapChar:
+                if v is not None and v[i] is None:
+                    rgbIndex = 2
                 else:
-                    rgb = symbolRgb
-            epsFile.write('%f %f %f setrgbcolor\n' % rgb)
-            epsFile.write('%f %f moveto %f 0 rlineto stroke\n' % (x, y, symbolWidth))
-            x = x + symbolWidth
+                    rgbIndex = 1
+            else:
+                if v is not None and v[i] is None:
+                    rgbIndex = 2
+                else:
+                    rgbIndex = 0
+            if rgbIndex != lastRgbIndex or i == len(sr) - 1:
+                if lastRgbIndex is not None:
+                    epsFile.write('%f %f %f setrgbcolor\n' % rgbList[lastRgbIndex])
+                    epsFile.write('%f %f moveto %f 0 rlineto stroke\n' % (lastRgbStart * symbolWidth , y, (i - lastRgbStart) * symbolWidth))
+                lastRgbIndex = rgbIndex
+                lastRgbStart = i
 
     def epsSketch(self, epsFile, width=None, height=None):
         if self.xstarAlignment is None:
@@ -1010,10 +1019,10 @@ class ExonerateStarAlignment(object):
         epsFile.write('%%Title: star alignment sketch\n')
         epsFile.write('%%EndComments\n')
         epsFile.write('%s setlinewidth 0 setlinecap\n' % symbolHeight)
-        self.epsSketchSr(self.xstarAlignment[0], epsFile, height - 0.5 * symbolHeight, symbolWidth, symbolHeight, (0.0, 0.0, 1.0, ), (0.3, 0.3, 1.0, ), (1.0, 0.0, 0.0, ))
+        self.epsSketchSr(self.xstarAlignment[0], epsFile, height - 0.5 * symbolHeight, symbolWidth, symbolHeight, (0.0, 0.0, 1.0, ), (0.5, 0.5, 1.0, ), (1.0, 0.0, 0.0, ))
         y = lineHeight * (len(self.xstarAlignment) - 1.5)
         for sr in self.xstarAlignment[1:]:
-            self.epsSketchSr(sr, epsFile, y, symbolWidth, symbolHeight, (0.0, 0.0, 0.0, ), (0.3, 0.3, 0.3, ), (0.7, 0.7, 0.7, ))
+            self.epsSketchSr(sr, epsFile, y, symbolWidth, symbolHeight, (0.0, 0.0, 0.0, ), (0.5, 0.5, 0.5, ), (0.9, 0.9, 0.9, ))
             y = y - lineHeight
         epsFile.write('%%EOF\n')
 
