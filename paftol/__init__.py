@@ -959,6 +959,39 @@ class ReferenceGenome(object):
         self.genbankFname = genbankFname
         self.geneList = None
         self.genomeLength = None
+        
+    def makeCdsListGeneric(self):
+        
+        def extractCdsId(qualifiers, qualifierId):
+            qualifier = qualifiers[qualifierId]
+            if len(qualifier) == 0:
+                raise StandardError, 'qualifier %s has length 0' % qualifierId
+            elif len(qualifier) > 1:
+                logger.warning('qualifier %s has %d values, using [0] (%s)', qualifierId, len(qualifier), ', '.join(qualifier))
+            return qualifier[0]
+            
+        cdsIdNumberDict = {}
+        cdsList = []
+        with open(self.genbankFname, 'r') as f:
+            for seqRecord in Bio.SeqIO.parse(f, 'genbank'):
+                for seqFeature in seqRecord.features:
+                    if seqFeature.type == 'CDS':
+                        if 'gene' in seqFeature.qualifiers:
+                            cdsId = extractCdsId(seqFeature.qualifiers, 'gene')
+                        elif 'locus_tag' in seqFeature.qualifiers:
+                            cdsId = extractCdsId(seqFeature.qualifiers, 'locus_tag')
+                        else:
+                            cdsId = '%s%s' % (seqRecord.id, str(seqFeature.location))
+                        if cdsId not in cdsIdNumberDict:
+                            cdsIdNumberDict[cdsId] = 0
+                        cdsIdNumberDict[cdsId] = cdsIdNumberDict[cdsId] + 1
+                        cdsIdNumbered = '%s_%d' % (cdsId, cdsIdNumberDict[cdsId])
+                        cdsSeq = seqFeature.extract(seqRecord.seq)
+                        cdsList.append(Bio.SeqRecord.SeqRecord(cdsSeq, id=cdsIdNumbered, description=str(seqFeature.location)))
+        return cdsList
+    
+    def makeCdsList(self):
+        return self.makeCdsListGeneric()
 
     def scanGenesAth(self):
         if self.genbankFname is None:

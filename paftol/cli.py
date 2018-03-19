@@ -175,6 +175,16 @@ def runGenomeReadScan(argNamespace):
             statsTable.writeCsv(csvFile)
 
             
+def runExtractCdsList(argNamespace):
+    referenceGenome = paftol.ReferenceGenome(argNamespace.genomeName, argNamespace.refFasta, argNamespace.refGenbank)
+    cdsList = referenceGenome.makeCdsList()
+    if argNamespace.outfile is None:
+        Bio.SeqIO.write(cdsList, sys.stdout, 'fasta')
+    else :
+        with open(argNamespace.outfile, 'w') as f:
+            Bio.SeqIO.write(cdsList, f, 'fasta')
+
+
 def runSelectgenes(argNamespace):
     organismNameSet = None
     if argNamespace.organism is not None:
@@ -295,8 +305,8 @@ def addTargetGeneScanParser(subparsers):
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runTargetGeneScan)
-    
-    
+
+
 def addGenomeReadScanParser(subparsers):
     p = subparsers.add_parser('readscan', help='map reads to reference genome and compute stats of unmapped / mapping to gene / mapping to intergenic region')
     p.add_argument('--refFasta', help='FASTA file of reference genome, must be BLAST indexed', required=True)
@@ -308,6 +318,15 @@ def addGenomeReadScanParser(subparsers):
     addBwaRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runGenomeReadScan)
+
+
+def addExtractCdsListParser(subparsers):
+    p = subparsers.add_parser('xcds', help='extract CDS list from a genome')
+    p.add_argument('--genomeName', help='genome name', required=True)
+    p.add_argument('--refFasta', help='FASTA file of reference genome', required=True)
+    p.add_argument('--refGenbank', help='GenBank file of reference genome, used to find genes from gene features', required=True)
+    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout')
+    p.set_defaults(func=runExtractCdsList)
 
 
 def addSelectgenesParser(subparsers):
@@ -355,6 +374,7 @@ def paftoolsMain():
     addHybpiperTblastnParser(subparsers)
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
+    addExtractCdsListParser(subparsers)
     addHybseqstatsParser(subparsers)
     addSelectgenesParser(subparsers)
     addNeedleComparisonParser(subparsers)
