@@ -963,8 +963,6 @@ class ReferenceGenome(object):
     def scanGenesAth(self):
         if self.genbankFname is None:
             raise StandardError('no GenBank file name, cannot scan genes (ath method)')
-        mrnaFeatureDict = {}
-        cdsFeatureDict = {}
         self.geneList = []
         self.genomeLength = 0
         geneDict = {}
