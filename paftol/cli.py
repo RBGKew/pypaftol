@@ -138,7 +138,22 @@ like approach, unsing tblastn for mapping reads to targets.
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
 
-        
+
+def runRetrieveTargets(argNamespace):
+    paftolTargetSet = paftol.PaftolTargetSet()
+    if argNamespace.targetsfile is None:
+        paftolTargetSet.readFasta(sys.stdin)
+    else:
+        paftolTargetSet.readFasta(argNamespace.targetsfile)
+    paftolTargetSeqRetriever = paftol.PaftolTargetSeqRetriever()
+    targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet)
+    if argNamespace.outfile is None:
+        Bio.SeqIO.write(targetList, sys.stdout, 'fasta')
+    else :
+        with open(argNamespace.outfile, 'w') as f:
+            Bio.SeqIO.write(targetList, f, 'fasta')
+
+
 def runTargetGeneScan(argNamespace):
     paftolTargetSet = paftol.PaftolTargetSet()
     if argNamespace.targetsfile is None:
@@ -329,6 +344,15 @@ def addExtractCdsListParser(subparsers):
     p.set_defaults(func=runExtractCdsList)
 
 
+def addRetrieveTargetListParser(subparsers):
+    p = subparsers.add_parser('retrievetargets', help='retrieve targets list from a fasta file containing a transcriptome')
+    p.add_argument('--genomeName', help='genome name', required=True)
+    p.add_argument('--fastaFname', help='FASTA file ', required=True)
+    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
+    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout')
+    p.set_defaults(func=runRetrieveTargets)
+
+
 def addSelectgenesParser(subparsers):
     p = subparsers.add_parser('selectgenes', help='select genes by name from a PAFTOL target set')
     p.add_argument('-o', '--organism', action='append', help='specify organism name on command line')
@@ -375,6 +399,7 @@ def paftoolsMain():
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
     addExtractCdsListParser(subparsers)
+    addRetrieveTargetListParser(subparsers)
     addHybseqstatsParser(subparsers)
     addSelectgenesParser(subparsers)
     addNeedleComparisonParser(subparsers)

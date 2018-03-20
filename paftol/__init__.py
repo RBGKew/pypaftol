@@ -643,13 +643,24 @@ organisms.
         Bio.SeqIO.write(self.makeMappedReadsUniqueList(writeForward, writeReverse), fastaHandle, 'fasta')
 
 
+def extractOrganismAndGeneNames(s):
+    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
+    m = paftolTargetRe.match(s)
+    if m is not None:
+        organismName = m.group(1)
+        geneName = m.group(2)
+    else:
+        organismName = 'unknown'
+        geneName = s
+    return organismName, geneName
+
+
 class PaftolTargetSet(object):
     """Represent a set of PAFTOL targets.
 
 This class supports mapping using C{bwa} and C{tblastn} by implementing the 
 """
 
-    paftolTargetRe = re.compile('([^-]+)-([^-]+)')
 
     def __init__(self):
         self.paftolGeneDict = {}
@@ -691,23 +702,13 @@ This class supports mapping using C{bwa} and C{tblastn} by implementing the
                     srList.append(organism.paftolTargetDict[geneName].seqRecord)
         return srList
 
-    def extractOrganismAndGeneNames(self, s):
-        m = self.paftolTargetRe.match(s)
-        if m is not None:
-            organismName = m.group(1)
-            geneName = m.group(2)
-        else:
-            organismName = 'unknown'
-            geneName = s
-        return organismName, geneName
-
     def readFasta(self, fastaHandle):
         # FIXME: add provision to control tolerance for invalid bases -- checkTargets type functionality?
         self.paftolGeneDict = {}
         self.organismDict = {}
         self.fastaHandleStr = str(fastaHandle)
         for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
-            organismName, geneName = self.extractOrganismAndGeneNames(sr.id)
+            organismName, geneName = extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
                 raise StandardError('bad organism name: %s' % organismName)
             if not isSane(geneName):
@@ -745,7 +746,7 @@ This class supports mapping using C{bwa} and C{tblastn} by implementing the
 
     def processSamAlignment(self, samAlignment):
         if samAlignment.isMapped():
-            organismName, geneName = self.extractOrganismAndGeneNames(samAlignment.rname)
+            organismName, geneName = extractOrganismAndGeneNames(samAlignment.rname)
             self.checkOrganismAndGene(organismName, geneName)
             paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
 	    mappedRead = SamMappedRead(paftolTarget, samAlignment)
@@ -754,7 +755,7 @@ This class supports mapping using C{bwa} and C{tblastn} by implementing the
             self.numOfftargetReads = self.numOfftargetReads + 1
 
     def processBlastAlignment(self, query, blastAlignment):
-        organismName, geneName = self.extractOrganismAndGeneNames(query)
+        organismName, geneName = extractOrganismAndGeneNames(query)
         self.checkOrganismAndGene(organismName, geneName)
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
         mappedRead = BlastMappedRead(paftolTarget, blastAlignment)
@@ -1147,8 +1148,43 @@ conventions may be added.
         referenceGenomeMappingProcessor = ReferenceGenomeMappingProcessor(self)
         bwaRunner.processBwa(referenceGenomeMappingProcessor, forwardReadsFname, reverseReadsFname)
         return referenceGenomeMappingProcessor.getStatsTable(), referenceGenomeMappingProcessor.rawmapTable
+
+
+class PaftolTargetSeqRetriever(object):
     
+    def __init__(self):
+        self.blastAlignmentDict = None
     
+    def processBlastAlignment(self, query, blastAlignment):
+        organismName, geneName = extractOrganismAndGeneNames(query)
+        if geneName in self.blastAlignmentDict:
+            if blastAlignment.hsps[0].expect < self.blastAlignmentDict[geneName].hsps[0].expect:
+                self.blastAlignmentDict[geneName] = blastAlignment
+        else:
+            self.blastAlignmentDict[geneName] = blastAlignment
+
+    def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet):
+        blastnRunner = tools.BlastnRunner()
+        self.blastAlignmentDict = {}
+        blastnRunner.processBlast(self, fastaFname, paftolTargetSet.getSeqRecordList())
+        seqIdGeneDict = {}
+        for geneName in self.blastAlignmentDict:
+            seqId = self.blastAlignmentDict[geneName].hit_id
+            if seqId in seqIdGeneDict:
+                raise StandardError, 'multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName)
+            seqIdGeneDict[seqId] = geneName
+        paftolTargetList = []
+        for seqRecord in Bio.SeqIO.parse(fastaFname, 'fasta'):
+            if seqRecord.id in seqIdGeneDict:
+                seqId = seqRecord.id
+                geneName = seqIdGeneDict[seqId]
+                evalue = self.blastAlignmentDict[geneName].hsps[0].expect
+                seqRecord.description = '%s, original ID: %s, evalue: %1.12g' % (seqRecord.description, seqId, evalue)
+                seqRecord.id = '%s-%s' % (genomeName, geneName)
+                paftolTargetList.append(seqRecord)
+        return paftolTargetList
+
+
 class HybpiperAnalyser(HybseqAnalyser):
     
     def __init__(self, workdirTgz, workDirname):
