@@ -1839,3 +1839,23 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
             summaryDataFrame.writeCsv(tmpCsv)
     return summaryDataFrame
         
+
+def makeGeneSetStatsDataFrame(f, sampleName, paftolTargetSet):
+    summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
+    geneSetStatsDataFrame = paftol.tools.DataFrame(summaryColumnList)
+    srDict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(f, 'fasta'))
+    for paftolGene in paftolTargetSet.paftolGeneDict.values():
+        for paftolTarget in paftolGene.paftolTargetDict.values():
+            rowDict = {}
+            for summaryColumn in summaryColumnList:
+                rowDict[summaryColumn] = None
+            rowDict['sampleName'] = sampleName
+            rowDict['paftolGene'] = paftolGene.name
+            rowDict['paftolOrganism'] = paftolTarget.organism.name
+            rowDict['targetsFile'] = paftolTargetSet.fastaHandleStr
+            rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
+            if paftolGene.name in srDict:
+                rowDict['hybpiperCdsLength'] = len(srDict[paftolGene.name])
+            geneSetStatsDataFrame.addRow(rowDict)
+    return geneSetStatsDataFrame
+

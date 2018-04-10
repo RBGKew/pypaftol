@@ -1411,6 +1411,17 @@ def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
 
 
 def addGapClassAnnotation(sr):
+    """Add letter annotation classifying gaps as internal or terminal.
+
+C{letter_annotations['gapClass']} is set to a list containing C{'t'}
+for terminal gaps and C{'i'} for internal gaps. Non-gap symbols are
+annotated with C{None}.
+    
+@param sr: sequence record to be annotated
+@type sr: C{Bio.SeqRecord.SeqRecord}
+@return: C{list} of gap class annotations
+@rtype: C{list}
+    """
     if not isinstance(sr.seq.alphabet, Bio.Alphabet.Gapped):
         raise StandardError, 'sequence is not gapped (not an aligned sequence?)'
     s = str(sr.seq)

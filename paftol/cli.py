@@ -237,6 +237,27 @@ def runNeedleComparison(argNamespace):
             cmpStats.writeCsv(csvFile)
 
 
+def runGeneSetStats(argNamespace):
+    paftolTargetSet = paftol.PaftolTargetSet()
+    sampleId = 'unknown'
+    if argNamespace.sampleId is not None:
+        sampleId = argNamespace.sampleId
+    if argNamespace.targetsfile is None:
+        raise StandardError, 'no targets file specified'
+    else:
+        paftolTargetSet.readFasta(argNamespace.targetsfile)
+    if argNamespace.seqfile is None:
+        geneSetStatsDataFrame = paftol.makeGeneSetStatsDataFrame(sys.stdin, sampleId, paftolTargetSet)
+    else:
+        with open(argNamespace.seqfile, 'r') as f:
+            geneSetStatsDataFrame = paftol.makeGeneSetStatsDataFrame(f, sampleId, paftolTargetSet)
+    if argNamespace.outfile is None:
+        geneSetStatsDataFrame.writeCsv(sys.stdout)
+    else:
+        with open(argNamespace.outfile, 'w') as f:
+            geneSetStatsDataFrame.writeCsv(f)
+
+
 def runExonerateStarAlignment(argNamespace):
     reference = Bio.SeqIO.read(argNamespace.reference, 'fasta')
     fastaFname = argNamespace.seqfile
@@ -369,6 +390,15 @@ def addNeedleComparisonParser(subparsers):
     p.add_argument('seqfile2', help='sequence file 2 (required)')
     p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
     p.set_defaults(func=runNeedleComparison)
+    
+    
+def addGeneSetStatsParser(subparsers):
+    p = subparsers.add_parser('genesetstats', help='extract stats from a FASTA file containing a set of PAFTOL genes from one organism')
+    p.add_argument('--targetsfile', nargs='?', help='target sequences (FASTA), required', required=True)
+    p.add_argument('-s', '--sampleId', help='sample ID, default "unknown"')
+    p.add_argument('seqfile', nargs='?', help='sequence file (FASTA), default stdin')
+    p.add_argument('outfile', nargs='?', help='output file (CSV), default stdout')
+    p.set_defaults(func=runGeneSetStats)
 
 
 def addExonerateStarAlignmentParser(subparsers):
@@ -403,6 +433,7 @@ def paftoolsMain():
     addHybseqstatsParser(subparsers)
     addSelectgenesParser(subparsers)
     addNeedleComparisonParser(subparsers)
+    addGeneSetStatsParser(subparsers)
     addExonerateStarAlignmentParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
