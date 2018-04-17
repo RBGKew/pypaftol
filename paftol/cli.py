@@ -32,6 +32,10 @@ def addBlastRunnerToParser(p):
 def addTblastnRunnerToParser(p):
     addBlastRunnerToParser(p)
 
+
+def addBlastnRunnerToParser(p):
+    addBlastRunnerToParser(p)
+
     
 def addSpadesRunnerToParser(p):
     p.add_argument('--spadesNumThreads', type=int, help='set number of threads for SPAdes (see spades -t)')
@@ -60,6 +64,12 @@ def argToTblastnRunner(argNamespace):
     tblastnRunner = paftol.tools.TblastnRunner()
     argToBlastRunnerParams(argNamespace, tblastnRunner)
     return tblastnRunner
+
+
+def argToBlastnRunner(argNamespace):
+    blastnRunner = paftol.tools.BlastnRunner()
+    argToBlastRunnerParams(argNamespace, blastnRunner)
+    return blastnRunner
 
 
 def argToSpadesRunner(argNamespace):
@@ -145,8 +155,9 @@ def runRetrieveTargets(argNamespace):
         paftolTargetSet.readFasta(sys.stdin)
     else:
         paftolTargetSet.readFasta(argNamespace.targetsfile)
+    blastnRunner = argToBlastnRunner(argNamespace)
     paftolTargetSeqRetriever = paftol.PaftolTargetSeqRetriever()
-    targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet)
+    targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet, blastnRunner)
     if argNamespace.outfile is None:
         Bio.SeqIO.write(targetList, sys.stdout, 'fasta')
     else :
@@ -369,6 +380,7 @@ def addRetrieveTargetListParser(subparsers):
     p = subparsers.add_parser('retrievetargets', help='retrieve targets list from a fasta file containing a transcriptome')
     p.add_argument('--genomeName', help='genome name', required=True)
     p.add_argument('--fastaFname', help='FASTA file ', required=True)
+    addBlastnRunnerToParser(p)
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
     p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout')
     p.set_defaults(func=runRetrieveTargets)

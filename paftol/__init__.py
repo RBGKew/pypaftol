@@ -1163,8 +1163,9 @@ class PaftolTargetSeqRetriever(object):
         else:
             self.blastAlignmentDict[geneName] = blastAlignment
 
-    def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet):
-        blastnRunner = tools.BlastnRunner()
+    def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet, blastnRunner=None):
+        if blastnRunner is None:
+            blastnRunner = tools.BlastnRunner()
         self.blastAlignmentDict = {}
         blastnRunner.processBlast(self, fastaFname, paftolTargetSet.getSeqRecordList())
         seqIdGeneDict = {}
