@@ -644,6 +644,7 @@ organisms.
 
 
 def extractOrganismAndGeneNames(s):
+    # FIXME: should tighten this up to fail on dangling garbage (?)
     paftolTargetRe = re.compile('([^-]+)-([^-]+)')
     m = paftolTargetRe.match(s)
     if m is not None:
@@ -658,7 +659,9 @@ def extractOrganismAndGeneNames(s):
 class PaftolTargetSet(object):
     """Represent a set of PAFTOL targets.
 
-This class supports mapping using C{bwa} and C{tblastn} by implementing the 
+This class supports mapping using C{bwa} and C{tblastn} by
+implementing the processSamAlignment and processBlastAlignment
+methods, respectively.
 """
 
 
@@ -983,6 +986,9 @@ class ReferenceGenome(object):
                             cdsId = extractCdsId(seqFeature.qualifiers, 'locus_tag')
                         else:
                             cdsId = '%s%s' % (seqRecord.id, str(seqFeature.location))
+                        # FIXME: ad hoc sanitising of cdsId, replacing spaces with underscores to ensure entire cdsId ends up in FASTA ID portion
+                        # necessitated by makeblastdb, which may otherwise see entries with identical cdsId
+                        cdsId = cdsId.upper().replace(' ', '_')
                         if cdsId not in cdsIdNumberDict:
                             cdsIdNumberDict[cdsId] = 0
                         cdsIdNumberDict[cdsId] = cdsIdNumberDict[cdsId] + 1
@@ -1181,7 +1187,8 @@ class PaftolTargetSeqRetriever(object):
                 geneName = seqIdGeneDict[seqId]
                 evalue = self.blastAlignmentDict[geneName].hsps[0].expect
                 seqRecord.description = '%s, original ID: %s, evalue: %1.12g' % (seqRecord.description, seqId, evalue)
-                seqRecord.id = '%s-%s' % (genomeName, geneName)
+                # seqRecord.id = '%s-%s' % (genomeName, geneName, )
+                seqRecord.id = '%s' % geneName
                 paftolTargetList.append(seqRecord)
         return paftolTargetList
 
