@@ -1425,7 +1425,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
         exonerateResultList = self.filterByContainment(exonerateResultList)
         logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
-        logger.debug('gene %s: non-contained contig list: %s', geneName, ', '.join([e.targetId for e in exonerateResultList]))
+        # logger.debug('gene %s: non-contained contig list: %s', geneName, ', '.join([e.targetId for e in exonerateResultList]))
         exonerateResultList = self.filterByOverlap(exonerateResultList, strictOverlapFiltering)
         # logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
         logger.debug('gene %s: %d non-overlapping contig list [strict=%s]: %s', geneName, len(exonerateResultList), str(strictOverlapFiltering), ', '.join(['%s; tcdsLen=%d' % (e.targetId, len(e.targetCdsSeq.seq)) for e in exonerateResultList]))
@@ -1458,17 +1458,18 @@ class HybpiperAnalyser(HybseqAnalyser):
         contigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-contigs.fasta' % geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
-        exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', len(contigList))
+        exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
         logger.debug('gene %s: %d contigs, %d exonerate results', geneName, len(contigList), len(exonerateResultList))
         if len(exonerateResultList) == 0:
             logger.warning('gene %s: no exonerate results from %d contigs', geneName, len(contigList))
         exonerateResultList.sort(cmpExonerateResultByQueryAlignmentStart)
-        for exonerateResult in exonerateResultList:
-            logger.debug('gene %s, contig %s: targetStrand = %s', geneName, exonerateResult.targetId, exonerateResult.targetStrand)
-            logger.debug('gene %s, contig %s, raw: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
-            if exonerateResult.targetStrand == '-':
-                exonerateResult.reverseComplementTarget()
-            logger.debug('gene %s, contig %s, can: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        # reverse complementing extraneous as that is done by exonerate itself
+        # for exonerateResult in exonerateResultList:
+        #     logger.debug('gene %s, contig %s: targetStrand = %s', geneName, exonerateResult.targetId, exonerateResult.targetStrand)
+        #     logger.debug('gene %s, contig %s, raw: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        #     if exonerateResult.targetStrand == '-':
+        #         exonerateResult.reverseComplementTarget()
+        #     logger.debug('gene %s, contig %s, can: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
         # logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
         filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList, strictOverlapFiltering)
         logger.debug('gene %s: %d exonerate results after filtering', geneName, len(filteredExonerateResultList))
@@ -1483,11 +1484,14 @@ class HybpiperAnalyser(HybseqAnalyser):
             return None
         supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
         Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
-        supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', len(contigList))
+        Bio.SeqIO.write([geneProtein], os.path.join(self.makeGeneDirPath(geneName), '%s-supercontigref.fasta' % geneName), 'fasta')
+        supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', bestn=1)
         logger.debug('gene %s: %d supercontig exonerate results', geneName, len(supercontigErList))
         if len(supercontigErList) == 0:
             logger.warning('gene %s: no exonerate results from supercontig', geneName)
             return None
+        if len(supercontigErList) > 1:
+            raise StandardError, 'received multiple supercontig exonerate results despite bestn=1'
         # not filtering for percent identity to gene again, as that is already done
         if result.reverseFastq is not None:
             readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
