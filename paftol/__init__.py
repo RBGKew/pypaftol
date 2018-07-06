@@ -1497,6 +1497,7 @@ class HybpiperAnalyser(HybseqAnalyser):
             readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
         else:
             readsSpec = result.forwardFastq
+	# FIXME: seq should simpy be supercontigErList[0].targetCdsSeq.seq, after limiting supercontigErList via bestn. Ariane warning!!!!
         splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
         logger.debug('gene %s: splicedSupercontig length %d', geneName, len(splicedSupercontig))
         splicedSupercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-splicedsupercontig.fasta' % geneName)
@@ -1615,7 +1616,7 @@ this).
     def __init__(self, workdirTgz=None, workDirname='pafpipertmp', tblastnRunner=None, spadesRunner=None):
         super(HybpiperTblastnAnalyser, self).__init__(workdirTgz, workDirname)
         if tblastnRunner is None:
-            self.tblastnRunner = paftol.tools.tblastnRunner()
+            self.tblastnRunner = paftol.tools.TblastnRunner()
         else:
             self.tblastnRunner = tblastnRunner
         if spadesRunner is None:
