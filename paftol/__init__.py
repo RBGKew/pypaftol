@@ -1485,22 +1485,37 @@ class HybpiperAnalyser(HybseqAnalyser):
         supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
         Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
         Bio.SeqIO.write([geneProtein], os.path.join(self.makeGeneDirPath(geneName), '%s-supercontigref.fasta' % geneName), 'fasta')
+        # FIXME: use exonerate to align "supercontig" to reference and
+        # retrieve coding sequence of exonerate result with highest
+        # score. In case of tied highest score, select result with
+        # shortest CDS, as this is indicative of highest
+        # "concentration" of matches and fewest gaps.
         supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', bestn=1)
         logger.debug('gene %s: %d supercontig exonerate results', geneName, len(supercontigErList))
+        splicedSupercontigEr = None
         if len(supercontigErList) == 0:
             logger.warning('gene %s: no exonerate results from supercontig', geneName)
             return None
         if len(supercontigErList) > 1:
-            raise StandardError, 'received multiple supercontig exonerate results despite bestn=1'
+            splicedSupercontigEr = supercontigErList[0]
+            minLength = len(splicedSupercontigEr.targetCdsSeq)
+            for supercontigEr in supercontigErList:
+                if len(supercontigEr.targetCdsSeq) < minLength:
+                    splicedSupercontigEr = supercontigEr
+                    minLength = len(splicedSupercontigEr.targetCdsSeq)
+            contigStats = ', '.join(['raw=%d, cdsLen=%d' % (e.rawScore, len(e.targetCdsSeq)) for e in supercontigErList])
+            logger.warning('gene %s: received %d supercontig exonerate results despite bestn=1 (%s), selected raw=%d, cdsLen=%d', geneName, len(supercontigErList), contigStats, splicedSupercontigEr.rawScore, len(splicedSupercontigEr.targetCdsSeq))
+        else:
+            splicedSupercontigEr = supercontigErList[0]
         # not filtering for percent identity to gene again, as that is already done
         if result.reverseFastq is not None:
             readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
         else:
             readsSpec = result.forwardFastq
-	# FIXME: seq should simpy be supercontigErList[0].targetCdsSeq.seq, after limiting supercontigErList via bestn. Ariane warning!!!!
-        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in supercontigErList])), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(str(splicedSupercontigEr.targetCdsSeq.seq)), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
         logger.debug('gene %s: splicedSupercontig length %d', geneName, len(splicedSupercontig))
         splicedSupercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-splicedsupercontig.fasta' % geneName)
+        Bio.SeqIO.write([splicedSupercontig], splicedSupercontigFname, 'fasta')
         return splicedSupercontig
 
 
