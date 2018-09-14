@@ -115,7 +115,7 @@ class FastqcStats(object):
         if m is None:
             raise StandardError, 'malformed FastQC version line: %s' % l.strip()
         v = m.group(1)
-        if v != '0.11.5':
+        if v not in ['0.11.5']:
             raise StandardError, 'unsupported FastQC version %s' % v
 
     def nextModuleDescription(self, f):
@@ -623,13 +623,15 @@ organisms.
         d['numMappedReads'] = self.numMappedReads()
         return d
 
-    def makeMappedReadsUniqueList(self, includeForward=True, includeReverse=True):
+    def makeMappedReadsUniqueList(self, includeForward=True, includeReverse=True, maxNumReads=None):
         readNameSet = set()
         srList = []
+        numReads = 0
         for paftolTarget in self.paftolTargetDict.values():
             for mappedRead in paftolTarget.mappedReadList:
                 readName = mappedRead.getReadName()
                 if readName not in readNameSet:
+                    numReads = numReads + 1
                     readNameSet.add(readName)
                     if includeForward:
                         if mappedRead.forwardRead is None:
@@ -639,10 +641,13 @@ organisms.
                         if mappedRead.reverseRead is None:
                             raise StandardError, 'mapped read %s: no reverse read SeqRecord' % mappedRead.getReadName()
                         srList.append(mappedRead.reverseRead)
+                if maxNumReads is not None and numReads == maxNumReads:
+                    logger.debug('gene %s: maxNumReads of %d reached', self.name, numReads)
+                    break
         return srList
 
-    def writeMappedReadsFasta(self, fastaHandle, writeForward=True, writeReverse=True):
-        Bio.SeqIO.write(self.makeMappedReadsUniqueList(writeForward, writeReverse), fastaHandle, 'fasta')
+    def writeMappedReadsFasta(self, fastaHandle, writeForward=True, writeReverse=True, maxNumReads=None):
+        Bio.SeqIO.write(self.makeMappedReadsUniqueList(writeForward, writeReverse, maxNumReads), fastaHandle, 'fasta')
 
 
 def extractOrganismAndGeneNames(s):
@@ -1264,18 +1269,18 @@ class HybpiperAnalyser(HybseqAnalyser):
                             mappedRead.reverseRead = reverseRead
                 # FIXME: check for dangling stuff in reverse: reverse.next() should trigger exception (StopIteration?)
 
-    def writeMappedReadsFasta(self, result):
+    def writeMappedReadsFasta(self, result, maxNumReadsPerGene):
         for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
             with open(self.makeGeneReadFname(paftolGene.name, True), 'w') as fastaFile:
-                paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None)
+                paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None, maxNumReadsPerGene)
 
-    def distributeSingle(self, result):
+    def distributeSingle(self, result, maxNumReadsPerGene):
         self.readMappedReadsSingle(result)
-        self.writeMappedReadsFasta(result)
+        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
 
-    def distributePaired(self, result):
+    def distributePaired(self, result, maxNumReadsPerGene):
         self.readMappedReadsPaired(result)
-        self.writeMappedReadsFasta(result)
+        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
 
     def distributeSingleOld(self, result):
         fForward = open(result.forwardFastq, 'r')
@@ -1315,11 +1320,11 @@ class HybpiperAnalyser(HybseqAnalyser):
         fForward.close()
         fReverse.close()
 
-    def distribute(self, result):
+    def distribute(self, result, maxNumReadsPerGene):
         if result.isPaired():
-            self.distributePaired(result)
+            self.distributePaired(result, maxNumReadsPerGene)
         else:
-            self.distributeSingle(result)
+            self.distributeSingle(result, maxNumReadsPerGene)
 
     def makeGeneDirname(self, geneName):
         return 'spades-%s' % geneName
@@ -1588,7 +1593,7 @@ this).
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
@@ -1600,7 +1605,7 @@ this).
             logger.debug('setup done')
             self.mapReadsBwa(result)
             logger.debug('BWA mapping done')
-            self.distribute(result)
+            self.distribute(result, maxNumReadsPerGene)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)
             self.writeRepresentativeGenes(result)
@@ -1691,7 +1696,7 @@ this).
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering):
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
@@ -1703,7 +1708,7 @@ this).
             logger.debug('setup done')
             self.mapReadsTblastn(result)
             logger.debug('tblastn mapping done')
-            self.distribute(result)
+            self.distribute(result, maxNumReadsPerGene)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)
             self.writeRepresentativeGenes(result)
