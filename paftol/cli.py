@@ -34,7 +34,7 @@ def addHybpiperToParser(p):
     p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
     p.add_argument('--strictOverlapFiltering', action='store_true', help='filter contigs so that no region of the reference target is covered by multiple (overlapping) contigs')
-    p.add_argument('--maxNumReadsPerGene', help='maximal number of reads used for assembly (in development)')
+    p.add_argument('--maxNumReadsPerGene', type=int, help='maximal number of reads used for assembly (in development)')
     p.add_argument('--summaryCsv', help='write analysis stats in CSV format')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
