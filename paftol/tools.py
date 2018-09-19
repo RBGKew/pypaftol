@@ -1309,7 +1309,7 @@ def selectLongestReads(readsList, numReads):
     # maximally naive implementation would be:
     # return readsList[:numReads]
     l = readsList[:]
-    l.sort(cmp=lambda x, y: cmp(x, y), reverse=True)
+    l.sort(cmp=lambda x, y: cmp(len(x), len(y)), reverse=True)
     return l[:numReads]
 
 
