@@ -1298,6 +1298,20 @@ class TblastnRunner(BlastRunner):
     def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
         super(TblastnRunner, self).processBlast('tblastn', blastAlignmentProcessor, databaseFname, queryList)
 
+        
+def selectLongestReads(readsList, numReads):
+    """Select the longest reads from a list of reads.
+@param readsList: list of reads
+@type readsList: C{list} of C{Bio.SeqRecord.SeqRecord}
+@param numReads: the number of longest reads to return
+@type numReads: C{int}
+"""
+    # maximally naive implementation would be:
+    # return readsList[:numReads]
+    l = readsList[:]
+    l.sort(cmp=lambda x, y: cmp(x, y), reverse=True)
+    return l[:numReads]
+
 
 class SpadesRunner(object):
     """

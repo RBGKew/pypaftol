@@ -623,12 +623,10 @@ organisms.
         d['numMappedReads'] = self.numMappedReads()
         return d
 
-    # FIXME: capping by maxNumReads should be reflected in stats -- 
-    def makeMappedReadsUniqueList(self, includeForward=True, includeReverse=True, maxNumReads=None):
+    def makeMappedReadsUniqueList(self, includeForward=True, includeReverse=True):
         readNameSet = set()
         srList = []
         numReads = 0
-        # logger.debug('maxNumReads: %s', str(maxNumReads))
         for paftolTarget in self.paftolTargetDict.values():
             for mappedRead in paftolTarget.mappedReadList:
                 readName = mappedRead.getReadName()
@@ -643,17 +641,16 @@ organisms.
                         if mappedRead.reverseRead is None:
                             raise StandardError, 'mapped read %s: no reverse read SeqRecord' % mappedRead.getReadName()
                         srList.append(mappedRead.reverseRead)
-                    # logger.debug('gene %s, organism %s: numReads = %d, maxNumReads = %s', self.name, paftolTarget.organism.name, numReads, str(maxNumReads))
-                if maxNumReads is not None and numReads >= maxNumReads:
-                    # logger.debug('gene %s: maxNumReads of %d reached', self.name, numReads)
-                    break
-            if maxNumReads is not None and numReads >= maxNumReads:
-                logger.debug('gene %s: maxNumReads of %d reached, exiting loop', self.name, numReads)
-                break
         return srList
 
     def writeMappedReadsFasta(self, fastaHandle, writeForward=True, writeReverse=True, maxNumReads=None):
-        Bio.SeqIO.write(self.makeMappedReadsUniqueList(writeForward, writeReverse, maxNumReads), fastaHandle, 'fasta')
+        readsList = self.makeMappedReadsUniqueList(writeForward, writeReverse)
+        if maxNumReads is not None and len(readsList) > maxNumReads:
+            selectedReadsList = tools.selectLongestReads(readsList, maxNumReads)
+        else:
+            selectedReadsList = readsList
+        logger.debug('maxNumReads: %s, numReads: %d, selected: %d', str(maxNumReads), len(readsList), len(selectedReadsList))
+        Bio.SeqIO.write(selectedReadsList, fastaHandle, 'fasta')
 
 
 def extractOrganismAndGeneNames(s):
@@ -832,6 +829,7 @@ methods, respectively.
         #         n = n + paftolTarget.numMappedReads()
         # return n
 
+    # FIXME: apparently obsolete -- delete?
     def writeMappedReadsFasta(self, fastaFname):
         with open(fastaFname, 'w') as fastaFile:
             for organism in self.organismDict.values():
