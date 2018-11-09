@@ -1401,7 +1401,7 @@ class DataFrame(object):
             d[columnHeader] = self.colMeanAndStddev(columnName)
         return d
 
-    
+
 def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
     if len(sr1) != len(sr2):
         raise StandardError, 'sequences %s and %s differ in length: %d != %d' % (sr1.id, sr2.id, len(sr1), len(sr2))
