@@ -6,6 +6,9 @@
 #include <string.h>
 
 
+#define MAX_LINE_LENGTH 1000
+
+
 typedef enum
 {
   CLIB_MSG_TRACE,
@@ -14,6 +17,38 @@ typedef enum
   CLIB_MSG_ERROR,
   CLIB_MSG_FATAL
 } CLIB_MSG_IMPORTANCE;
+
+
+typedef struct
+{
+  char *symbol;
+  double **score;
+} SYMBOL_SCORE_MATRIX;
+
+
+typedef struct
+{
+  char *id;
+  char *description;
+  char *seq;
+} BIOSEQUENCE;
+
+
+typedef struct
+{
+  BIOSEQUENCE *seq0;
+  BIOSEQUENCE *seq1;
+} PAIRWISE_ALIGNMENT;
+
+
+typedef struct
+{
+  int i;
+  int j;
+  double **m;
+  double score;
+} BACKTRACK_POSITION;
+
 
 
 /*
@@ -390,8 +425,12 @@ static PyObject *clib_setverbose(PyObject *self, PyObject *args)
 static PyObject *clib_dummy(PyObject *self, PyObject *args)
 {
   fprintf(stderr, "clib_dummy called\n");
+  PyObject *py_helloworld = PyString_FromString("hello world");
+  return(py_helloworld);
+  /*
   PyErr_SetString(PyExc_SystemError, "demo system error");
   return (NULL);
+  */
   /*
   Py_INCREF(Py_None);
   return (Py_None);
@@ -415,3 +454,792 @@ PyMODINIT_FUNC initclib(void)
 }
 
 /* don't forget to change the clib_api_version */
+
+
+static int find_symbol_index(const SYMBOL_SCORE_MATRIX *symbol_score_matrix, char symbol)
+{
+  int i;
+
+  for (i = 0; symbol_score_matrix->symbol[i] != '\0'; i++)
+  {
+    if (symbol == symbol_score_matrix->symbol[i])
+    {
+      return (i);
+    }
+  }
+  return (-1);
+}
+
+
+static double find_symbol_score(const SYMBOL_SCORE_MATRIX *symbol_score_matrix, char sym0, char sym1)
+{
+  int i0, i1;
+
+  i0 = find_symbol_index(symbol_score_matrix, (char) toupper(sym0));
+  if (i0 == -1)
+  {
+    fprintf(stderr, "symbol 0 '%c' not in symbol score matrix\n", sym0);
+    return (strtod("NaN", NULL));
+  }
+  i1 = find_symbol_index(symbol_score_matrix, (char) toupper(sym1));
+  if (i1 == -1)
+  {
+    fprintf(stderr, "symbol 1 '%c' not in symbol score matrix\n", sym1);
+    return (strtod("NaN", NULL));
+  }
+  return (symbol_score_matrix->score[i0][i1]);
+}
+
+
+static void write_biosequence_fasta(const BIOSEQUENCE *biosequence, FILE *f)
+{
+  fprintf(f, ">%s %s\n", biosequence->id, biosequence->description);
+  fprintf(f, "%s\n", biosequence->seq);
+}
+
+
+static void write_pairwise_alignment_fasta(const PAIRWISE_ALIGNMENT *pairwise_alignment, FILE *f)
+{
+  write_biosequence_fasta(pairwise_alignment->seq0, f);
+  write_biosequence_fasta(pairwise_alignment->seq1, f);
+}
+
+
+static int biosequence_length(const BIOSEQUENCE *biosequence)
+{
+  return (strlen(biosequence->seq));
+}
+
+
+static void free_matrix(double **m)
+{
+  free(m[0]);
+  free(m);
+}
+
+
+static double **malloc_matrix(int num_rows, int num_columns)
+{
+  double **m;
+  int r;
+
+  m = (double **) malloc(num_rows * sizeof(double *));
+  if (m == NULL)
+  {
+    return (NULL);
+  }
+  m[0] = (double *) malloc(num_rows * num_columns * sizeof(double));
+  if (m[0] == NULL)
+  {
+    free(m);
+    return (NULL);
+  }
+  for (r = 1; r < num_rows; r++)
+  {
+    m[r] = m[0] + r * num_columns;
+  }
+  return (m);
+}
+
+
+static void free_symbol_score_matrix(SYMBOL_SCORE_MATRIX *symbol_score_matrix)
+{
+  free_matrix(symbol_score_matrix->score);
+  free(symbol_score_matrix->symbol);
+  free(symbol_score_matrix);
+}
+
+
+static int get_num_symbols(const SYMBOL_SCORE_MATRIX *symbol_score_matrix)
+{
+  return (strlen(symbol_score_matrix->symbol));
+}
+
+
+static SYMBOL_SCORE_MATRIX *malloc_symbol_score_matrix(int num_symbols)
+{
+  SYMBOL_SCORE_MATRIX *symbol_score_matrix = (SYMBOL_SCORE_MATRIX *) malloc(sizeof(SYMBOL_SCORE_MATRIX));
+  if (symbol_score_matrix == NULL)
+  {
+    return (NULL);
+  }
+  symbol_score_matrix->symbol = (char *) malloc(sizeof(char) * (num_symbols + 1));
+  if (symbol_score_matrix->symbol == NULL)
+  {
+    free(symbol_score_matrix);
+    return (NULL);
+  }
+  symbol_score_matrix->score = malloc_matrix(num_symbols, num_symbols);
+  if (symbol_score_matrix->score == NULL)
+  {
+    free(symbol_score_matrix->symbol);
+    free(symbol_score_matrix);
+    return (NULL);
+  }
+  return (symbol_score_matrix);
+}
+
+
+static char *fget_next_line(char *s, int size, FILE *f)
+{
+  char *fgets_retval;
+
+  fgets_retval = fgets(s, size, f);
+  if (fgets_retval == NULL)
+  {
+    return (NULL);
+  }
+  while (s[0] == '#')
+  {
+    fgets_retval = fgets(s, size, f);
+    if (fgets_retval == NULL)
+    {
+      return (NULL);
+    }
+  }
+  return (fgets_retval);
+}
+
+
+static void free_biosequence(BIOSEQUENCE *biosequence)
+{
+  free(biosequence->seq);
+  free(biosequence->description);
+  free(biosequence->id);
+  free(biosequence);
+}
+
+
+static BIOSEQUENCE *malloc_biosequence(int id_length, int description_length, int sequence_length)
+{
+  BIOSEQUENCE *biosequence;
+
+  biosequence = (BIOSEQUENCE *) malloc(sizeof(BIOSEQUENCE));
+  if (biosequence == NULL)
+  {
+    return (NULL);
+  }
+  biosequence->id = (char *) malloc((id_length + 1) * sizeof(char));
+  if (biosequence->id == NULL)
+  {
+    free(biosequence);
+    return (NULL);
+  }
+  biosequence->description = (char *) malloc((description_length + 1) * sizeof(char));
+  if (biosequence->description == NULL)
+  {
+    free(biosequence->id);
+    free(biosequence);
+    return (NULL);
+  }
+  biosequence->seq = (char *) malloc((sequence_length + 1) * sizeof(char));
+  if (biosequence->seq == NULL)
+  {
+    free(biosequence->description);
+    free(biosequence->id);
+    free(biosequence);
+    return (NULL);
+  }
+  return (biosequence);
+}
+
+
+static BIOSEQUENCE *wrap_biosequence(char *id, char *description, char *seq)
+{
+  BIOSEQUENCE *biosequence;
+
+  biosequence = (BIOSEQUENCE *) malloc(sizeof(BIOSEQUENCE));
+  if (biosequence == NULL)
+  {
+    return (NULL);
+  }
+  biosequence->id = id;
+  biosequence->description = description;
+  biosequence->seq = seq;
+  return (biosequence);
+}
+
+
+static BIOSEQUENCE *new_biosequence(char *id, char *description, char *seq)
+{
+  BIOSEQUENCE *biosequence;
+
+  biosequence = malloc_biosequence(strlen(id), strlen(description), strlen(seq));
+  if (biosequence == NULL)
+  {
+    return (NULL);
+  }
+  strncpy(biosequence->id, id, strlen(id) + 1);
+  strncpy(biosequence->description, description, strlen(description) + 1);
+  strncpy(biosequence->seq, seq, strlen(seq) + 1);
+  return (biosequence);
+}
+
+
+static BIOSEQUENCE *clone_biosequence(const BIOSEQUENCE *biosequence)
+{
+  return(new_biosequence(biosequence->id, biosequence->description, biosequence->seq));
+}
+
+
+void free_pairwise_alignment(PAIRWISE_ALIGNMENT *pairwise_alignment)
+{
+  free_biosequence(pairwise_alignment->seq0);
+  free_biosequence(pairwise_alignment->seq1);
+}
+
+
+static PAIRWISE_ALIGNMENT *wrap_pairwise_alignment(BIOSEQUENCE *biosequence0, BIOSEQUENCE *biosequence1)
+{
+  PAIRWISE_ALIGNMENT *pairwise_alignment;
+
+  pairwise_alignment = (PAIRWISE_ALIGNMENT *) malloc(sizeof(PAIRWISE_ALIGNMENT));
+  if (pairwise_alignment == NULL)
+  {
+    return (NULL);
+  }
+  pairwise_alignment->seq0 = biosequence0;
+  pairwise_alignment->seq1 = biosequence1;
+  return (pairwise_alignment);
+}
+
+
+static PAIRWISE_ALIGNMENT *new_pairwise_alignment(const BIOSEQUENCE *biosequence0, const BIOSEQUENCE *biosequence1)
+{
+  PAIRWISE_ALIGNMENT *pairwise_alignment;
+  BIOSEQUENCE *clone0, *clone1;
+
+  clone0 = clone_biosequence(biosequence0);
+  if (clone0 == NULL)
+  {
+    return (NULL);
+  }
+  clone1 = clone_biosequence(biosequence1);
+  if (clone1 == NULL)
+  {
+    free_biosequence(clone0);
+    return (NULL);
+  }
+  pairwise_alignment = wrap_pairwise_alignment(clone0, clone1);
+  if (pairwise_alignment == NULL)
+  {
+    free_biosequence(clone1);
+    free_biosequence(clone0);
+    return (NULL);
+  }
+  return (pairwise_alignment);
+}
+
+
+static const char *next_nonspace(const char *s)
+{
+  while ((*s != '\0') && isspace(*s))
+  {
+    s++;
+  }
+  return (s);
+}
+
+
+
+static const char *next_double(const char *s, double *p)
+{
+  double d;
+  char *e;
+
+  s = next_nonspace(s);
+  if (*s == '\0')
+  {
+    return (s);
+  }
+  d = strtod(s, &e);
+  if (s == e)
+  {
+    fprintf(stderr, "invalid double: \"%s\"", s);
+    return (s);
+  }
+  *p = d;
+  return (e);
+}
+
+
+static int read_matrix_row(char buf[], SYMBOL_SCORE_MATRIX *symbol_score_matrix, int r)
+{
+  const char *s, *e;
+  char row_symbol;
+  int num_symbols = get_num_symbols(symbol_score_matrix);
+  int j;
+  double d;
+
+  s = next_nonspace(buf);
+  row_symbol = *s;
+  if (row_symbol != symbol_score_matrix->symbol[r])
+  {
+    fprintf(stderr, "inconsistent row: expected symbol %c but got %c\n", symbol_score_matrix->symbol[r], row_symbol);
+  }
+  s++;
+  for (j = 0; j < num_symbols; j++)
+  {
+    e = next_double(s, &d);
+    if (s != e)
+    {
+      symbol_score_matrix->score[r][j] = d;
+    }
+    s = e;
+  }
+  return (0);
+}
+
+
+static int read_symbol_list(char buf[], char *symbol)
+{
+  int num_symbols = 0;
+  const char *s;
+
+  fprintf(stderr, "read_symbol_list: %s", buf);
+  s = next_nonspace(buf);
+  while (*s != '\0')
+  {
+    symbol[num_symbols++] = *s;
+    s++;
+    s = next_nonspace(s);
+  }
+  symbol[num_symbols] = '\0';
+  return (num_symbols);
+}
+
+
+static SYMBOL_SCORE_MATRIX *read_symbol_score_matrix(FILE *f)
+{
+  SYMBOL_SCORE_MATRIX *symbol_score_matrix = NULL;
+  int num_symbols, r;
+  char buf[MAX_LINE_LENGTH], symbol_list[MAX_LINE_LENGTH];
+
+  if (fget_next_line(buf, MAX_LINE_LENGTH, f) == NULL)
+  {
+    return (NULL);
+  }
+  num_symbols = read_symbol_list(buf, symbol_list);
+  fprintf(stderr, "read_symbol_score_matrix: got %d symbols\n", num_symbols);
+  symbol_score_matrix = malloc_symbol_score_matrix(num_symbols);
+  for (r = 0; r < num_symbols; r++)
+  {
+    symbol_score_matrix->symbol[r] = symbol_list[r];
+  }
+  for (r = 0; r < num_symbols; r++)
+  {
+    if (fget_next_line(buf, MAX_LINE_LENGTH, f) == NULL)
+    {
+      free_symbol_score_matrix(symbol_score_matrix);
+      return (NULL);
+    }
+    read_matrix_row(buf, symbol_score_matrix, r);
+  }
+  return (symbol_score_matrix);
+}
+
+
+static void write_symbol_score_matrix(FILE *f, const SYMBOL_SCORE_MATRIX *symbol_score_matrix)
+{
+  int num_symbols = get_num_symbols(symbol_score_matrix);
+  int i, j;
+
+  for (i = 0; i < num_symbols; i++)
+  {
+    fprintf(f, "  %c", symbol_score_matrix->symbol[i]);
+  }
+  fprintf(f, "\n");
+  for (i = 0; i < num_symbols; i++)
+  {
+    fprintf(f, "%c ", symbol_score_matrix->symbol[i]);
+    for (j = 0; j < num_symbols; j++)
+    {
+      fprintf(f, "  %f", symbol_score_matrix->score[i][j]);
+    }
+    fprintf(f, "\n");
+  }
+}
+
+
+static char *right_padded_extension(const BIOSEQUENCE *biosequence, int extended_length)
+{
+  char gapchar = '-';
+  char *extended_seq;
+  int i;
+
+  extended_seq = (char *) malloc(sizeof(char) * (extended_length + 1));
+  if (extended_seq == NULL)
+  {
+    return (NULL);
+  }
+  strcpy(extended_seq, biosequence->seq);
+  for (i = strlen(biosequence->seq); i < extended_length; i++)
+  {
+    extended_seq[i] = gapchar;
+  }
+  extended_seq[extended_length] = '\0';
+  return (extended_seq);
+}
+
+
+static PAIRWISE_ALIGNMENT *align_by_padding_right(const BIOSEQUENCE *seq0, const BIOSEQUENCE *seq1, const SYMBOL_SCORE_MATRIX *symbol_score_matrix, double gap_creation_penalty, double gap_extension_penalty)
+{
+  int length0, length1;
+  char *extended_seq;
+  BIOSEQUENCE *aligned0, *aligned1;;
+  PAIRWISE_ALIGNMENT *pairwise_alignment;
+
+  length0 = biosequence_length(seq0);
+  length1 = biosequence_length(seq1);
+  aligned0 = clone_biosequence(seq0);
+  aligned1 = clone_biosequence(seq1);
+  if (length0 < length1)
+  {
+    extended_seq = right_padded_extension(seq0, biosequence_length(seq1));
+    if (extended_seq == NULL)
+    {
+      free_biosequence(aligned0);
+      free_biosequence(aligned1);
+      return (NULL);
+    }
+    free(aligned0->seq);
+    aligned0->seq = extended_seq;
+  }
+  else if (length0 > length1)
+  {
+    extended_seq = right_padded_extension(seq1, biosequence_length(seq0));
+    if (extended_seq == NULL)
+    {
+      free_biosequence(aligned0);
+      free_biosequence(aligned1);
+      return (NULL);
+    }
+    free(aligned1->seq);
+    aligned1->seq = extended_seq;
+  }
+  pairwise_alignment = wrap_pairwise_alignment(aligned0, aligned1);
+  if (pairwise_alignment == NULL)
+  {
+    free_biosequence(aligned0);
+    free_biosequence(aligned1);
+    return (NULL);
+  }
+  return (pairwise_alignment);
+}
+
+
+static double **print_matrix(FILE *f, double **m, int nrow, int ncol)
+{
+  int i, j;
+
+  for (i = 0; i < nrow; i++)
+  {
+    for (j = 0; j < ncol; j++)
+    {
+      fprintf(f, "  %5.1f", m[i][j]);
+    }
+    fprintf(f, "\n");
+  }
+  fprintf(f, "\n");
+  return (m);
+}
+
+
+static double **fill_matrix(double **m, double v, int nrow, int ncol)
+{
+  int i, j;
+
+  for (i = 0; i < nrow; i++)
+  {
+    for (j = 0; j < ncol; j++)
+    {
+      m[i][j] = v;
+    }
+  }
+  return (m);
+}
+
+
+static double max3(double x, double y, double z)
+{
+  double m;
+
+  m = x > y ? x : y;
+  return (m > z ? m : z);
+}
+
+
+static char *reverse_string(char *s)
+{
+  size_t j = strlen(s);
+  size_t i = 0;
+  char c;
+
+  if (j == 0)
+  {
+    return (s);
+  }
+  j--;
+  while (i < j)
+  {
+    /* fprintf(stderr, "reversing, i = %lu, j = %lu\n", (unsigned long) i, (unsigned long) j); */
+    c = s[i];
+    s[i++] = s[j];
+    s[j--] = c;
+  }
+  return (s);
+}
+
+
+static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSEQUENCE *seq1, const SYMBOL_SCORE_MATRIX *symbol_score_matrix, double gap_creation_penalty, double gap_extension_penalty)
+{
+  char gapchar = '-';
+  BIOSEQUENCE *aligned_seq0, *aligned_seq1;
+  PAIRWISE_ALIGNMENT *pairwise_alignment = NULL;
+  int l0 = strlen(seq0->seq);
+  int l1 = strlen(seq1->seq);
+  int i, j, k;
+  char symbol0, symbol1;
+  char *aln0, *aln1;
+  double **m, **m0, **m1;
+  double symbol_score;
+  double nan;
+  BACKTRACK_POSITION backtrack_position;
+
+  nan = strtod("NaN", NULL);
+  m = malloc_matrix(l0 + 1, l1 + 1);
+  if (m == NULL)
+  {
+    return (NULL);
+  }
+  m0 = malloc_matrix(l0 + 1, l1 + 1);   if (m0 == NULL)
+  {
+    free_matrix(m);
+    return (NULL);
+  }
+  m1 = malloc_matrix(l0 + 1, l1 + 1);
+  if (m1 == NULL)
+  {
+    free_matrix(m0);
+    free_matrix(m);
+    return (NULL);
+  }
+  aln0 = (char *) malloc(l0 + l1 + 1);
+  if (aln0 == NULL)
+  {
+    free_matrix(m1);
+    free_matrix(m0);
+    free_matrix(m);
+    return (NULL);
+  }
+  aln1 = (char *) malloc(l0 + l1 + 1);
+  if (aln0 == NULL)
+  {
+    free(aln0);
+    free_matrix(m1);
+    free_matrix(m0);
+    free_matrix(m);
+    return (NULL);
+  }
+  fill_matrix(m, nan, l0 + 1, l1 + 1);
+  fill_matrix(m0, nan, l0 + 1, l1 + 1);
+  fill_matrix(m1, nan, l0 + 1, l1 + 1);
+  for (i = 0; i <= l0; i++)
+  {
+    m[i][0] = 0.0;
+    m0[i][0] = 0.0;
+    m1[i][0] = 0.0;
+  }
+  for (j = 0; j <= l1; j++)
+  {
+    m[0][j] = 0.0;
+    m0[0][j] = 0.0;
+    m1[0][j] = 0.0;
+  }
+  for (i = 1; i <= l0; i++)
+  {
+    for (j = 1; j <= l1; j++)
+    {
+      symbol0 = seq0->seq[i - 1];
+      symbol1 = seq1->seq[j - 1];
+      symbol_score = find_symbol_score(symbol_score_matrix, symbol0, symbol1);
+      m[i][j] = max3(m[i - 1][j - 1], m0[i - 1][j - 1], m1[i - 1][j - 1]) + symbol_score;
+      m0[i][j] = max3(m[i][j - 1] - gap_creation_penalty, m0[i][j - 1] - gap_extension_penalty, m1[i][j - 1] - gap_creation_penalty);
+      m1[i][j] = max3(m[i - 1][j] - gap_creation_penalty, m0[i - 1][j] - gap_creation_penalty, m1[i - 1][j] - gap_extension_penalty);
+    }
+  }
+  print_matrix(stderr, m, l0 + 1, l1 + 1);
+  print_matrix(stderr, m0, l0 + 1, l1 + 1);
+  print_matrix(stderr, m1, l0 + 1, l1 + 1);
+
+  backtrack_position.i = 0;
+  backtrack_position.j = l1;
+  backtrack_position.m = m;
+  for (i = 0; i <= l0; i++)
+  {
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m[i][l1])
+    {
+      backtrack_position.i = i;
+      backtrack_position.j = l1;
+      backtrack_position.m = m;
+    }
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m0[i][l1])
+    {
+      backtrack_position.i = i;
+      backtrack_position.j = l1;
+      backtrack_position.m = m0;
+    }
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m1[i][l1])
+    {
+      backtrack_position.i = i;
+      backtrack_position.j = l1;
+      backtrack_position.m = m1;
+    }
+  }
+  for (j = 0; j <= l1; j++)
+  {
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m[l0][j])
+    {
+      backtrack_position.i = l0;
+      backtrack_position.j = j;
+      backtrack_position.m = m;
+    }
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m0[l0][j])
+    {
+      backtrack_position.i = l0;
+      backtrack_position.j = j;
+      backtrack_position.m = m0;
+    }
+    if (backtrack_position.m[backtrack_position.i][backtrack_position.j] < m1[l0][j])
+    {
+      backtrack_position.i = l0;
+      backtrack_position.j = j;
+      backtrack_position.m = m1;
+    }
+  }
+  fprintf(stderr, "l0 = %d, l1 = %d, matrices: m = %p, m0 = %p, m1 = %p\n", l0, l1, m, m0, m1);
+  fprintf(stderr, "backtrack_position: i = %d, j = %d, m = %p, score = %f\n", backtrack_position.i, backtrack_position.j, backtrack_position.m, backtrack_position.m[backtrack_position.i][backtrack_position.j]);
+  k = 0;
+  while ((backtrack_position.i > 0) && (backtrack_position.j > 0))
+  {
+    symbol0 = seq0->seq[backtrack_position.i - 1];
+    symbol1 = seq1->seq[backtrack_position.j - 1];
+    symbol_score = find_symbol_score(symbol_score_matrix, symbol0, symbol1);
+    if (backtrack_position.m == m)
+    {
+      /* m[i][j] = max3(m[i - 1][j - 1], m0[i - 1][j - 1], m1[i - 1][j - 1]) + symbol_score; */
+      if (m[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
+      {
+        fprintf(stderr, "(%d, %d): m -> m\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.j--;
+        backtrack_position.m = m;
+      }
+      else if (m[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
+      {
+        fprintf(stderr, "(%d, %d): m -> m0\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.j--;
+        backtrack_position.m = m0;
+      }
+      else if (m[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
+      {
+        fprintf(stderr, "(%d, %d): m -> m1\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.j--;
+        backtrack_position.m = m1;
+      }
+      else
+      {
+        fprintf(stderr, "no backtracking step from m[%d][%d]\n", backtrack_position.i, backtrack_position.j);
+      }
+      aln0[k] = seq0->seq[backtrack_position.i];
+      aln1[k] = seq1->seq[backtrack_position.j];
+    }
+    else if (backtrack_position.m == m0)
+    {
+      /* m0[i][j] = max3(m[i][j - 1] - gap_creation_penalty, m0[i][j - 1] - gap_extension_penalty, m1[i][j - 1] - gap_creation_penalty); */
+      if (m0[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i][backtrack_position.j - 1] - gap_creation_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m0 -> m\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.j--;
+        backtrack_position.m = m;
+      }
+      else if (m0[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i][backtrack_position.j - 1] - gap_extension_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m0 -> m0\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.j--;
+        backtrack_position.m = m0;
+      }
+      else if (m0[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i][backtrack_position.j - 1] - gap_creation_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m0 -> m1\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.j--;
+        backtrack_position.m = m1;
+      }
+      else
+      {
+        fprintf(stderr, "no backtracking step from m0[%d][%d]\n", backtrack_position.i, backtrack_position.j);
+      }
+      aln0[k] = gapchar;
+      aln1[k] = seq1->seq[backtrack_position.j];
+    }
+    else if (backtrack_position.m == m1)
+    {
+      /* m1[i][j] = max3(m[i - 1][j] - gap_creation_penalty, m0[i - 1][j] - gap_creation_penalty, m1[i - 1][j] - gap_extension_penalty); */
+      if (m1[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i - 1][backtrack_position.j] - gap_creation_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m1 -> m\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.m = m;
+      }
+      else if (m1[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i - 1][backtrack_position.j] - gap_creation_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m1 -> m0\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.m = m0;
+      }
+      else if (m1[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i - 1][backtrack_position.j] - gap_extension_penalty)
+      {
+        fprintf(stderr, "(%d, %d): m1 -> m1\n", backtrack_position.i, backtrack_position.j);
+        backtrack_position.i--;
+        backtrack_position.m = m1;
+      }
+      else
+      {
+        fprintf(stderr, "no backtracking step from m0[%d][%d]\n", backtrack_position.i, backtrack_position.j);
+      }
+      aln0[k] = seq0->seq[backtrack_position.i];
+      aln1[k] = gapchar;
+    }
+    else
+    {
+      fprintf(stderr, "internal error: backtracking from unknown matrix %p (m = %p, m0 = %p, m1 = %p)\n", backtrack_position.m, m, m0, m1);
+    }
+    fprintf(stderr, "aln0[%d] = %c, aln1[%d] = %c\n", k, aln0[k], k, aln1[k]);
+    k++;
+    fprintf(stderr, "backtrack_position: i = %d, j = %d, m = %p, score = %f\n", backtrack_position.i, backtrack_position.j, backtrack_position.m, backtrack_position.m[backtrack_position.i][backtrack_position.j]);
+  }
+  aln0[k] = '\0';
+  aln1[k] = '\0';
+  fprintf(stderr, "aln0 rev: %s\n", aln0);
+  fprintf(stderr, "aln1 rev: %s\n", aln1);
+  reverse_string(aln0);
+  reverse_string(aln1);
+  fprintf(stderr, "aln0: %s\n", aln0);
+  fprintf(stderr, "aln1: %s\n", aln1);
+  aligned_seq0 = new_biosequence(seq0->id, seq0->description, aln0);
+  aligned_seq1 = new_biosequence(seq1->id, seq1->description, aln1);
+  free(aln1);
+  free(aln0);
+  free_matrix(m);
+  free_matrix(m0);
+  free_matrix(m1);
+  pairwise_alignment = wrap_pairwise_alignment(aligned_seq0, aligned_seq1);
+  if (pairwise_alignment == NULL)
+  {
+    free_biosequence(aligned_seq0);
+    free_biosequence(aligned_seq1);
+  }
+  return (pairwise_alignment);
+}
