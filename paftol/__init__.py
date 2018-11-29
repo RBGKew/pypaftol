@@ -39,17 +39,6 @@ def isSane(filename):
     return True
 
 
-def readIdsMatch(id1, id2):
-    if id1 == id2:
-        return True
-    r = re.compile('([^/]+)/([12])')
-    m1 = r.match(id1)
-    m2 = r.match(id2)
-    if m1 is None or m2 is None:
-        return False
-    return m1.group(1) == m2.group(1)
-
-
 def cmpExonerateResultByQueryAlignmentStart(e1, e2):
     """Comparator function for sorting C{ExonerateResult}s by query alignment start.
 
@@ -456,6 +445,8 @@ class MappedRead(object):
     """Represent a mapping of an NGS read to a PaftolTarget.
 """
 
+    slashNumberReadIdRe = re.compile('([^/]+)/([12])')
+
     def __init__(self, paftolTarget):
         self.paftolTarget = paftolTarget
         self.forwardRead = None
@@ -467,6 +458,14 @@ class MappedRead(object):
     def getMappingScore(self):
         raise StandardError, 'abstract method not overridden'
 
+    @staticmethod
+    def readBasename(rawReadName):
+        m = MappedRead.slashNumberReadIdRe.match(rawReadName)
+        if m is None:
+            return rawReadName
+        else:
+            return m.group(1)
+
 
 class SamMappedRead(MappedRead):
 
@@ -475,7 +474,7 @@ class SamMappedRead(MappedRead):
 	self.samAlignment = samAlignment
 
     def getReadName(self):
-        return self.samAlignment.qname
+        return self.readBasename(self.samAlignment.qname)
 
     def getMappingScore(self):
         return self.samAlignment.mapq
@@ -493,7 +492,7 @@ taken into account.
 	self.blastAlignment = blastAlignment
 
     def getReadName(self):
-        return self.blastAlignment.hit_id
+        return self.readBasename(self.blastAlignment.hit_id)
 
     def getMappingScore(self):
         # FIXME: returning score of HSP #0, ignoring all subsequent HSPs
@@ -1273,7 +1272,9 @@ class HybpiperAnalyser(HybseqAnalyser):
                 reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
                 for forwardRead in forwardParser:
                     reverseRead = reverseParser.next()
-                    if not readIdsMatch(reverseRead.id, forwardRead.id):
+                    forwardRead.id = MappedRead.readBasename(forwardRead.id)
+                    reverseRead.id = Mappedread.readBasename(reverseRead.id)
+                    if reverseRead.id != forwardRead.id:
                         raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
                     readName = forwardRead.id
                     if readName in readNameMappedReadDict:
