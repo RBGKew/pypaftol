@@ -39,6 +39,17 @@ def isSane(filename):
     return True
 
 
+def readIdsMatch(id1, id2):
+    if id1 == id2:
+        return True
+    r = re.compile('([^/]+)/([12])')
+    m1 = r.match(id1)
+    m2 = r.match(id2)
+    if m1 is None or m2 is None:
+        return False
+    return m1.group(1) == m2.group(1)
+
+
 def cmpExonerateResultByQueryAlignmentStart(e1, e2):
     """Comparator function for sorting C{ExonerateResult}s by query alignment start.
 
@@ -1262,7 +1273,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                 reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
                 for forwardRead in forwardParser:
                     reverseRead = reverseParser.next()
-                    if reverseRead.id != forwardRead.id:
+                    if not readIdsMatch(reverseRead.id, forwardRead.id):
                         raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
                     readName = forwardRead.id
                     if readName in readNameMappedReadDict:
