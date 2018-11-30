@@ -397,63 +397,6 @@ static void refcountDebug_init(void)
 
 
 
-static void clib_message(CLIB_MSG_IMPORTANCE importance, const char *format, ...)
-{
-  va_list arglist;
-  int imp = (int) importance;
-
-  if (imp >= ((int) message_importance_threshold))
-  {
-    va_start(arglist, format);
-    vfprintf(stderr, format, arglist);
-  }
-}
-
-
-static PyObject *clib_setverbose(PyObject *self, PyObject *args)
-{
-  if (!PyArg_ParseTuple(args, "i", &message_importance_threshold))
-  {
-    return (NULL);
-  }
-  clib_message(CLIB_MSG_TRACE, "transsys.clib: verbosity level set to %d\n", message_importance_threshold);
-  Py_INCREF(Py_None);
-  return (Py_None);
-}
-
-
-static PyObject *clib_dummy(PyObject *self, PyObject *args)
-{
-  fprintf(stderr, "clib_dummy called\n");
-  PyObject *py_helloworld = PyString_FromString("hello world");
-  return(py_helloworld);
-  /*
-  PyErr_SetString(PyExc_SystemError, "demo system error");
-  return (NULL);
-  */
-  /*
-  Py_INCREF(Py_None);
-  return (Py_None);
-  */
-}
-
-
-static PyMethodDef clib_methods[] = {
-  {"dummy", clib_dummy, METH_VARARGS, "dummy test function for clib development"},
-  {"setverbose", clib_setverbose, METH_VARARGS, "set verbosity level for transsys.clib module"},
-  {NULL, NULL, 0, NULL}
-};
-
-
-PyMODINIT_FUNC initclib(void)
-{
-  PyObject *clib_module;
-  clib_module = Py_InitModule("paftol.clib", clib_methods);
-  /* FIXME: should not ignore return value */
-  PyModule_AddStringConstant(clib_module, "clib_api_version", clib_api_version);
-}
-
-/* don't forget to change the clib_api_version */
 
 
 static int find_symbol_index(const SYMBOL_SCORE_MATRIX *symbol_score_matrix, char symbol)
@@ -550,12 +493,6 @@ static void free_symbol_score_matrix(SYMBOL_SCORE_MATRIX *symbol_score_matrix)
 }
 
 
-static int get_num_symbols(const SYMBOL_SCORE_MATRIX *symbol_score_matrix)
-{
-  return (strlen(symbol_score_matrix->symbol));
-}
-
-
 static SYMBOL_SCORE_MATRIX *malloc_symbol_score_matrix(int num_symbols)
 {
   SYMBOL_SCORE_MATRIX *symbol_score_matrix = (SYMBOL_SCORE_MATRIX *) malloc(sizeof(SYMBOL_SCORE_MATRIX));
@@ -577,6 +514,12 @@ static SYMBOL_SCORE_MATRIX *malloc_symbol_score_matrix(int num_symbols)
     return (NULL);
   }
   return (symbol_score_matrix);
+}
+
+
+static int get_num_symbols(const SYMBOL_SCORE_MATRIX *symbol_score_matrix)
+{
+  return (strlen(symbol_score_matrix->symbol));
 }
 
 
@@ -826,6 +769,7 @@ static SYMBOL_SCORE_MATRIX *read_symbol_score_matrix(FILE *f)
   {
     symbol_score_matrix->symbol[r] = symbol_list[r];
   }
+  symbol_score_matrix->symbol[num_symbols] = '\0';
   for (r = 0; r < num_symbols; r++)
   {
     if (fget_next_line(buf, MAX_LINE_LENGTH, f) == NULL)
@@ -836,6 +780,46 @@ static SYMBOL_SCORE_MATRIX *read_symbol_score_matrix(FILE *f)
     read_matrix_row(buf, symbol_score_matrix, r);
   }
   return (symbol_score_matrix);
+}
+
+
+static SYMBOL_SCORE_MATRIX *make_ednafull_matrix()
+{
+  char ednafull_symbol[] = "ATGCSWRYKMBVHDNU";
+  double ednafull_score[] = {
+    5, -4, -4, -4, -4,  1,  1, -4, -4,  1, -4, -1, -1, -1, -2, -4,
+    -4,  5, -4, -4, -4,  1, -4,  1,  1, -4, -1, -4, -1, -1, -2,  5,
+    -4, -4,  5, -4,  1, -4,  1, -4,  1, -4, -1, -1, -4, -1, -2, -4,
+    -4, -4, -4,  5,  1, -4, -4,  1, -4,  1, -1, -1, -1, -4, -2, -4,
+    -4, -4,  1,  1, -1, -4, -2, -2, -2, -2, -1, -1, -3, -3, -1, -4,
+    1,  1, -4, -4, -4, -1, -2, -2, -2, -2, -3, -3, -1, -1, -1,  1,
+    1, -4,  1, -4, -2, -2, -1, -4, -2, -2, -3, -1, -3, -1, -1, -4,
+    -4,  1, -4,  1, -2, -2, -4, -1, -2, -2, -1, -3, -1, -3, -1,  1,
+    -4,  1,  1, -4, -2, -2, -2, -2, -1, -4, -1, -3, -3, -1, -1,  1,
+    1, -4, -4,  1, -2, -2, -2, -2, -4, -1, -3, -1, -1, -3, -1, -4,
+    -4, -1, -1, -1, -1, -3, -3, -1, -1, -3, -1, -2, -2, -2, -1, -1,
+    -1, -4, -1, -1, -1, -3, -1, -3, -3, -1, -2, -1, -2, -2, -1, -4,
+    -1, -1, -4, -1, -3, -1, -3, -1, -3, -1, -2, -2, -1, -2, -1, -1,
+    -1, -1, -1, -4, -3, -1, -1, -3, -1, -3, -2, -2, -2, -1, -1, -1,
+    -2, -2, -2, -2, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -2,
+    -4,  5, -4, -4, -4,  1, -4,  1,  1, -4, -1, -4, -1, -1, -2,  5
+  };
+  size_t num_symbols = strlen(ednafull_symbol);
+  size_t i, j;
+  SYMBOL_SCORE_MATRIX *ednafull_matrix = malloc_symbol_score_matrix(num_symbols);
+
+  if (ednafull_matrix == NULL)
+  {
+    return (NULL);
+  }
+  for (i = 0; i < num_symbols; i++)
+  {
+    for (j = 0; j < num_symbols; j++)
+    {
+      ednafull_matrix->score[i][j] = ednafull_score[i * num_symbols + j];
+    }
+  }
+  return (ednafull_matrix);
 }
 
 
@@ -1243,3 +1227,107 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
   }
   return (pairwise_alignment);
 }
+
+static void clib_message(CLIB_MSG_IMPORTANCE importance, const char *format, ...)
+{
+  va_list arglist;
+  int imp = (int) importance;
+
+  if (imp >= ((int) message_importance_threshold))
+  {
+    va_start(arglist, format);
+    vfprintf(stderr, format, arglist);
+  }
+}
+
+
+PyObject *clib_setverbose(PyObject *self, PyObject *args)
+{
+  if (!PyArg_ParseTuple(args, "i", &message_importance_threshold))
+  {
+    return (NULL);
+  }
+  clib_message(CLIB_MSG_TRACE, "transsys.clib: verbosity level set to %d\n", message_importance_threshold);
+  Py_INCREF(Py_None);
+  return (Py_None);
+}
+
+
+static PyObject *clib_dummy(PyObject *self, PyObject *args)
+{
+  fprintf(stderr, "clib_dummy called\n");
+  PyObject *py_helloworld = PyString_FromString("hello world");
+  return(py_helloworld);
+  /*
+  PyErr_SetString(PyExc_SystemError, "demo system error");
+  return (NULL);
+  */
+  /*
+  Py_INCREF(Py_None);
+  return (Py_None);
+  */
+}
+
+
+static PyObject *clib_align_semiglobal(PyObject *self, PyObject *args)
+{
+  const char *s0, *s1;
+  double gap_creation_penalty, gap_extension_penalty;
+  BIOSEQUENCE *biosequence0, *biosequence1;
+  SYMBOL_SCORE_MATRIX *symbol_score_matrix;
+  PAIRWISE_ALIGNMENT *pairwise_alignment;
+  PyObject *r;
+
+  if (!PyArg_ParseTuple("ss", &s0, &s1))
+  {
+    return (NULL);
+  }
+  biosequence0 = new_biosequence("seq0", "seq0", s0);
+  if (biosequence0 == NULL)
+  {
+    PyErr_SetString(PyExc_MemoryError, "failed to allocate biosequence0");
+    return (NULL);
+  }
+  biosequence1 = new_biosequence("seq1", "seq1", s1);
+  if (biosequence1 == NULL)
+  {
+    free_biosequence(biosequence1);
+    PyErr_SetString(PyExc_MemoryError, "failed to allocate biosequence1");
+    return (NULL);
+  }
+  symbol_score_matrix = make_ednafull_matrix();
+  if (symbol_score_matrix == NULL)
+  {
+    free_biosequence(biosequence0);
+    free_biosequence(biosequence1);
+    PyErr_SetString(PyExc_MemoryError, "failed to allocate symbol score matrix");
+    return (NULL);
+  }
+  gap_creation_penalty = 10.0;
+  gap_extension_penalty = 0.5;
+  pairwise_alignment = semiglobal_alignment(biosequence0, biosequence1, symbol_score_matrix, gap_creation_penalty, gap_extension_penalty);
+  free_biosequence(biosequence0);
+  free_biosequence(biosequence1);
+  free_symbol_score_matrix(symbol_score_matrix);
+  r = Py_BuildValue("ss", pairwise_alignment->seq0->seq, pairwise_alignment->seq1->seq);
+  free_pairwise_alignment(pairwise_alignment);
+  return (r);
+}
+
+static PyMethodDef clib_methods[] = {
+  {"dummy", clib_dummy, METH_VARARGS, "dummy test function for clib development"},
+  {"align_semiglobal", clib_align_semiglobal, METH_VARARGS, "compute semiglobal alignment of two sequences"},
+  {"setverbose", clib_setverbose, METH_VARARGS, "set verbosity level for transsys.clib module"},
+  {NULL, NULL, 0, NULL}
+};
+
+
+PyMODINIT_FUNC initclib(void)
+{
+  PyObject *clib_module;
+  clib_module = Py_InitModule("paftol.clib", clib_methods);
+  /* FIXME: should not ignore return value */
+  PyModule_AddStringConstant(clib_module, "clib_api_version", clib_api_version);
+}
+
+/* don't forget to change the clib_api_version */
