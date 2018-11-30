@@ -1273,7 +1273,7 @@ class HybpiperAnalyser(HybseqAnalyser):
                 for forwardRead in forwardParser:
                     reverseRead = reverseParser.next()
                     forwardRead.id = MappedRead.readBasename(forwardRead.id)
-                    reverseRead.id = Mappedread.readBasename(reverseRead.id)
+                    reverseRead.id = MappedRead.readBasename(reverseRead.id)
                     if reverseRead.id != forwardRead.id:
                         raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
                     readName = forwardRead.id
