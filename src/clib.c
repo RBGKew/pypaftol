@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <float.h>
 
 
 #define MAX_LINE_LENGTH 1000
@@ -38,6 +39,7 @@ typedef struct
 {
   BIOSEQUENCE *seq0;
   BIOSEQUENCE *seq1;
+  double score;
 } PAIRWISE_ALIGNMENT;
 
 
@@ -403,6 +405,7 @@ static int find_symbol_index(const SYMBOL_SCORE_MATRIX *symbol_score_matrix, cha
 {
   int i;
 
+  /* fprintf(stderr, "symbol list: %s\n", symbol_score_matrix->symbol); */
   for (i = 0; symbol_score_matrix->symbol[i] != '\0'; i++)
   {
     if (symbol == symbol_score_matrix->symbol[i])
@@ -812,6 +815,7 @@ static SYMBOL_SCORE_MATRIX *make_ednafull_matrix()
   {
     return (NULL);
   }
+  strcpy(ednafull_matrix->symbol, ednafull_symbol);
   for (i = 0; i < num_symbols; i++)
   {
     for (j = 0; j < num_symbols; j++)
@@ -908,6 +912,7 @@ static PAIRWISE_ALIGNMENT *align_by_padding_right(const BIOSEQUENCE *seq0, const
     free_biosequence(aligned1);
     return (NULL);
   }
+  pairwise_alignment->score = 0.0;
   return (pairwise_alignment);
 }
 
@@ -986,7 +991,7 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
   char symbol0, symbol1;
   char *aln0, *aln1;
   double **m, **m0, **m1;
-  double symbol_score;
+  double symbol_score, alignment_score;
   double nan;
   BACKTRACK_POSITION backtrack_position;
 
@@ -1031,14 +1036,14 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
   for (i = 0; i <= l0; i++)
   {
     m[i][0] = 0.0;
-    m0[i][0] = 0.0;
-    m1[i][0] = 0.0;
+    m0[i][0] = -DBL_MAX;
+    m1[i][0] = -DBL_MAX;
   }
   for (j = 0; j <= l1; j++)
   {
     m[0][j] = 0.0;
-    m0[0][j] = 0.0;
-    m1[0][j] = 0.0;
+    m0[0][j] = -DBL_MAX;
+    m1[0][j] = -DBL_MAX;
   }
   for (i = 1; i <= l0; i++)
   {
@@ -1052,10 +1057,11 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
       m1[i][j] = max3(m[i - 1][j] - gap_creation_penalty, m0[i - 1][j] - gap_creation_penalty, m1[i - 1][j] - gap_extension_penalty);
     }
   }
+  /*
   print_matrix(stderr, m, l0 + 1, l1 + 1);
   print_matrix(stderr, m0, l0 + 1, l1 + 1);
   print_matrix(stderr, m1, l0 + 1, l1 + 1);
-
+  */
   backtrack_position.i = 0;
   backtrack_position.j = l1;
   backtrack_position.m = m;
@@ -1101,9 +1107,24 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
       backtrack_position.m = m1;
     }
   }
+  alignment_score = backtrack_position.m[backtrack_position.i][backtrack_position.j];
+  /*
   fprintf(stderr, "l0 = %d, l1 = %d, matrices: m = %p, m0 = %p, m1 = %p\n", l0, l1, m, m0, m1);
   fprintf(stderr, "backtrack_position: i = %d, j = %d, m = %p, score = %f\n", backtrack_position.i, backtrack_position.j, backtrack_position.m, backtrack_position.m[backtrack_position.i][backtrack_position.j]);
+  */
   k = 0;
+  for (i = l0 - 1; i >= backtrack_position.i; i--)
+  {
+    aln0[k] = seq0->seq[i];
+    aln1[k] = gapchar;
+    k++;
+  }
+  for (j = l1 - 1; j >= backtrack_position.j; j--)
+  {
+    aln0[k] = gapchar;
+    aln1[k] = seq1->seq[j];
+    k++;
+  }
   while ((backtrack_position.i > 0) && (backtrack_position.j > 0))
   {
     symbol0 = seq0->seq[backtrack_position.i - 1];
@@ -1114,21 +1135,21 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
       /* m[i][j] = max3(m[i - 1][j - 1], m0[i - 1][j - 1], m1[i - 1][j - 1]) + symbol_score; */
       if (m[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
       {
-        fprintf(stderr, "(%d, %d): m -> m\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m -> m\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.j--;
         backtrack_position.m = m;
       }
       else if (m[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
       {
-        fprintf(stderr, "(%d, %d): m -> m0\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m -> m0\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.j--;
         backtrack_position.m = m0;
       }
       else if (m[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i - 1][backtrack_position.j - 1] + symbol_score)
       {
-        fprintf(stderr, "(%d, %d): m -> m1\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m -> m1\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.j--;
         backtrack_position.m = m1;
@@ -1145,19 +1166,19 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
       /* m0[i][j] = max3(m[i][j - 1] - gap_creation_penalty, m0[i][j - 1] - gap_extension_penalty, m1[i][j - 1] - gap_creation_penalty); */
       if (m0[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i][backtrack_position.j - 1] - gap_creation_penalty)
       {
-        fprintf(stderr, "(%d, %d): m0 -> m\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m0 -> m\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.j--;
         backtrack_position.m = m;
       }
       else if (m0[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i][backtrack_position.j - 1] - gap_extension_penalty)
       {
-        fprintf(stderr, "(%d, %d): m0 -> m0\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m0 -> m0\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.j--;
         backtrack_position.m = m0;
       }
       else if (m0[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i][backtrack_position.j - 1] - gap_creation_penalty)
       {
-        fprintf(stderr, "(%d, %d): m0 -> m1\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m0 -> m1\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.j--;
         backtrack_position.m = m1;
       }
@@ -1173,19 +1194,19 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
       /* m1[i][j] = max3(m[i - 1][j] - gap_creation_penalty, m0[i - 1][j] - gap_creation_penalty, m1[i - 1][j] - gap_extension_penalty); */
       if (m1[backtrack_position.i][backtrack_position.j] == m[backtrack_position.i - 1][backtrack_position.j] - gap_creation_penalty)
       {
-        fprintf(stderr, "(%d, %d): m1 -> m\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m1 -> m\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.m = m;
       }
       else if (m1[backtrack_position.i][backtrack_position.j] == m0[backtrack_position.i - 1][backtrack_position.j] - gap_creation_penalty)
       {
-        fprintf(stderr, "(%d, %d): m1 -> m0\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m1 -> m0\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.m = m0;
       }
       else if (m1[backtrack_position.i][backtrack_position.j] == m1[backtrack_position.i - 1][backtrack_position.j] - gap_extension_penalty)
       {
-        fprintf(stderr, "(%d, %d): m1 -> m1\n", backtrack_position.i, backtrack_position.j);
+        /* fprintf(stderr, "(%d, %d): m1 -> m1\n", backtrack_position.i, backtrack_position.j); */
         backtrack_position.i--;
         backtrack_position.m = m1;
       }
@@ -1200,18 +1221,34 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
     {
       fprintf(stderr, "internal error: backtracking from unknown matrix %p (m = %p, m0 = %p, m1 = %p)\n", backtrack_position.m, m, m0, m1);
     }
-    fprintf(stderr, "aln0[%d] = %c, aln1[%d] = %c\n", k, aln0[k], k, aln1[k]);
+    /* fprintf(stderr, "aln0[%d] = %c, aln1[%d] = %c\n", k, aln0[k], k, aln1[k]); */
     k++;
-    fprintf(stderr, "backtrack_position: i = %d, j = %d, m = %p, score = %f\n", backtrack_position.i, backtrack_position.j, backtrack_position.m, backtrack_position.m[backtrack_position.i][backtrack_position.j]);
+    /* fprintf(stderr, "backtrack_position: i = %d, j = %d, m = %p, score = %f\n", backtrack_position.i, backtrack_position.j, backtrack_position.m, backtrack_position.m[backtrack_position.i][backtrack_position.j]); */
+  }
+  while (backtrack_position.i > 0)
+  {
+    aln0[k] = seq0->seq[--backtrack_position.i];
+    aln1[k] = gapchar;
+    k++;
+  }
+  while (backtrack_position.j > 0)
+  {
+    aln0[k] = gapchar;
+    aln1[k] = seq1->seq[--backtrack_position.j];
+    k++;
   }
   aln0[k] = '\0';
   aln1[k] = '\0';
+  /*
   fprintf(stderr, "aln0 rev: %s\n", aln0);
   fprintf(stderr, "aln1 rev: %s\n", aln1);
+  */
   reverse_string(aln0);
   reverse_string(aln1);
+  /*
   fprintf(stderr, "aln0: %s\n", aln0);
   fprintf(stderr, "aln1: %s\n", aln1);
+  */
   aligned_seq0 = new_biosequence(seq0->id, seq0->description, aln0);
   aligned_seq1 = new_biosequence(seq1->id, seq1->description, aln1);
   free(aln1);
@@ -1220,6 +1257,7 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
   free_matrix(m0);
   free_matrix(m1);
   pairwise_alignment = wrap_pairwise_alignment(aligned_seq0, aligned_seq1);
+  pairwise_alignment->score = alignment_score;
   if (pairwise_alignment == NULL)
   {
     free_biosequence(aligned_seq0);
@@ -1278,10 +1316,13 @@ static PyObject *clib_align_semiglobal(PyObject *self, PyObject *args)
   PAIRWISE_ALIGNMENT *pairwise_alignment;
   PyObject *r;
 
-  if (!PyArg_ParseTuple("ss", &s0, &s1))
+  /* fprintf(stderr, "starting\n"); */
+  if (!PyArg_ParseTuple(args, "ss", &s0, &s1))
   {
     return (NULL);
   }
+  /* fprintf(stderr, "got args\n"); */
+  /* fprintf(stderr, "s0 = %s, s1 = %s\n", s0, s1); */
   biosequence0 = new_biosequence("seq0", "seq0", s0);
   if (biosequence0 == NULL)
   {
@@ -1295,6 +1336,7 @@ static PyObject *clib_align_semiglobal(PyObject *self, PyObject *args)
     PyErr_SetString(PyExc_MemoryError, "failed to allocate biosequence1");
     return (NULL);
   }
+  /* fprintf(stderr, "made biosequences\n"); */
   symbol_score_matrix = make_ednafull_matrix();
   if (symbol_score_matrix == NULL)
   {
@@ -1303,14 +1345,18 @@ static PyObject *clib_align_semiglobal(PyObject *self, PyObject *args)
     PyErr_SetString(PyExc_MemoryError, "failed to allocate symbol score matrix");
     return (NULL);
   }
+  /* fprintf(stderr, "made symbol scoring matrix\n"); */
   gap_creation_penalty = 10.0;
   gap_extension_penalty = 0.5;
-  pairwise_alignment = semiglobal_alignment(biosequence0, biosequence1, symbol_score_matrix, gap_creation_penalty, gap_extension_penalty);
+  pairwise_alignment = align_semiglobal(biosequence0, biosequence1, symbol_score_matrix, gap_creation_penalty, gap_extension_penalty);
+  /* fprintf(stderr, "aligned biosequences\n"); */
   free_biosequence(biosequence0);
   free_biosequence(biosequence1);
   free_symbol_score_matrix(symbol_score_matrix);
-  r = Py_BuildValue("ss", pairwise_alignment->seq0->seq, pairwise_alignment->seq1->seq);
+  r = Py_BuildValue("ssd", pairwise_alignment->seq0->seq, pairwise_alignment->seq1->seq, pairwise_alignment->score);
+  /* fprintf(stderr, "made return value tuple\n"); */
   free_pairwise_alignment(pairwise_alignment);
+  /* fprintf(stderr, "freed alignment\n"); */
   return (r);
 }
 
