@@ -606,7 +606,7 @@ static BIOSEQUENCE *wrap_biosequence(char *id, char *description, char *seq)
 }
 
 
-static BIOSEQUENCE *new_biosequence(char *id, char *description, char *seq)
+static BIOSEQUENCE *new_biosequence(const char *id, const char *description, const char *seq)
 {
   BIOSEQUENCE *biosequence;
 
@@ -1219,7 +1219,7 @@ static PAIRWISE_ALIGNMENT *align_semiglobal(const BIOSEQUENCE *seq0, const BIOSE
     }
     else
     {
-      fprintf(stderr, "internal error: backtracking from unknown matrix %p (m = %p, m0 = %p, m1 = %p)\n", backtrack_position.m, m, m0, m1);
+      fprintf(stderr, "internal error: backtracking from unknown matrix %p (m = %p, m0 = %p, m1 = %p)\n", (void *) backtrack_position.m, (void *) m, (void *) m0, (void *) m1);
     }
     /* fprintf(stderr, "aln0[%d] = %c, aln1[%d] = %c\n", k, aln0[k], k, aln1[k]); */
     k++;
@@ -1360,10 +1360,155 @@ static PyObject *clib_align_semiglobal(PyObject *self, PyObject *args)
   return (r);
 }
 
+
+static BIOSEQUENCE *extract_biosequence_from_list(PyObject *python_list, Py_ssize_t i)
+{
+  PyObject *python_seqstr;
+  BIOSEQUENCE *biosequence;
+  char *s;
+
+  python_seqstr = PySequence_GetItem(python_list, i);
+  if (python_seqstr == NULL)
+  {
+    PyErr_SetString(PyExc_RuntimeError, "failed to retrieve element from list");
+    return (NULL);
+  }
+  if (!PyString_Check(python_seqstr))
+  {
+    PyErr_SetString(PyExc_RuntimeError, "retrieved non-string element from list");
+    Py_DECREF(python_seqstr);
+    return (NULL);
+  }
+  s = PyString_AsString(python_seqstr);
+  if (s == NULL)
+  {
+    PyErr_SetString(PyExc_RuntimeError, "PyString_AsString failed");
+    Py_DECREF(python_seqstr);
+    return (NULL);
+  }
+  /* fprintf(stderr, "extracted: #%ld: %s\n", (long) i, s); */
+  biosequence = new_biosequence("seq0", "seq0", s);
+  if (biosequence == NULL)
+  {
+    PyErr_SetString(PyExc_MemoryError, "failed to allocate biosequence");
+    Py_DECREF(python_seqstr);
+    return (NULL);
+  }
+  Py_DECREF(python_seqstr);
+  return (biosequence);
+}
+
+
+static PyObject *clib_semiglobal_alignment_series(PyObject *self, PyObject *args)
+{
+  double gap_creation_penalty, gap_extension_penalty;
+  BIOSEQUENCE *biosequence0, *biosequence1;
+  SYMBOL_SCORE_MATRIX *symbol_score_matrix;
+  PAIRWISE_ALIGNMENT *pairwise_alignment;
+  PyObject *result_list, *alignment_tuple, *python_sequence_list, *python_symbol_score_matrix;
+  Py_ssize_t num_sequences, i;
+
+  /* fprintf(stderr, "starting\n"); */
+  if (!PyArg_ParseTuple(args, "OddO", &python_sequence_list, &gap_creation_penalty, &gap_extension_penalty, &python_symbol_score_matrix))
+  {
+    return (NULL);
+  }
+  /* fprintf(stderr, "gap_creation_penalty = %f, gap_extension_penalty = %f\n", gap_creation_penalty, gap_extension_penalty); */
+  if (!PySequence_Check(python_sequence_list))
+  {
+    PyErr_SetString(PyExc_TypeError, "sequence_list (arg 0) was not a sequence");
+    return (NULL);
+  }
+  if (!PyMapping_Check(python_symbol_score_matrix))
+  {
+    PyErr_SetString(PyExc_TypeError, "symbol_score_matrix (arg 3) was not a mapping");
+    return (NULL);
+  }
+  num_sequences = PySequence_Length(python_sequence_list);
+  if (num_sequences < 2)
+  {
+    PyErr_SetString(PyExc_TypeError, "sequence_list has too few elements");
+    return (NULL);
+  }
+  fprintf(stderr, "ignoring symbol_score_matrix and using hard-coded EDNAFULL instead\n");
+  symbol_score_matrix = make_ednafull_matrix();
+  Py_INCREF(python_sequence_list);
+  Py_INCREF(python_symbol_score_matrix);
+  biosequence1 = extract_biosequence_from_list(python_sequence_list, 0);
+  if (biosequence1 == NULL)
+  {
+    free_symbol_score_matrix(symbol_score_matrix);
+    Py_DECREF(python_sequence_list);
+    Py_DECREF(python_symbol_score_matrix);
+    return (NULL);
+  }
+  result_list = PyList_New(0);
+  if (result_list == NULL)
+  {
+    free_symbol_score_matrix(symbol_score_matrix);
+    Py_DECREF(python_sequence_list);
+    Py_DECREF(python_symbol_score_matrix);
+    return (NULL);
+  }
+  for (i = 1; i < num_sequences; i++)
+  {
+    biosequence0 = biosequence1;
+    biosequence1 = extract_biosequence_from_list(python_sequence_list, i);
+    /* fprintf(stderr, "aligning: %s, %s\n", biosequence0->seq, biosequence1->seq); */
+    if (biosequence1 == NULL)
+    {
+      free_biosequence(biosequence0);
+      free_symbol_score_matrix(symbol_score_matrix);
+      Py_DECREF(python_sequence_list);
+      Py_DECREF(python_symbol_score_matrix);
+      return (NULL);
+    }
+    pairwise_alignment = align_semiglobal(biosequence0, biosequence1, symbol_score_matrix, gap_creation_penalty, gap_extension_penalty);
+    if (pairwise_alignment == NULL)
+    {
+      free_biosequence(biosequence0);
+      free_biosequence(biosequence1);
+      free_symbol_score_matrix(symbol_score_matrix);
+      Py_DECREF(python_sequence_list);
+      Py_DECREF(python_symbol_score_matrix);
+      PyErr_SetString(PyExc_MemoryError, "failed to allocate pairwise alignment");
+      return (NULL);
+    }
+    alignment_tuple = Py_BuildValue("ssd", pairwise_alignment->seq0->seq, pairwise_alignment->seq1->seq, pairwise_alignment->score);
+    free_pairwise_alignment(pairwise_alignment);
+    if (alignment_tuple == NULL)
+    {
+      free_biosequence(biosequence0);
+      free_biosequence(biosequence1);
+      free_symbol_score_matrix(symbol_score_matrix);
+      Py_DECREF(python_sequence_list);
+      Py_DECREF(python_symbol_score_matrix);
+      return (NULL);
+    }
+    if (PyList_Append(result_list, alignment_tuple) != 0)
+    {
+      free_biosequence(biosequence0);
+      free_biosequence(biosequence1);
+      free_symbol_score_matrix(symbol_score_matrix);
+      Py_DECREF(python_sequence_list);
+      Py_DECREF(python_symbol_score_matrix);
+      return (NULL);
+    }
+    free_biosequence(biosequence0);
+  }
+  free_biosequence(biosequence1);
+  free_symbol_score_matrix(symbol_score_matrix);
+  Py_DECREF(python_sequence_list);
+  Py_DECREF(python_symbol_score_matrix);
+  return (result_list);
+}
+
+
 static PyMethodDef clib_methods[] = {
   {"dummy", clib_dummy, METH_VARARGS, "dummy test function for clib development"},
   {"align_semiglobal", clib_align_semiglobal, METH_VARARGS, "compute semiglobal alignment of two sequences"},
-  {"setverbose", clib_setverbose, METH_VARARGS, "set verbosity level for transsys.clib module"},
+  {"semiglobal_alignment_series", clib_semiglobal_alignment_series, METH_VARARGS, "compute consecutive series of semiglobal alignments"},
+  {"setverbose", clib_setverbose, METH_VARARGS, "set verbosity level for paftol.clib module"},
   {NULL, NULL, 0, NULL}
 };
 
