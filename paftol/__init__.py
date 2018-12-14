@@ -1671,6 +1671,7 @@ this).
         else:
             self.spadesRunner = spadesRunner
         self.exoneratePercentIdentityThreshold = 65.0
+        # FIXME: get rid of these hardcoded defaults (???)
         self.forwardFasta = 'fwd.fasta'
         self.reverseFasta = 'rev.fasta'
 
