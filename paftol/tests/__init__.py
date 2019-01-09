@@ -61,12 +61,7 @@ class PaftolTestCase(unittest.TestCase):
         contig.removeTerminalGaps()
         consensus = contig.getConsensus()
         alignment = contig.getAlignment(terminalGapChar='~')
-        Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
-        Bio.SeqIO.write([consensus], sys.stderr, 'fasta')
-        sys.stderr.write('depth: %s\n' % str(consensus.letter_annotations['depth']))
-        sys.stderr.write('len(seq): %d, len(depth): %d\n' % (len(consensus.seq), len(consensus.letter_annotations['depth'])))
         contigDepthProfile = contig.getDepthProfile()
         consensusDepthProfile = consensus.letter_annotations['depth']
         self.assertEqual([1, 1, 1, 4, 4, 8, 8, 8, 3, 5, 5, 3, 4, 1], contigDepthProfile, 'unexpected contig depth profile: %s' % str(contigDepthProfile))
         self.assertEqual([1, 1, 1, 4, 4, 8, 8, 8, 5, 5, 3, 4, 1], consensusDepthProfile, 'unexpected consensus depth profile: %s' % str(consensusDepthProfile))
-        sys.stderr.write('depth: %s\n' % str())
