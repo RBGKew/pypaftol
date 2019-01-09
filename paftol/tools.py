@@ -25,6 +25,7 @@ import Bio.Blast
 import Bio.Blast.NCBIXML
 
 import paftol
+import paftol.clib
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,7 @@ or only gap symbols. Runs of non-gap triplets are translated as per
 the specified translation table. Runs of gap symbol triplets are
 translated into as many single gap symbols. An exception is raised
 if the sequence contains triplets with both gap and non-gap symbols.
-    
+
 @param seq: sequence to be translated
 @type seq: C{Bio.Seq.Seq}
 @param table: translation table, passed to BioPython C{translate} method
@@ -117,7 +118,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
         ungappedSeq.alphabet = ungappedAlphabet
         t = t + str(ungappedSeq.translate(table))
     return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
-    
+
 
 def ascendingRange(rangeStart, rangeEnd):
     """Get start and end into ascending order by switching them if necessary.
@@ -135,7 +136,7 @@ def ascendingRange(rangeStart, rangeEnd):
 
 
 class BlastAlignment(object):
-    
+
     def __init__(self, rname, blastAlignment):
         raise StandardError, 'obsolete'
         #self.query = query
@@ -144,7 +145,7 @@ class BlastAlignment(object):
         self.mapq = blastAlignment.hsps[0].score
         #self.qnameSet = set([alignment.hit_id for alignment in blastAlignment.alignments])
         self.expectValue = blastAlignment.hsps[0].expect
-    
+
     def isMapped(self):
         return True
 
@@ -217,8 +218,8 @@ to provide fields required for Hyb-Seq analysis only.
         if e.count('X') > 0:
             logger.warning('found sequence mismatch ("X") characters, unimplemented')
         return e.count('M')
-    
-    
+
+
 class ExonerateResult(object):
     """Hold results from running C{exonerate}.
 
@@ -333,7 +334,7 @@ roll your own (ryo) formatting facility.
         self.queryCdsSeq = None
         self.targetAlignmentSeq = None
         self.targetCdsSeq = None
-        
+
     def reverseComplementTarget(self):
         """Reverse complement target sequences, switching them from reverse to forward direction or vice versa.
 
@@ -348,7 +349,7 @@ Ranges and strand orientations are changed accordingly.
             self.targetCdsSeq = self.targetCdsSeq.reverse_complement(id=True, name=True, description=True)
             self.targetCdsStart, self.targetCdsEnd = self.targetCdsEnd, self.targetCdsStart
         self.targetStrand = '+' if self.targetStrand == '-' else '-'
-    
+
     def queryAlignmentOverlap(self, other):
         """Find overlap between query alignment range in this and another exonerate result.
 
@@ -364,10 +365,10 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         if selfQas > otherQae or selfQae < otherQas:
             return None
         return max(selfQas, otherQas), min(selfQae, otherQae)
-        
+
     def containsQueryAlignmentRange(self, other):
         """Determine whether the query alignment range in this result completely contains the range in another result.
-        
+
 @param other: the other exonerate result
 @type other: L{ExonerateResult}
 @return: C{True} if this result's alignment range fully contains that in C{other}, else C{False}
@@ -376,10 +377,10 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         selfQas, selfQae = ascendingRange(self.queryAlignmentStart, self.queryAlignmentEnd)
         otherQas, otherQae = ascendingRange(other.queryAlignmentStart, other.queryAlignmentEnd)
         return selfQas <= otherQas and selfQae >= otherQae
-    
+
     def overlapsQueryAlignmentRange(self, other):
         """Determine whether the query alignment range in this result overlaps with the range in another result.
-        
+
 @param other: the other exonerate result
 @type other: L{ExonerateResult}
 @return: C{True} if this result's query alignment range overlaps with that in C{other}, else C{False}
@@ -558,7 +559,7 @@ a L{ExonerateCsvDictWriter}.
 
         """
         return self.queryId is None
-        
+
     def writeAllSeqs(self, f):
         """Write all C{SeqRecord} type attributes to a FASTA file.
 
@@ -592,13 +593,13 @@ a L{ExonerateCsvDictWriter}.
 class ExonerateRunner(object):
     """Run C{exonerate} and construct L{ExonerateResult} instances on that basis.
 """
-    
+
     labelledLineRe = re.compile('([A-Za-z][A-Za-z0-9_]*): (.*)')
     seqStartRe = re.compile('seqStart (.*)')
-    
+
     def __init__(self):
         pass
-        
+
     def nextLine(self, f):
         line = f.readline()
         # logger.debug('%s', line.strip())
@@ -607,7 +608,7 @@ class ExonerateRunner(object):
         if line[-1] == '\n':
             line = line[:-1]
         return line
-        
+
     def parseString(self, f, label):
         line = self.nextLine(f)
         m = self.labelledLineRe.match(line)
@@ -616,19 +617,19 @@ class ExonerateRunner(object):
         if m.group(1) != label:
             raise StandardError('expected label %s but got %s' % (label, m.group(1)))
         return m.group(2).strip()
-    
+
     def parseInt(self, f, label):
         s = self.parseString(f, label)
         if s == 'NA':
             return None
         return int(s)
-    
+
     def parseFloat(self, f, label):
         s = self.parseString(f, label)
         if s == 'NA':
             return None
         return float(s)
-    
+
     def parseSeq(self, f, label, alphabet, seqId):
         line = self.nextLine(f)
         m = self.seqStartRe.match(line)
@@ -645,7 +646,7 @@ class ExonerateRunner(object):
 
     def makeSeqId(self, exonerateResult, seqType):
         return('%s_%s_%s' % (exonerateResult.queryId, exonerateResult.targetId, seqType))
-    
+
     def parseExonerateResult(self, f, exonerateResult, targetSeqDict):
         line = f.readline()
         if line == '':
@@ -770,7 +771,7 @@ class ExonerateRunner(object):
                 os.unlink(queryScratchFname)
         return exonerateResultList
 
-    
+
 class ExonerateCsvDictWriter(object):
     """Write CSV files containing stats from L{ExonerateResult} instances.
 """
@@ -784,12 +785,12 @@ class ExonerateCsvDictWriter(object):
         'targetAlignmentStart', 'targetAlignmentEnd', 'targetAlignmentLength',
         'targetCdsStart', 'targetCdsEnd', 'targetCdsLength', 'targetStrand',
         'rawScore','percentIdentity','percentSimilarity',
-        'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches', 
+        'equivalencedTotal', 'equivalencedIdentity', 'equivalencedSimilarity', 'equivalencedMismatches',
         'targetCdsSeqLength']
 
     def __init__(self, csvfile):
         """Create an L{ExonerateCsvDictWriter}.
-        
+
 The C{csvfile} parameter may either be a string containing the name of
 the CSV file to be written, or a file like object. If it's a string,
 the file will be opened for writing, thus erasing any previous
@@ -805,7 +806,7 @@ content.
             self.csvfile = None
             self.csvDictWriter = csv.DictWriter(csvfile, csvFieldnames)
         self.csvDictWriter.writeheader()
-        
+
     def close(self):
         """Close this writer.
 
@@ -854,7 +855,7 @@ the caller's responsibility to close it.
         d['equivalencedMismatches'] = exonerateResult.equivalencedMismatches
         d['targetCdsSeqLength'] = None if exonerateResult.targetCdsSeq is None else len(exonerateResult.targetCdsSeq)
         self.csvDictWriter.writerow(d)
-        
+
 
 def alignMerge(pairwiseAlignmentList):
     gapChar = '-'
@@ -947,7 +948,7 @@ class ExonerateStarAlignment(object):
         self.fastaFname = fastaFname
         self.xstarAlignment = None
         self.makeStarAlignment()
-        
+
     def makeExonerateResult(self, seqRecord, exonerateRunner):
         tmpFastaFd, tmpFastaFname = tempfile.mkstemp('.fasta', 'xstar', '.')
         try:
@@ -962,7 +963,7 @@ class ExonerateStarAlignment(object):
             os.unlink(tmpFastaFname)
             pass
         return exonerateResultList
-        
+
     def makeStarAlignment(self):
         exonerateRunner = paftol.tools.ExonerateRunner()
         exonerateResultList = []
@@ -1029,7 +1030,7 @@ class ExonerateStarAlignment(object):
 
 class BwaRunner(object):
     """Wrapper class for running C{bwa}.
-    
+
 Instance variables are passed to C{bwa} via its CLI. C{None} means no
 command line option / parameter to be specified, which usually results
 in C{bwa} using a default (which may depend on the C{bwa} version).
@@ -1053,10 +1054,10 @@ Parameters correspond to instance variables, see their documentation.
         self.scoreThreshold = scoreThreshold
         self.reseedTrigger = reseedTrigger
         self.workingDirectory = workingDirectory
-        
+
     def indexReferenceArgv(self, referenceFname):
         return ['bwa', 'index', referenceFname]
-        
+
     def mappingMemArgv(self, referenceFname, forwardReadsFname, reverseReadsFname=None):
         argv = ['bwa', 'mem', '-M']
         if self.minSeedLength is not None:
@@ -1079,7 +1080,7 @@ Parameters correspond to instance variables, see their documentation.
 Notice that the index files created by BWA will be generated as a side
 effect. It is the responsibility of clients to tidy these up, if
 necessary.
-        
+
 @param referenceFname: the name of the reference sequence FASTA file which is to be indexed
 @type referenceFname: C{str}
 
@@ -1087,7 +1088,7 @@ necessary.
         bwaIndexArgv = self.indexReferenceArgv(referenceFname)
         logger.debug('%s', ' '.join(bwaIndexArgv))
         subprocess.check_call(bwaIndexArgv)
-    
+
     def processBwa(self, samAlignmentProcessor, referenceFname, forwardReadsFname, reverseReadsFname=None):
         """Process reads mapped to to reference sequences.
 
@@ -1099,7 +1100,7 @@ method which is called for each SAM alignment emitted by C{bwa}.
 In other words, by implementing a C{processSamAlignment} method, a
 class is of a suitable "duck type" to be used as a
 C{samAlignmentProcessor}.
-        
+
 @param samAlignmentProcessor: the object for processing SAM alignments
 @type samAlignmentProcessor: object of suitable "duck type"
 @param referenceFname: name of the reference sequence file (FASTA format)
@@ -1134,7 +1135,7 @@ C{samAlignmentProcessor}.
         # if samtoolsReturncode != 0:
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
-        
+
 class BlastAlignmentProcessor(object):
     """Simple BLAST alignment processor.
 
@@ -1151,14 +1152,14 @@ to the C{blastAlignmentDict} when necessary.
         """Constructor.
 """
         self.blastAlignmentDict = {}
-        
+
     def processBlastAlignment(self, query, blastAlignment):
         """Process a BLAST alignment.
 """
         if query not in self.blastAlignmentDict:
             self.blastAlignmentDict[query] = []
         self.blastAlignmentDict[query].append(blastAlignment)
-        
+
 
 class BlastRunner(object):
     """Wrapper class for running BLAST programs.
@@ -1166,7 +1167,7 @@ class BlastRunner(object):
 This is a base class for runners that wrap specific BLAST programs
 (C{blastn}, C{tblastn} etc.), and that should therefore be considered
 abstract, i.e. it should not be instantiated.
-    
+
 Instance variables correspond to command line options that are the
 same for all BLAST programs. Setting an instance variable to C{None}
 means no command line options are generated, usually resulting in a
@@ -1203,7 +1204,7 @@ default to be used.
         makeblastdbArgv = ['makeblastdb', '-dbtype', dbtype, '-in', databaseFname, '-parse_seqids']
         logger.debug('%s', ' '.join(makeblastdbArgv))
         makeblastdbProcess = subprocess.check_call(makeblastdbArgv)
-        
+
     def makeBlastArgv(self, blastProgram, databaseFname):
         blastArgv = [blastProgram]
         if self.numThreads is not None:
@@ -1227,11 +1228,11 @@ default to be used.
 
     def processBlast(self, blastProgram, blastAlignmentProcessor, databaseFname, queryList):
         """Run a BLAST program and process the alignments output by it.
-        
+
 The C{blastAlignmentProcessor} object needs to provide a
 C{processBlastAlignment} method that takes the name of the query and a
 corresponding BLAST alignment as a parameter.
-        
+
 In other words, by implementing a C{processBlastAlignment} method, a
 class is of a suitable "duck type" to be used as a
 C{blastAlignmentProcessor}.
@@ -1268,15 +1269,15 @@ C{blastAlignmentProcessor}.
         blastReturncode = blastProcess.wait()
         if blastReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(blastArgv), blastReturncode)
-    
-    
+
+
 class BlastnRunner(BlastRunner):
     """Runner for C{blastn}.
 """
 
     def __init__(self, numThreads=None, gapOpen=None, gapExtend=None, maxTargetSeqs=None, numAlignments=None, maxHsps=None, evalue=None, windowSize=None):
         super(BlastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
-        
+
     def indexDatabase(self, databaseFname):
         super(BlastnRunner, self).indexDatabase(databaseFname, 'nucl')
 
@@ -1291,14 +1292,14 @@ class TblastnRunner(BlastRunner):
 
     def __init__(self, numThreads=None, gapOpen=None, gapExtend=None, maxTargetSeqs=None, numAlignments=None, maxHsps=None, evalue=None, windowSize=None):
         super(TblastnRunner, self).__init__(numThreads, gapOpen, gapExtend, maxTargetSeqs, numAlignments, maxHsps, evalue, windowSize)
-        
+
     def indexDatabase(self, databaseFname):
         super(TblastnRunner, self).indexDatabase(databaseFname, 'nucl')
 
     def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
         super(TblastnRunner, self).processBlast('tblastn', blastAlignmentProcessor, databaseFname, queryList)
 
-        
+
 def selectLongestReads(readsList, numReads):
     """Select the longest reads from a list of reads.
 @param readsList: list of reads
@@ -1315,13 +1316,13 @@ def selectLongestReads(readsList, numReads):
 
 class SpadesRunner(object):
     """
-    
+
 """
-    
+
     SINGLE = 1
     INTERLACED = 2
     PAIRED = 3
-    
+
     def __init__(self, numThreads=None, covCutoff=None, kvalList=None):
         self.numThreads = numThreads
         self.covCutoff = covCutoff
@@ -1329,7 +1330,7 @@ class SpadesRunner(object):
             self.kvalList = None
         else:
             self.kvalList = kvalList[:]
-        
+
     def assemble(self, readsFname, libraryType, outputDirname, workDirname=None):
         if libraryType == self.INTERLACED:
             spadesInputArgs = ['--12', readsFname]
@@ -1364,8 +1365,8 @@ class SpadesRunner(object):
             contigList = None
             # logger.debug('contigFname: %s, no contigs', contigFname)
         return contigList
-    
-        
+
+
 class DataFrame(object):
 
     def __init__(self, columnHeaderList):
@@ -1390,7 +1391,7 @@ class DataFrame(object):
             csvDictWriter.writerow(rowDict)
 
     def getColumn(self, columnName):
-        return [rowDict[columnName] for rowDict in self.rowDictList]        
+        return [rowDict[columnName] for rowDict in self.rowDictList]
 
     def colMeanAndStddev(self, columnName):
         return MeanAndStddev(self.getColumn(columnName))
@@ -1430,7 +1431,7 @@ def addGapClassAnnotation(sr):
 C{letter_annotations['gapClass']} is set to a list containing C{'t'}
 for terminal gaps and C{'i'} for internal gaps. Non-gap symbols are
 annotated with C{None}.
-    
+
 @param sr: sequence record to be annotated
 @type sr: C{Bio.SeqRecord.SeqRecord}
 @return: C{list} of gap class annotations
@@ -1471,8 +1472,8 @@ def pairwiseAlignmentStatsRowDict(alignment):
     rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
     rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
     return rowDict
-    
-    
+
+
 def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFname=None):
     alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'seqLength1', 'seqLength2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
     alignmentSaveList = []
@@ -1498,16 +1499,16 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFnam
 
 
 class PairwiseAlignmentRunner(object):
-    
+
     def __init__(self):
         pass
-    
+
     def align(self, sra, srbList):
         raise StandardError, 'abstract method'
-    
-    
+
+
 class NeedleRunner(PairwiseAlignmentRunner):
-    
+
     def __init__(self):
         super(NeedleRunner, self).__init__()
 
@@ -1546,10 +1547,10 @@ class NeedleRunner(PairwiseAlignmentRunner):
             else:
                 os.unlink(bsequenceFname)
         return alignmentList
-    
-    
+
+
 class WaterRunner(PairwiseAlignmentRunner):
-    
+
     def __init__(self):
         super(WaterRunner, self).__init__()
 
@@ -1590,6 +1591,118 @@ class WaterRunner(PairwiseAlignmentRunner):
         return alignmentList
 
 
+class SemiglobalAlignmentRunner(PairwiseAlignmentRunner):
+
+    def __init__(self):
+        pass
+
+    def align(self, sra, srbList):
+        alignmentList = []
+        sa = str(sra.seq)
+        for srb in srbList:
+            sb = str(srb.seq)
+            aa, ab, alignmentScore = paftol.clib.align_semiglobal(sa, sb)
+            asra = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(aa), id=sra.id, description='%s, aligned semiglobally, score %f' % (sra.description, alignmentScore))
+            asrb = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(ab), id=srb.id, description='%s, aligned semiglobally, score %f' % (srb.description, alignmentScore))
+            alignmentList.append(Bio.Align.MultipleSeqAlignment([asra, asrb]))
+        return alignmentList
+
+
+def findRelativeIdentity(alignment):
+    n = 0
+    for i in xrange(alignment.get_alignment_length()):
+        if len(set(alignment[:, i])) == 1:
+            n = n + 1
+    return float(n) / float(alignment.get_alignment_length())
+
+
+def findMaxRelativeIdentity(alignment, windowSize):
+    maxNumIdentities = None
+    numSymbolsList = [len(set(alignment[:, i])) for i in xrange(alignment.get_alignment_length())]
+    constColumn = [1 if numSymbolsList[i] == 1 else 0 for i in xrange(alignment.get_alignment_length())]
+    numIdentities = 0
+    for i in xrange(windowSize - 1):
+        numIdentities = numIdentities + constColumn[i]
+    for i in xrange(alignment.get_alignment_length() - windowSize + 1):
+        numIdentities = numIdentities + constColumn[i + windowSize - 1]
+        sys.stderr.write('i = %d, numIdentities = %d\n' % (i, numIdentities))
+        if maxNumIdentities is None or maxNumIdentities < numIdentities:
+            maxNumIdentities = numIdentities
+        numIdentities = numIdentities - constColumn[i]
+    return float(maxNumIdentities) / float(windowSize)
+
+
+def testMaxRelativeIdentity(alignment):
+    Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
+    m = alignment.get_alignment_length() / 2
+    for i in xrange(m):
+        windowSize = i + 1
+        sys.stderr.write('max. relative identity at window %d: %f\n' % (windowSize, findMaxRelativeIdentity(alignment, windowSize)))
+
+
+class PositionedRead(object):
+
+    def __init__(self, readSr, position, maxRelativeIdentity, coreLength, coreMatch):
+        self.position = position
+        self.maxRelativeIdentity = maxRelativeIdentity
+        self.coreLength = coreLength
+        self.coreMatch = coreMatch
+        self.readSr = copy.deepcopy(readSr)
+        self.readSr.description = 'pos: %d' % self.position
+
+    def __cmp__(self, other):
+        return cmp(self.position, other.position)
+
+
+def findFirstNongapPosition(seqRecord, gapChar='-'):
+    s = str(seqRecord.seq)
+    # logger.debug(s)
+    p = 0
+    while p < len(s) and s[p] == gapChar:
+        p = p + 1
+    if p == len(s):
+        return None
+    else:
+        return p
+
+
+def findLastNongapPosition(seqRecord, gapChar='-'):
+    s = str(seqRecord.seq)
+    p = -1
+    while p > -len(s) and s[p] == gapChar:
+        p = p - 1
+    if p == -len(s) - 1:
+        return None
+    else:
+        return p + len(s)
+
+
+def findReadPosition(alignment):
+    p = findFirstNongapPosition(alignment[1])
+    if p > 0:
+        return p
+    else:
+        return -findFirstNongapPosition(alignment[0])
+
+
+def findOverlapAlignment(alignment):
+    gapChar = '-'
+    if len(alignment) != 2:
+        raise StandardError, 'pairwise alignment required but this one has %d sequences' % len(alignment)
+    l = 0
+    if alignment[0, 0] == gapChar:
+        l = findFirstNongapPosition(alignment[0], gapChar)
+    elif alignment[1, 0] == gapChar:
+        l = findFirstNongapPosition(alignment[1], gapChar)
+    r = alignment.get_alignment_length() - 1
+    if alignment[0, -1] == gapChar:
+        r = findLastNongapPosition(alignment[0], gapChar)
+    elif alignment[1, -1] == gapChar:
+        r = findLastNongapPosition(alignment[1], gapChar)
+    # logger.debug('l = %d, r = %d', l, r)
+    return alignment[:, l:(r + 1)]
+
+
 class MeanAndStddev(object):
 
     def __init__(self, l):
@@ -1599,3 +1712,206 @@ class MeanAndStddev(object):
         for num in l:
             sdList.append((self.mean - num) ** 2)
         self.std = math.sqrt(sum(sdList) / (len(sdList) - 1))
+
+
+class ContigColumn(object):
+
+    def __init__(self, numRows=0, symbol=None):
+        self.symbolList = []
+        for i in xrange(numRows):
+            self.addRow(symbol)
+
+    def getNumRows(self):
+        return len(self.symbolList)
+
+    def addRow(self, symbol):
+        self.symbolList.append(symbol)
+
+    def getSymbol(self, rowIndex):
+        return self.symbolList[rowIndex]
+
+    def setSymbol(self, rowIndex, symbol):
+        self.symbolList[rowIndex] = symbol
+
+    def getNumNongaps(self, gapChar):
+        return sum([1 if symbol is not None and symbol != gapChar else 0 for symbol in self.symbolList])
+
+    def getMostFrequentSymbolList(self):
+        frequencyDict = {}
+        for symbol in self.symbolList:
+            if symbol is not None:
+                if symbol not in frequencyDict:
+                    frequencyDict[symbol] = 0
+                frequencyDict[symbol] = frequencyDict[symbol] + 1
+        maxFrequency = max(frequencyDict.values())
+        mfSymbolList = []
+        for symbol in frequencyDict.keys():
+            if frequencyDict[symbol] == maxFrequency:
+                mfSymbolList.append(symbol)
+        return mfSymbolList
+
+
+class Contig(object):
+
+    def __init__(self, overlapLengthThreshold, overlapMatchThreshold, alignmentRunner, gapChar='-'):
+        self.overlapLengthThreshold = overlapLengthThreshold
+        self.overlapMatchThreshold = overlapMatchThreshold
+        self.alignmentRunner = alignmentRunner
+        self.gapChar = gapChar
+        self.readList = []
+        self.columnList = []
+
+    def numRows(self):
+        return len(self.readList)
+
+    def numColumns(self):
+        return len(self.columnList)
+
+    def getSymbol(self, rowIndex, columnIndex):
+        # logger.debug('rowIndex: %d / %d, columnIndex: %d / %d', rowIndex, self.numRows(), columnIndex, self.numColumns())
+        return self.columnList[columnIndex].getSymbol(rowIndex)
+
+    def setSymbol(self, rowIndex, columnIndex, symbol):
+        self.columnList[columnIndex].setSymbol(rowIndex, symbol)
+
+    def getSeqRecord(self, rowIndex, terminalGapChar):
+        # logger.debug('terminalGapChar: %s', terminalGapChar)
+        rawSymbolList = [c.getSymbol(rowIndex) for c in self.columnList]
+        # logger.debug('rawSymbolList: %s', str(rawSymbolList))
+        symbolList = [rawSymbol if rawSymbol is not None else terminalGapChar for rawSymbol in rawSymbolList]
+        s = ''.join(symbolList)
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s), id=self.readList[rowIndex].id, description='')
+        return sr
+
+    def getAlignment(self, terminalGapChar=None):
+        # logger.debug('terminalGapChar: %s', str(terminalGapChar))
+        srList = []
+        if terminalGapChar is None:
+            terminalGapChar = self.gapChar
+        # logger.debug('terminalGapChar: %s', str(terminalGapChar))
+        for r in xrange(self.getNumReads()):
+            srList.append(self.getSeqRecord(r, terminalGapChar))
+        return Bio.Align.MultipleSeqAlignment(srList)
+
+    def getDepthProfile(self):
+        return [column.getNumNongaps(self.gapChar) for column in self.columnList]
+
+    def getMeanDepth(self):
+        return float(sum(self.getDepthProfile())) / float(self.numColumns())
+
+    def getConsensus(self):
+        s = ''
+        depthProfile = []
+        for column in self.columnList:
+            symbolList = column.getMostFrequentSymbolList()
+            symbol = symbolList[0]
+
+            if symbol == self.gapChar and len(symbolList) > 1:
+                symbol = symbolList[1]
+            if symbol != self.gapChar:
+                s = s + symbol
+                depthProfile.append(column.getNumNongaps(self.gapChar))
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, alphabet=Bio.Alphabet.IUPAC.ambiguous_dna), id='contig', description='numReads=%s, meanDepth=%f' % (self.numRows(), float(sum(depthProfile)) / float(len(depthProfile))))
+        sr.letter_annotations['depth'] = depthProfile
+        return sr
+
+    def getNumReads(self):
+        if self.numColumns() == 0:
+            return None
+        else:
+            return self.columnList[0].getNumRows()
+
+    def getLastRead(self):
+        return self.readList[-1]
+
+    def findStartPosition(self, rowIndex):
+        p = 0
+        while self.columnList[p].getSymbol(rowIndex) == self.gapChar:
+            # sys.stderr.write('p = %d\n' % p)
+            p = p + 1
+            if p >= self.numColumns():
+                raise StandardError, 'reached end of column list'
+        return p
+
+    def insertGapColumn(self, columnIndex=None):
+        newColumn = ContigColumn(self.numRows(), self.gapChar)
+        if columnIndex is None:
+            self.columnList.append(newColumn)
+        else:
+            self.columnList = self.columnList[:columnIndex] + [newColumn] + self.columnList[columnIndex:]
+
+    def addRow(self):
+        for column in self.columnList:
+            column.addRow(self.gapChar)
+
+    def removeTerminalGaps(self):
+        for rowIndex in xrange(self.numRows()):
+            # logger.debug('row: %d', rowIndex)
+            columnIndex = 0
+            while columnIndex < self.numColumns() and self.getSymbol(rowIndex, columnIndex) == self.gapChar:
+                self.setSymbol(rowIndex, columnIndex, None)
+                columnIndex = columnIndex + 1
+            # logger.debug('final left columnIndex: %d', columnIndex)
+            columnIndex = self.numColumns() - 1
+            while columnIndex >= 0 and self.getSymbol(rowIndex, columnIndex) == self.gapChar:
+                self.setSymbol(rowIndex, columnIndex, None)
+                columnIndex = columnIndex - 1
+            # logger.debug('final right columnIndex: %d', columnIndex)
+
+    def addFirstRead(self, readSr):
+        self.readList.append(readSr)
+        for symbol in str(readSr.seq):
+            self.columnList.append(ContigColumn(1, symbol))
+        return True
+
+    def addSubsequentRead(self, readSr):
+        alignmentList = self.alignmentRunner.align(self.getLastRead(), [readSr])
+        alignment = alignmentList[0]
+        # sys.stderr.write('full alignment:\n')
+        # Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
+        overlapAlignment = findOverlapAlignment(alignment)
+        # Bio.AlignIO.write(overlapAlignment, sys.stderr, 'fasta')
+        overlapMatch = findRelativeIdentity(overlapAlignment)
+        logger.debug('overlapLength: %d, overlapMatch: %f', overlapAlignment.get_alignment_length(), overlapMatch)
+        if overlapAlignment.get_alignment_length() >= self.overlapLengthThreshold and overlapMatch >= self.overlapMatchThreshold:
+            self.readList.append(readSr)
+            r0 = self.getNumReads() - 1
+            r1 = r0 + 1
+            self.addRow()
+            cc = findFirstNongapPosition(alignment[0], self.gapChar)
+            c = self.findStartPosition(r0)
+            logger.debug('c = %d, cc = %d, adjusted c = %d', c, cc, c - cc)
+            c = c - cc
+            while c < 0:
+                self.insertGapColumn(0)
+                c = c + 1
+            for i in xrange(alignment.get_alignment_length()):
+                # logger.debug('c = %d', c)
+                if alignment[0][i] == self.gapChar:
+                    # sys.stderr.write('%d: gap in old read\n' % i)
+                    if c == self.numColumns():
+                        self.insertGapColumn()
+                    if self.getSymbol(r0, c) != self.gapChar:
+                        self.insertGapColumn(c)
+                    self.setSymbol(r1, c, alignment[1][i])
+                else:
+                    # sys.stderr.write('%d: no gap in old read\n' % i)
+                    while self.getSymbol(r0, c) == self.gapChar:
+                        c = c + 1
+                    self.setSymbol(r1, c, alignment[1][i])
+                c = c + 1
+            return True
+        else:
+            return False
+
+    def addRead(self, readSr):
+        # sys.stderr.write('adding read %s\n' % readSr.id)
+        if self.numRows() == 0:
+            isAdded = self.addFirstRead(readSr)
+        else:
+            isAdded = self.addSubsequentRead(readSr)
+        # if isAdded:
+            # sys.stderr.write('after adding %s:\n' % readSr.id)
+            # Bio.AlignIO.write(self.getAlignment(), sys.stderr, 'fasta')
+            # sys.stderr.write('\n')
+        return isAdded

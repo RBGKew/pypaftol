@@ -25,6 +25,7 @@ setuptools.setup(name='paftol',
                  description=paftolDescription,
                  keywords='bioinformatics phylogeny',
                  url=paftolUrl,
-                 entry_points = paftolEntryPoints,
-                 ext_modules = [clib])
+                 entry_points=paftolEntryPoints,
+                 ext_modules=[clib],
+                 test_suite='paftol.tests')
 # could also include long_description, download_url, classifiers, etc.
