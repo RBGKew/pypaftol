@@ -1625,13 +1625,14 @@ def findMaxRelativeIdentity(alignment, windowSize):
         numIdentities = numIdentities + constColumn[i]
     for i in xrange(alignment.get_alignment_length() - windowSize + 1):
         numIdentities = numIdentities + constColumn[i + windowSize - 1]
-        sys.stderr.write('i = %d, numIdentities = %d\n' % (i, numIdentities))
+        # sys.stderr.write('i = %d, numIdentities = %d\n' % (i, numIdentities))
         if maxNumIdentities is None or maxNumIdentities < numIdentities:
             maxNumIdentities = numIdentities
         numIdentities = numIdentities - constColumn[i]
     return float(maxNumIdentities) / float(windowSize)
 
 
+# FIXME: make proper test of this
 def testMaxRelativeIdentity(alignment):
     Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
     m = alignment.get_alignment_length() / 2
