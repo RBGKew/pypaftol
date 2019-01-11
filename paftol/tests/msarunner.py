@@ -1,4 +1,5 @@
 import unittest
+import subprocess
 
 import paftol
 import paftol.msarunner
@@ -15,6 +16,6 @@ class MafftRunnerTestCase(unittest.TestCase):
     
     def test_subprocess(self):
         mafftRunner = paftol.msarunner.MafftRunner()
-        subprocess = mafftRunner.makeSubprocess()
-
+        p = mafftRunner.makeSubprocess()
+        self.assertIsInstance(p, subprocess.Popen, 'p is not a Popen object')
 
