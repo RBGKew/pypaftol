@@ -33,8 +33,7 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         records = list(Bio.SeqIO.parse(p.stdout, 'fasta'))
 
     def makeSubprocess(self):
-    	pass
-
+    	p = subprocess.Popen()
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
