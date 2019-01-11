@@ -31,7 +31,9 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
     def align(self, seqRecordList):
         p = subprocess.Popen(['mafft', '--auto', '--reorder', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-        records = list(Bio.AlignIO.parse(p.stdout, 'fasta'))
+        p.stdin.close()
+        alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
+        return alignment
 
     def makeSubprocess(self):
     	p = subprocess.Popen()
