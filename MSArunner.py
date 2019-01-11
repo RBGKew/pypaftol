@@ -19,17 +19,14 @@ This is a base class for runners that wrap specific MSA programs.
 	def align(self, seqRecordList):
 		raise StandardError, 'abstract method'
 
-
-
-
 class MAFFTRunner(MultipleSequenceAlignmentRunner):
 
 	def __init__(self):
 		pass
 
 	def align(self, seqRecordList):
-    	p = subprocess.Popen(['mafft', '--auto', '--reorder', '-'], stdin = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True)
-    	records = list(Bio.SeqIO.parse(p.stdout, 'fasta'))
+		p = subprocess.Popen(['mafft', '--auto', '--reorder', '-'], stdin = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True)
+		records = list(Bio.SeqIO.parse(p.stdout, 'fasta'))
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
@@ -37,8 +34,8 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
 		pass
 
 	def clustalo():
-    mergedSequences = mergeSequencesAndConvertToFasta(sequenceList, fastaFile)
-    p = subprocess.Popen(['clustalo' '-i' mergedSequences], stdin = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True)
+	mergedSequences = mergeSequencesAndConvertToFasta(sequenceList, fastaFile)
+	p = subprocess.Popen(['clustalo' '-i' mergedSequences], stdin = subprocess.PIPE, stdout = subprocess.PIPE, universal_newlines = True)
 
 
 
