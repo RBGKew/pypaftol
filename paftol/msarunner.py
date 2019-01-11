@@ -32,6 +32,9 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         p = subprocess.Popen(['mafft', '--auto', '--reorder', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         records = list(Bio.SeqIO.parse(p.stdout, 'fasta'))
 
+    def makeSubprocess(self):
+    	pass
+
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
