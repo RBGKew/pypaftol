@@ -1,5 +1,11 @@
+import sys
 import unittest
 import subprocess
+
+import Bio
+import Bio.Seq
+import Bio.SeqRecord
+import Bio.Align
 
 import paftol
 import paftol.msarunner
@@ -14,8 +20,20 @@ class MultipleSequenceAlignmentRunnerTestCase(unittest.TestCase):
         
 class MafftRunnerTestCase(unittest.TestCase):
     
-    def test_subprocess(self):
+    # def test_subprocess(self):
+    #     mafftRunner = paftol.msarunner.MafftRunner()
+    #     p = mafftRunner.makeSubprocess()
+    #     self.assertIsInstance(p, subprocess.Popen, 'p is not a Popen object')
+        
+    def test_align(self):
+        seqRecordList = [
+            Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('CGTGATACATTACTTTTTA'), id='seq0', description=''),
+            Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('GTGGACTTGACGCGTCATGGAAAGTACAAGATACTTCGACCTGGCAGTGCAAG'), id='seq1', description='')
+        ]
+        sys.stderr.write('\n')
+        Bio.SeqIO.write(seqRecordList, sys.stderr, 'fasta')
         mafftRunner = paftol.msarunner.MafftRunner()
-        p = mafftRunner.makeSubprocess()
-        self.assertIsInstance(p, subprocess.Popen, 'p is not a Popen object')
+        alignment = mafftRunner.align(seqRecordList)
+        self.assertIsInstance(alignment, Bio.Align.MultipleSeqAlignment)
+
 
