@@ -35,8 +35,19 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
         return alignment
 
-    def makeSubprocess(self):
-    	p = subprocess.Popen()
+    def makeSubprocess(self, sequenceList):
+       p = subprocess.Popen(stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+       pid = os.fork()
+       mafftProcess = 
+       if pid == 0:
+        mafftProcess.stdout.close()
+        for sequence in sequenceList:
+            mafftProcess.stdin.write(query.format('fasta'))
+        mafftProcess.stdin.close()
+        os._exit(0)
+        mafftProcess.stdin.close()
+        for alignedSequence in alignedSequenceList:
+
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
