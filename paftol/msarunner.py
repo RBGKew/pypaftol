@@ -22,6 +22,7 @@ This is a base class for runners that wrap specific MSA programs.
     def align(self, seqRecordList):
         raise StandardError, 'abstract method'
 
+
 class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def __init__(self):
@@ -36,16 +37,17 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         return alignment
 
     def makeSubprocess(self, sequenceList):
-       mafftArgv = self.makeMafftArgv(mafftProgram) # databaseFname?)
-       logger.debug('%s', ' '.join(mafftArgv))
-       mafftProcess = subprocess.Popen(stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-       pid = os.fork()
-       if pid == 0:
-        mafftProcess.stdout.close()
-        for sequence in sequenceList:
-            mafftProcess.stdin.write(query.format('fasta'))
-        mafftProcess.stdin.close()
-        os._exit(0)
+        mafftArgv = self.makeMafftArgv(mafftProgram)  # databaseFname?)
+        logger.debug('%s', ' '.join(mafftArgv))
+        mafftProcess = subprocess.Popen(
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        pid = os.fork()
+        if pid == 0:
+            mafftProcess.stdout.close()
+            for sequence in sequenceList:
+                mafftProcess.stdin.write(query.format('fasta'))
+            mafftProcess.stdin.close()
+            os._exit(0)
         mafftProcess.stdin.close()
         for alignedSequence in alignedSequenceList:
             alignedSequenceReader.readAlignedSequence()
@@ -66,7 +68,5 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
         pass
 
     def clustalo():
-        mergedSequences = mergeSequencesAndConvertToFasta(
-            sequenceList, fastaFile)
-        p = subprocess.Popen(
-            ['clustalo' '-i'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        mergedSequences = mergeSequencesAndConvertToFasta(sequenceList, fastaFile)
+        p = subprocess.Popen(['clustalo' '-i'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
