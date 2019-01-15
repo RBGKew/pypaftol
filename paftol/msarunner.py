@@ -29,43 +29,38 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         pass
 
     def align(self, seqRecordList):
-        Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-        p.stdin.close()
-        alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
-        return alignment
-
-    def makeMafftSubprocess(self, sequenceList):
-        p = subprocess.Popen(['mafft', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
-        return p
-
-    def makeMafftArgv(self, mafftProgram, ):
-        mafftArgv = [mafftProgram]
-
-    def processMafft(self, mafftProgram, makeMafftSubprocess):
-        mafftArgv = self.makeMafftArgv(mafftProgram)  # databaseFname?)
-        logger.debug('%s', ' '.join(mafftArgv))
-        mafftProcess = subprocess.Popen(mafftArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        p = self.makeMafftSubprocess()
         pid = os.fork()
         if pid == 0:
-            mafftProcess.stdout.close()
+            p.stdout.close()
             for sequence in sequenceList:
-                mafftProcess.stdin.write(query.format('fasta'))
-            mafftProcess.stdin.close()
+                p.stdin.write(query.format('fasta'))
+            p.stdin.close()
             os._exit(0)
-        mafftProcess.stdin.close()
-        for alignedSequence in alignedSequenceList: #change alignedSequenceList to smthg including mafftProcess.stdout
-            for alignment in 
-                mafftAlignmentProcessor.processMafftAlignment(mafftRecord.query, alignment)
-        mafftProcess.stdout.close()
+        p.stdin.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
             raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
         if wExit != 0:
             raise StandardError, 'wait on forked process returned %d' % wExit
-        mafftReturncode = mafftProcess.wait()
+        mafftReturncode = p.wait()
         if mafftReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(mafftArgv), mafftReturncode)
+        Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
+        p.stdin.close()
+        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
+        return alignment
 
+    def makeMafftSubprocess(self):
+        mafftArgv = self.makeMafftArgv()
+        logger.debug('%s', ' '.join(mafftArgv))
+        p = subprocess.Popen(mafftArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        return p
+
+    def makeMafftArgv(self):
+        mafftArgv = ['mafft', '-']
+        return mafftArgv
+    
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
     def __init__(self):
