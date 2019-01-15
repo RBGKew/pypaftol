@@ -28,18 +28,18 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
     def __init__(self):
         pass
 
+    def align(self, seqRecordList):
+        Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
+        p.stdin.close()
+        alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
+        return alignment
+
     def makeMafftSubprocess(self, sequenceList):
         p = subprocess.Popen(['mafft', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         return p
 
     def makeMafftArgv(self, mafftProgram, ):
         mafftArgv = [mafftProgram]
-
-    def align(self, seqRecordList):
-        Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-        p.stdin.close()
-        alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
-        return alignment
 
     def processMafft(self, mafftProgram, makeMafftSubprocess):
         mafftArgv = self.makeMafftArgv(mafftProgram)  # databaseFname?)
