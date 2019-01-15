@@ -28,19 +28,23 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
     def __init__(self):
         pass
 
+    def makeMafftSubprocess(self, sequenceList):
+        p = subprocess.Popen(['mafft', '-'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        return p
+
+    def makeMafftArgv(self, mafftProgram, ):
+        mafftArgv = [mafftProgram]
+
     def align(self, seqRecordList):
-        p = subprocess.Popen(['mafft', '--auto', '--reorder', '-'],
-                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
         p.stdin.close()
         alignment = Bio.AlignIO.parse(p.stdout, 'fasta')
         return alignment
 
-    def makeSubprocess(self, sequenceList):
+    def processMafft(self, mafftProgram, makeMafftSubprocess):
         mafftArgv = self.makeMafftArgv(mafftProgram)  # databaseFname?)
         logger.debug('%s', ' '.join(mafftArgv))
-        mafftProcess = subprocess.Popen(
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        mafftProcess = subprocess.Popen(mafftArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         pid = os.fork()
         if pid == 0:
             mafftProcess.stdout.close()
@@ -49,8 +53,9 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
             mafftProcess.stdin.close()
             os._exit(0)
         mafftProcess.stdin.close()
-        for alignedSequence in alignedSequenceList:
-            alignedSequenceReader.readAlignedSequence()
+        for alignedSequence in alignedSequenceList: #change alignedSequenceList to smthg including mafftProcess.stdout
+            for alignment in 
+                mafftAlignmentProcessor.processMafftAlignment(mafftRecord.query, alignment)
         mafftProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
@@ -60,7 +65,6 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         mafftReturncode = mafftProcess.wait()
         if mafftReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(mafftArgv), mafftReturncode)
-
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
