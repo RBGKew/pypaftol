@@ -376,6 +376,8 @@ the target genes.
         self.workDirname = workDirname
         self.tmpDirname = None
         # parameters for ensuring file names don't clash, e.g. because paftolGene / organism name is same as targets basename etc.
+        self.forwardFasta = 'fwd.fasta'
+        self.reverseFasta = 'rev.fasta'
         self.targetsFname = 'targets.fasta'
         self.geneReadFnamePattern = 'gene-%s.fasta'
         self.geneRepresentativeFnamePattern = 'generep-%s.fasta'
@@ -1224,9 +1226,27 @@ class PaftolTargetSeqRetriever(object):
 
 
 class HybpiperAnalyser(HybseqAnalyser):
+    """L{HybseqAnalyser} subclass for HybPiper style analysis (SPAdes based).
 
-    def __init__(self, workdirTgz, workDirname):
+@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
+@type spadesRunner: C{paftol.tools.SpadesRunner}
+"""
+
+    def __init__(self, workdirTgz, workDirname, spadesRunner):
+        """Initialiser.
+
+@param workdirTgz: name of the tgz archive of the working directory
+@type workdirTgz: C{String}
+@param workDirname: name of the working directory
+@type workdirTgz: C{String}
+@param spadesRunner: SPAdes runner for this analyser to use, C{None} to create a default instance
+@type spadesRunner: C{paftol.tools.SpadesRunner} instance
+"""
         super(HybpiperAnalyser, self).__init__(workdirTgz, workDirname)
+        if spadesRunner is None:
+            self.spadesRunner = paftol.tools.SpadesRunner()
+        else:
+            self.spadesRunner = spadesRunner
 
     def cleanup(self):
         self.cleanupTmpdir()
@@ -1553,7 +1573,7 @@ class HybpiperAnalyser(HybseqAnalyser):
 
 class HybpiperBwaAnalyser(HybpiperAnalyser):
 
-    """L{HybseqAnalyser} subclass that implements an analysis process
+    """L{HybpiperAnalyser} subclass that implements an analysis process
 close to the HybPiper pipeline.
 
 Some parameters to SPAdes can be controlled via instance variables as
@@ -1563,21 +1583,15 @@ this).
 
 @ivar bwaRunner: SPAdes runner, providing instance variables for configuring BWA
 @type bwaRunner: C{paftol.tools.BwaRunner}
-@ivar spadesRunner: SPAdes runner, providing instance variables for configuring SPAdes
-@type spadesRunner: C{paftol.tools.SpadesRunner}
 
     """
 
     def __init__(self, workdirTgz=None, workDirname='pafpipertmp', bwaRunner=None, spadesRunner=None):
-        super(HybpiperBwaAnalyser, self).__init__(workdirTgz, workDirname)
+        super(HybpiperBwaAnalyser, self).__init__(workdirTgz, workDirname, spadesRunner)
         if bwaRunner is None:
             self.bwaRunner = paftol.tools.BwaRunner()
         else:
             self.bwaRunner = bwaRunner
-        if spadesRunner is None:
-            self.spadesRunner = paftol.tools.SpadesRunner()
-        else:
-            self.spadesRunner = spadesRunner
         self.exoneratePercentIdentityThreshold = 65.0
 
     def setup(self, result):
@@ -1662,19 +1676,12 @@ this).
     """
 
     def __init__(self, workdirTgz=None, workDirname='pafpipertmp', tblastnRunner=None, spadesRunner=None):
-        super(HybpiperTblastnAnalyser, self).__init__(workdirTgz, workDirname)
+        super(HybpiperTblastnAnalyser, self).__init__(workdirTgz, workDirname, spadesRunner)
         if tblastnRunner is None:
             self.tblastnRunner = paftol.tools.TblastnRunner()
         else:
             self.tblastnRunner = tblastnRunner
-        if spadesRunner is None:
-            self.spadesRunner = paftol.tools.SpadesRunner()
-        else:
-            self.spadesRunner = spadesRunner
         self.exoneratePercentIdentityThreshold = 65.0
-        # FIXME: get rid of these hardcoded defaults (???)
-        self.forwardFasta = 'fwd.fasta'
-        self.reverseFasta = 'rev.fasta'
 
     def setup(self, result):
         logger.debug('setting up')
@@ -1744,15 +1751,47 @@ this).
             logger.debug('cleanup done')
 
 
-class OverlapAnalyser(HybpiperTblastnAnalyser):
+class OverlapAnalyser(HybseqAnalyser):
 
     def __init__(self, workdirTgz=None, workDirname='pafpipertmp', tblastnRunner=None, spadesRunner=None):
-        super(OverlapAnalyser, self).__init__(workdirTgz, workDirname, tblastnRunner, spadesRunner)
+        super(OverlapAnalyser, self).__init__(workdirTgz, workDirname)
+        if tblastnRunner is None:
+            self.tblastnRunner = paftol.tools.TblastnRunner()
+        else:
+            self.tblastnRunner = tblastnRunner
+        self.exoneratePercentIdentityThreshold = 65.0
         self.windowSizeReference = None
         self.relIdentityThresholdReference = None
         self.windowSizeReadOverlap = None
         self.relIdentityThresholdReadOverlap = None
         self.alignmentRunner = tools.SemiglobalAlignmentRunner()
+
+    def setup(self, result):
+        logger.debug('setting up')
+        self.setupTmpdir()
+	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+        forwardFastaPath = self.makeWorkdirPath(self.forwardFasta)
+        paftol.tools.fastqToFasta(result.forwardFastq, forwardFastaPath)
+        self.tblastnRunner.indexDatabase(forwardFastaPath)
+        if result.reverseFastq is not None:
+            reverseFastaPath = self.makeWorkdirPath(self.reverseFasta)
+            paftol.tools.fastqToFasta(result.reverseFastq, reverseFastaPath)
+            self.tblastnRunner.indexDatabase(reverseFastaPath)
+
+    def mapReadsTblastn(self, result):
+        """Map gene sequences to reads (from multiple organisms possibly).
+"""
+        logger.debug('mapping gene sequences to reads')
+        referenceFname = self.makeTargetsFname(True) ## check this holds
+        targetProteinList = [self.translateGene(geneSr) for geneSr in result.paftolTargetSet.getSeqRecordList()]
+        # FIXME: check these parameters, consider numAlignments?
+        self.tblastnRunner.maxTargetSeqs = 10000000
+        self.tblastnRunner.maxHsps = 1
+        result.paftolTargetSet.numOfftargetReads = None
+        self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.forwardFasta), targetProteinList)
+        # FIXME: should be not None (!!!)
+        if result.reverseFastq is not None:
+            self.tblastnRunner.processTblastn(result.paftolTargetSet, self.makeWorkdirPath(self.reverseFasta), targetProteinList)
 
     def assembleGeneSerialOverlap(self, result, geneName):
         # logger.debug('tracking: starting with gene %s' % geneName)
