@@ -1,0 +1,3 @@
+[console_scripts]
+paftools = paftol.cli:paftoolsMain
+

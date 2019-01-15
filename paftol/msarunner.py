@@ -5,7 +5,10 @@ import subprocess
 import Bio.SeqRecord
 import unittest
 import Bio.AlignIO
+import logging
+import os
 
+logger = logging.getLogger(__name__)
 
 class MultipleSequenceAlignmentRunner(object):
 
@@ -30,14 +33,17 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def align(self, seqRecordList):
         p = self.makeMafftSubprocess()
+        mafftArgv = self.makeMafftArgv()
+        logger.debug('%s', ' '.join(mafftArgv))
         pid = os.fork()
         if pid == 0:
             p.stdout.close()
-            for sequence in sequenceList:
-                p.stdin.write(query.format('fasta'))
+            Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
             p.stdin.close()
             os._exit(0)
         p.stdin.close()
+        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
+        p.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
             raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
@@ -46,19 +52,15 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         mafftReturncode = p.wait()
         if mafftReturncode != 0:
             raise StandardError, 'process "%s" returned %d' % (' '.join(mafftArgv), mafftReturncode)
-        Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-        p.stdin.close()
-        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
         return alignment
 
     def makeMafftSubprocess(self):
         mafftArgv = self.makeMafftArgv()
-        logger.debug('%s', ' '.join(mafftArgv))
         p = subprocess.Popen(mafftArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         return p
 
     def makeMafftArgv(self):
-        mafftArgv = ['mafft', '-']
+        mafftArgv = ['mafft', '--quiet', '-']
         return mafftArgv
     
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
@@ -66,6 +68,6 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
     def __init__(self):
         pass
 
-    def clustalo():
-        mergedSequences = mergeSequencesAndConvertToFasta(sequenceList, fastaFile)
-        p = subprocess.Popen(['clustalo' '-i'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+    #def clustalo():
+        #mergedSequences = mergeSequencesAndConvertToFasta(fastaFile)
+        #p = subprocess.Popen(['clustalo' '-i'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
