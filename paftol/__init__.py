@@ -399,6 +399,15 @@ the target genes.
                 shutil.rmtree(self.tmpDirname)
             self.tmpDirname = None
 
+    def cleanup(self):
+        self.cleanupTmpdir()
+
+    def makeGeneDirname(self, geneName):
+        return 'spades-%s' % geneName
+
+    def makeGeneDirPath(self, geneName):
+        return self.makeWorkdirPath(self.makeGeneDirname(geneName))
+
     def makeWorkDirname(self):
         if self.tmpDirname is None:
             raise StandardError('illegal state: no temporary directory and hence no working directory')
@@ -427,6 +436,218 @@ the target genes.
             return self.makeWorkdirPath(geneRepresentativeFname)
         else:
             return geneRepresentativeFname
+
+    def translateGene(self, geneDna):
+        # FIXME: add support for gene specific translation table setting
+        # FIXME: not really an instance method -- static?
+        l = len(geneDna) - (len(geneDna) % 3)
+        if l < len(geneDna):
+            logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?', geneDna.id, len(geneDna))
+        geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s-pep' % geneDna.id, description='%s, translated' % geneDna.description)
+        return geneProtein
+
+    def setRepresentativeGenes(self, result):
+        """Roughly equivalent to "distribute targets" in HybPiper."""
+        result.representativePaftolTargetDict = {}
+        for geneName in result.paftolTargetSet.paftolGeneDict:
+            representativePaftolTarget = None
+            maxMappingScoreSum = None
+            for organismName in result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
+                mappingScoreSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mappingScoreSum()
+                if representativePaftolTarget is None or (mappingScoreSum is not None and mappingScoreSum > maxMappingScoreSum):
+                    representativePaftolTarget = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
+                    maxMappingScoreSum = mappingScoreSum
+            result.representativePaftolTargetDict[geneName] = representativePaftolTarget
+            if representativePaftolTarget is None:
+                logger.debug('represenative for %s: none', geneName)
+            else:
+                logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
+
+    def writeRepresentativeGenes(self, result):
+        for geneName in result.representativePaftolTargetDict:
+            paftolTarget = result.representativePaftolTargetDict[geneName]
+            paftolTarget.writeFasta(self.makeGeneRepresentativeFname(geneName, True))
+
+    def readMappedReadsSingle(self, result):
+        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
+        with open(result.forwardFastq, 'r') as forwardFile:
+            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
+            for forwardRead in fowardParser:
+                readName = forwardRead.id
+                if readName in readNameMappedReadDict:
+                    for mappedRead in readNameMappedReadDict[readName]:
+                        if mappedRead.fowardRead is not None:
+                            raise StandardError, 'duplicate forward read for %s' % readName
+                        mappedRead.forwardRead = forwardRead
+
+    def readMappedReadsPaired(self, result):
+        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
+        with open(result.forwardFastq, 'r') as forwardFile:
+            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
+            with open(result.reverseFastq, 'r') as reverseFile:
+                reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
+                for forwardRead in forwardParser:
+                    reverseRead = reverseParser.next()
+                    forwardRead.id = MappedRead.readBasename(forwardRead.id)
+                    reverseRead.id = MappedRead.readBasename(reverseRead.id)
+                    if reverseRead.id != forwardRead.id:
+                        raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
+                    readName = forwardRead.id
+                    if readName in readNameMappedReadDict:
+                        for mappedRead in readNameMappedReadDict[readName]:
+                            if mappedRead.forwardRead is not None:
+                                raise StandardError, 'duplicate forward read for %s' % readName
+                            mappedRead.forwardRead = forwardRead
+                            mappedRead.reverseRead = reverseRead
+                # FIXME: check for dangling stuff in reverse: reverse.next() should trigger exception (StopIteration?)
+
+    def writeMappedReadsFasta(self, result, maxNumReadsPerGene):
+        for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
+            with open(self.makeGeneReadFname(paftolGene.name, True), 'w') as fastaFile:
+                paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None, maxNumReadsPerGene)
+
+    def distributeSingle(self, result, maxNumReadsPerGene):
+        self.readMappedReadsSingle(result)
+        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
+
+    def distributePaired(self, result, maxNumReadsPerGene):
+        self.readMappedReadsPaired(result)
+        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
+
+    def distributeSingleOld(self, result):
+        fForward = open(result.forwardFastq, 'r')
+        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
+        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
+            readName = fwdReadTitle.split()[0]
+            if readName in readNameGeneDict:
+                for paftolGene in readNameGeneDict[readName]:
+                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
+                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+        fForward.close()
+
+    def distributePairedOld(self, result):
+        # FIXME: consider try...finally to ensure files are closed
+        fForward = open(result.forwardFastq, 'r')
+        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
+        fReverse = open(result.reverseFastq, 'r')
+        fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
+        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
+        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
+            readName = fwdReadTitle.split()[0]
+            # FIXME: premature end of reverse fastq will trigger
+            # StopIteration and premature end of forward will leave
+            # rest of reverse ignored
+            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+            if readName != revReadTitle.split()[0]:
+                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
+            if readName in readNameGeneDict:
+                for paftolGene in readNameGeneDict[readName]:
+                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
+                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
+                        f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
+        # FIXME: check for dangling stuff in reverse: should trigger
+        # an exception:
+        # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+        fForward.close()
+        fReverse.close()
+
+    def distribute(self, result, maxNumReadsPerGene):
+        if result.isPaired():
+            self.distributePaired(result, maxNumReadsPerGene)
+        else:
+            self.distributeSingle(result, maxNumReadsPerGene)
+
+    def filterByPercentIdentity(self, exonerateResultList):
+        return [e for e in exonerateResultList if e.percentIdentity >= self.exoneratePercentIdentityThreshold]
+
+    def filterByContainment(self, exonerateResultList):
+
+        def isContainedWithTiebreak(exonerateResult, other):
+            if not other.containsQueryAlignmentRange(exonerateResult):
+                return False
+            if not exonerateResult.containsQueryAlignmentRange(other):
+                return True
+            # prefer shorter target alignment length (fewer gaps)
+            if exonerateResult.targetAlignmentLength < other.targetAlignmentLength:
+                return False
+            elif exonerateResult.targetAlignmentLength > other.targetAlignmentLength:
+                return True
+            # subsequent tie breaking is arbitrary and intended to yield consistent results only
+            # FIXME: resolving tie by arbitrarily preferring target start position
+            if exonerateResult.targetAlignmentStart < other.targetAlignmentStart:
+                return False
+            elif exonerateResult.targetAlignmentStart > other.targetAlignmentStart:
+                return True
+            # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
+            if exonerateResult.targetId is None:
+                raise StandardError('cannot break tie when exonerateResult.targetId is None')
+            if other.targetId is None:
+                raise StandardError('cannot break tie when other.targetId is None')
+            if exonerateResult.targetId < other.targetId:
+                return False
+            elif other.targetId < exonerateResult.targetId:
+                return True
+            raise StandardError('cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
+
+        nonContainedExonerateResultList = []
+        for exonerateResult in exonerateResultList:
+            isContained = False
+            for other in exonerateResultList:
+                isContained = isContained or ((exonerateResult is not other) and isContainedWithTiebreak(exonerateResult, other))
+            if not isContained:
+                nonContainedExonerateResultList.append(exonerateResult)
+        return nonContainedExonerateResultList
+
+    # query:   gattacatgactcga
+    # contig1: gattacatga
+    # contig2:      ca--actcga
+    # trim contig2 because it has (more) gaps in the overlap region??
+    # compute consensus -- along overlapping regions, or along entire query?
+    def filterByOverlap(self, exonerateResultList, strictOverlapFiltering):
+
+        def isPreferred(exonerateResult, other):
+            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
+                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
+            if exonerateResult.rawScore != other.rawScore:
+                return exonerateResult.rawScore > other.rawScore
+            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
+                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
+            # FIXME: arbitrary tie breaking
+            if exonerateResult.queryAlignmentStart != other.queryAlignmentStart:
+                return exonerateResult.queryAlignmentStart < other.queryAlignmentStart
+            if exonerateResult.queryAlignmentEnd != other.queryAlignmentEnd:
+                return exonerateResult.queryAlignmentEnd < other.queryAlignmentEnd
+            if exonerateResult.targetId != other.targetId:
+                return exonerateResult.targetId < other.targetId
+            raise StanddardError('cannot break tie of overlapping contigs: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
+
+        logger.warning('scanning for overlaps but not resolving them, pending development of concept')
+        nonOverlappingExonerateResultList = []
+        for exonerateResult in exonerateResultList:
+            isOverlapping = False
+            for other in exonerateResultList:
+                if exonerateResult is not other:
+                    if exonerateResult.overlapsQueryAlignmentRange(other):
+                        if strictOverlapFiltering:
+                            isOverlapping = isOverlapping or (not isPreferred(exonerateResult, other))
+                        else:
+                            logger.warning('overlap found, but not resolved: %s, %s', str(exonerateResult), str(other))
+            if not isOverlapping:
+                nonOverlappingExonerateResultList.append(exonerateResult)
+        return nonOverlappingExonerateResultList
+
+    def filterExonerateResultList(self, geneName, exonerateResultList, strictOverlapFiltering):
+        logger.debug('gene %s: %d exonerate results', geneName, len(exonerateResultList))
+        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
+        logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
+        exonerateResultList = self.filterByContainment(exonerateResultList)
+        logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
+        # logger.debug('gene %s: non-contained contig list: %s', geneName, ', '.join([e.targetId for e in exonerateResultList]))
+        exonerateResultList = self.filterByOverlap(exonerateResultList, strictOverlapFiltering)
+        # logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
+        logger.debug('gene %s: %d non-overlapping contig list [strict=%s]: %s', geneName, len(exonerateResultList), str(strictOverlapFiltering), ', '.join(['%s; tcdsLen=%d' % (e.targetId, len(e.targetCdsSeq.seq)) for e in exonerateResultList]))
+        return exonerateResultList
 
     def makeTgz(self):
         if self.workdirTgz is not None:
@@ -1248,127 +1469,6 @@ class HybpiperAnalyser(HybseqAnalyser):
         else:
             self.spadesRunner = spadesRunner
 
-    def cleanup(self):
-        self.cleanupTmpdir()
-
-    def setRepresentativeGenes(self, result):
-        """Roughly equivalent to "distribute targets" in HybPiper."""
-        result.representativePaftolTargetDict = {}
-        for geneName in result.paftolTargetSet.paftolGeneDict:
-            representativePaftolTarget = None
-            maxMappingScoreSum = None
-            for organismName in result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
-                mappingScoreSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mappingScoreSum()
-                if representativePaftolTarget is None or (mappingScoreSum is not None and mappingScoreSum > maxMappingScoreSum):
-                    representativePaftolTarget = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName]
-                    maxMappingScoreSum = mappingScoreSum
-            result.representativePaftolTargetDict[geneName] = representativePaftolTarget
-            if representativePaftolTarget is None:
-                logger.debug('represenative for %s: none', geneName)
-            else:
-                logger.debug('representative for %s: %s', representativePaftolTarget.paftolGene.name, representativePaftolTarget.organism.name)
-
-    def writeRepresentativeGenes(self, result):
-        for geneName in result.representativePaftolTargetDict:
-            paftolTarget = result.representativePaftolTargetDict[geneName]
-            paftolTarget.writeFasta(self.makeGeneRepresentativeFname(geneName, True))
-
-    def readMappedReadsSingle(self, result):
-        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
-        with open(result.forwardFastq, 'r') as forwardFile:
-            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
-            for forwardRead in fowardParser:
-                readName = forwardRead.id
-                if readName in readNameMappedReadDict:
-                    for mappedRead in readNameMappedReadDict[readName]:
-                        if mappedRead.fowardRead is not None:
-                            raise StandardError, 'duplicate forward read for %s' % readName
-                        mappedRead.forwardRead = forwardRead
-
-    def readMappedReadsPaired(self, result):
-        readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
-        with open(result.forwardFastq, 'r') as forwardFile:
-            forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
-            with open(result.reverseFastq, 'r') as reverseFile:
-                reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
-                for forwardRead in forwardParser:
-                    reverseRead = reverseParser.next()
-                    forwardRead.id = MappedRead.readBasename(forwardRead.id)
-                    reverseRead.id = MappedRead.readBasename(reverseRead.id)
-                    if reverseRead.id != forwardRead.id:
-                        raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
-                    readName = forwardRead.id
-                    if readName in readNameMappedReadDict:
-                        for mappedRead in readNameMappedReadDict[readName]:
-                            if mappedRead.forwardRead is not None:
-                                raise StandardError, 'duplicate forward read for %s' % readName
-                            mappedRead.forwardRead = forwardRead
-                            mappedRead.reverseRead = reverseRead
-                # FIXME: check for dangling stuff in reverse: reverse.next() should trigger exception (StopIteration?)
-
-    def writeMappedReadsFasta(self, result, maxNumReadsPerGene):
-        for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
-            with open(self.makeGeneReadFname(paftolGene.name, True), 'w') as fastaFile:
-                paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None, maxNumReadsPerGene)
-
-    def distributeSingle(self, result, maxNumReadsPerGene):
-        self.readMappedReadsSingle(result)
-        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
-
-    def distributePaired(self, result, maxNumReadsPerGene):
-        self.readMappedReadsPaired(result)
-        self.writeMappedReadsFasta(result, maxNumReadsPerGene)
-
-    def distributeSingleOld(self, result):
-        fForward = open(result.forwardFastq, 'r')
-        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
-        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
-            readName = fwdReadTitle.split()[0]
-            if readName in readNameGeneDict:
-                for paftolGene in readNameGeneDict[readName]:
-                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
-                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-        fForward.close()
-
-    def distributePairedOld(self, result):
-        # FIXME: consider try...finally to ensure files are closed
-        fForward = open(result.forwardFastq, 'r')
-        fqiForward = Bio.SeqIO.QualityIO.FastqGeneralIterator(fForward)
-        fReverse = open(result.reverseFastq, 'r')
-        fqiReverse = Bio.SeqIO.QualityIO.FastqGeneralIterator(fReverse)
-        readNameGeneDict = result.paftolTargetSet.makeReadNameGeneDict()
-        for fwdReadTitle, fwdReadSeq, fwdReadQual in fqiForward:
-            readName = fwdReadTitle.split()[0]
-            # FIXME: premature end of reverse fastq will trigger
-            # StopIteration and premature end of forward will leave
-            # rest of reverse ignored
-            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
-            if readName != revReadTitle.split()[0]:
-                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
-            if readName in readNameGeneDict:
-                for paftolGene in readNameGeneDict[readName]:
-                    with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
-                        f.write('>%s\n%s\n' % (fwdReadTitle, fwdReadSeq))
-                        f.write('>%s\n%s\n' % (revReadTitle, revReadSeq))
-        # FIXME: check for dangling stuff in reverse: should trigger
-        # an exception:
-        # revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
-        fForward.close()
-        fReverse.close()
-
-    def distribute(self, result, maxNumReadsPerGene):
-        if result.isPaired():
-            self.distributePaired(result, maxNumReadsPerGene)
-        else:
-            self.distributeSingle(result, maxNumReadsPerGene)
-
-    def makeGeneDirname(self, geneName):
-        return 'spades-%s' % geneName
-
-    def makeGeneDirPath(self, geneName):
-        return self.makeWorkdirPath(self.makeGeneDirname(geneName))
-
     def assembleGeneSpades(self, result, geneName):
         geneReadFname = self.makeGeneReadFname(geneName)
         if not os.path.exists(self.makeWorkdirPath(geneReadFname)):
@@ -1382,106 +1482,6 @@ class HybpiperAnalyser(HybseqAnalyser):
         spadesOutputDirname = self.makeGeneDirPath(geneName)
         spadesContigList = self.spadesRunner.assemble(geneReadFname, libraryType, spadesOutputDirname, self.makeWorkDirname())
         return spadesContigList
-
-    def translateGene(self, geneDna):
-        # FIXME: add support for gene specific translation table setting
-        # FIXME: not really an instance method -- static?
-        l = len(geneDna) - (len(geneDna) % 3)
-        if l < len(geneDna):
-            logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?', geneDna.id, len(geneDna))
-        geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s-pep' % geneDna.id, description='%s, translated' % geneDna.description)
-        return geneProtein
-
-    def filterByPercentIdentity(self, exonerateResultList):
-        return [e for e in exonerateResultList if e.percentIdentity >= self.exoneratePercentIdentityThreshold]
-
-    def filterByContainment(self, exonerateResultList):
-
-        def isContainedWithTiebreak(exonerateResult, other):
-            if not other.containsQueryAlignmentRange(exonerateResult):
-                return False
-            if not exonerateResult.containsQueryAlignmentRange(other):
-                return True
-            # prefer shorter target alignment length (fewer gaps)
-            if exonerateResult.targetAlignmentLength < other.targetAlignmentLength:
-                return False
-            elif exonerateResult.targetAlignmentLength > other.targetAlignmentLength:
-                return True
-            # subsequent tie breaking is arbitrary and intended to yield consistent results only
-            # FIXME: resolving tie by arbitrarily preferring target start position
-            if exonerateResult.targetAlignmentStart < other.targetAlignmentStart:
-                return False
-            elif exonerateResult.targetAlignmentStart > other.targetAlignmentStart:
-                return True
-            # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
-            if exonerateResult.targetId is None:
-                raise StandardError('cannot break tie when exonerateResult.targetId is None')
-            if other.targetId is None:
-                raise StandardError('cannot break tie when other.targetId is None')
-            if exonerateResult.targetId < other.targetId:
-                return False
-            elif other.targetId < exonerateResult.targetId:
-                return True
-            raise StandardError('cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
-
-        nonContainedExonerateResultList = []
-        for exonerateResult in exonerateResultList:
-            isContained = False
-            for other in exonerateResultList:
-                isContained = isContained or ((exonerateResult is not other) and isContainedWithTiebreak(exonerateResult, other))
-            if not isContained:
-                nonContainedExonerateResultList.append(exonerateResult)
-        return nonContainedExonerateResultList
-
-    # query:   gattacatgactcga
-    # contig1: gattacatga
-    # contig2:      ca--actcga
-    # trim contig2 because it has (more) gaps in the overlap region??
-    # compute consensus -- along overlapping regions, or along entire query?
-    def filterByOverlap(self, exonerateResultList, strictOverlapFiltering):
-
-        def isPreferred(exonerateResult, other):
-            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
-                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
-            if exonerateResult.rawScore != other.rawScore:
-                return exonerateResult.rawScore > other.rawScore
-            if exonerateResult.queryAlignmentLength != other.queryAlignmentLength:
-                return exonerateResult.queryAlignmentLength > other.queryAlignmentLength
-            # FIXME: arbitrary tie breaking
-            if exonerateResult.queryAlignmentStart != other.queryAlignmentStart:
-                return exonerateResult.queryAlignmentStart < other.queryAlignmentStart
-            if exonerateResult.queryAlignmentEnd != other.queryAlignmentEnd:
-                return exonerateResult.queryAlignmentEnd < other.queryAlignmentEnd
-            if exonerateResult.targetId != other.targetId:
-                return exonerateResult.targetId < other.targetId
-            raise StanddardError('cannot break tie of overlapping contigs: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
-
-        logger.warning('scanning for overlaps but not resolving them, pending development of concept')
-        nonOverlappingExonerateResultList = []
-        for exonerateResult in exonerateResultList:
-            isOverlapping = False
-            for other in exonerateResultList:
-                if exonerateResult is not other:
-                    if exonerateResult.overlapsQueryAlignmentRange(other):
-                        if strictOverlapFiltering:
-                            isOverlapping = isOverlapping or (not isPreferred(exonerateResult, other))
-                        else:
-                            logger.warning('overlap found, but not resolved: %s, %s', str(exonerateResult), str(other))
-            if not isOverlapping:
-                nonOverlappingExonerateResultList.append(exonerateResult)
-        return nonOverlappingExonerateResultList
-
-    def filterExonerateResultList(self, geneName, exonerateResultList, strictOverlapFiltering):
-        logger.debug('gene %s: %d exonerate results', geneName, len(exonerateResultList))
-        exonerateResultList = self.filterByPercentIdentity(exonerateResultList)
-        logger.debug('gene %s: %d sufficiently close exonerate results', geneName, len(exonerateResultList))
-        exonerateResultList = self.filterByContainment(exonerateResultList)
-        logger.debug('gene %s: %d non-contained exonerate results', geneName, len(exonerateResultList))
-        # logger.debug('gene %s: non-contained contig list: %s', geneName, ', '.join([e.targetId for e in exonerateResultList]))
-        exonerateResultList = self.filterByOverlap(exonerateResultList, strictOverlapFiltering)
-        # logger.debug('gene %s: %d non-overlapping exonerate results', geneName, len(exonerateResultList))
-        logger.debug('gene %s: %d non-overlapping contig list [strict=%s]: %s', geneName, len(exonerateResultList), str(strictOverlapFiltering), ', '.join(['%s; tcdsLen=%d' % (e.targetId, len(e.targetCdsSeq.seq)) for e in exonerateResultList]))
-        return exonerateResultList
 
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
         logger.debug('reconstructing CDS for gene %s', geneName)
