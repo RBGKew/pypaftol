@@ -1367,6 +1367,17 @@ class SpadesRunner(object):
         return contigList
 
 
+class MeanAndStddev(object):
+
+    def __init__(self, l):
+        self.l = l
+        self.mean = sum(l) / float(len(l))
+        sdList = []
+        for num in l:
+            sdList.append((self.mean - num) ** 2)
+        self.std = math.sqrt(sum(sdList) / (len(sdList) - 1))
+
+
 class DataFrame(object):
 
     def __init__(self, columnHeaderList):
@@ -1655,6 +1666,32 @@ class PositionedRead(object):
         return cmp(self.position, other.position)
 
 
+# FIXME: tidy up these ad-hoc designed helper functions?
+def alignSemiglobal(sr0, sr1):
+    s0 = str(sr0.seq)
+    s1 = str(sr1.seq)
+    a0, a1, alignmentScore = paftol.clib.align_semiglobal(s0, s1)
+    asr0 = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(a0), id=sr0.id, description='%s, aligned semiglobally, score %f' % (sr0.description, alignmentScore))
+    asr1 = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(a1), id=sr1.id, description='%s, aligned semiglobally, score %f' % (sr1.description, alignmentScore))
+    return Bio.Align.MultipleSeqAlignment([asr0, asr1])
+
+
+def semiglobalOneVsAll(sr0, sr1List):
+    alignmentList = []
+    for sr1 in sr1List:
+        alignmentList.append(alignSemiglobal(sr0, sr1))
+    return alignmentList
+
+
+def reverseComplementSeqRecordList(seqRecordList):
+    rList = []
+    for seqRecord in seqRecordList:
+        r = seqRecord.reverse_complement()
+        r.id = '%s-rc' % seqRecord.id
+        r.description = '%s, reverse complement' % seqRecord.description
+    return rList
+
+
 def findFirstNongapPosition(seqRecord, gapChar='-'):
     s = str(seqRecord.seq)
     # logger.debug(s)
@@ -1702,17 +1739,6 @@ def findOverlapAlignment(alignment):
         r = findLastNongapPosition(alignment[1], gapChar)
     # logger.debug('l = %d, r = %d', l, r)
     return alignment[:, l:(r + 1)]
-
-
-class MeanAndStddev(object):
-
-    def __init__(self, l):
-        self.l = l
-        self.mean = sum(l) / float(len(l))
-        sdList = []
-        for num in l:
-            sdList.append((self.mean - num) ** 2)
-        self.std = math.sqrt(sum(sdList) / (len(sdList) - 1))
 
 
 class ContigColumn(object):
@@ -1801,6 +1827,8 @@ class Contig(object):
         return float(sum(self.getDepthProfile())) / float(self.numColumns())
 
     def getConsensus(self):
+        if len(self.columnList) == 0:
+            return None
         s = ''
         depthProfile = []
         for column in self.columnList:

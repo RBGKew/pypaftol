@@ -330,7 +330,7 @@ def addHybpiperBwaParser(subparsers):
     addBwaRunnerToParser(p)
     addHybpiperToParser(p)
     p.set_defaults(func=runHybpiperBwa)
-    
+
     
 def addHybpiperTblastnParser(subparsers):
     p = subparsers.add_parser('hybpiperTblastn', help='recover PAFTOL gene sequences using tblastn for associating reads to genes')

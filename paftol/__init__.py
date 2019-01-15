@@ -1,6 +1,7 @@
 import sys
 import re
 import os
+import copy
 import tempfile
 import subprocess
 import shutil
@@ -1720,6 +1721,220 @@ this).
         # FIXME: put allowInvalidBases in result for subsequent reference?
 	paftolTargetSet.sanityCheck(allowInvalidBases)
         result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
+	try:
+            self.setup(result)
+            logger.debug('setup done')
+            self.mapReadsTblastn(result)
+            logger.debug('tblastn mapping done')
+            self.distribute(result, maxNumReadsPerGene)
+            logger.debug('read distribution done')
+            self.setRepresentativeGenes(result)
+            self.writeRepresentativeGenes(result)
+            logger.debug('representative genes selected')
+            result.reconstructedCdsDict = {}
+            for geneName in result.paftolTargetSet.paftolGeneDict:
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
+	    logger.debug('CDS reconstruction done')
+            logger.debug('finished')
+            return result
+        finally:
+            self.makeTgz()
+            logger.debug('tgz file made')
+            self.cleanup()
+            logger.debug('cleanup done')
+
+
+class OverlapAnalyser(HybpiperTblastnAnalyser):
+
+    def __init__(self, workdirTgz=None, workDirname='pafpipertmp', tblastnRunner=None, spadesRunner=None):
+        super(OverlapAnalyser, self).__init__(workdirTgz, workDirname, tblastnRunner, spadesRunner)
+        self.windowSizeReference = None
+        self.relIdentityThresholdReference = None
+        self.windowSizeReadOverlap = None
+        self.relIdentityThresholdReadOverlap = None
+        self.alignmentRunner = tools.SemiglobalAlignmentRunner()
+
+    def assembleGeneSerialOverlap(self, result, geneName):
+        # logger.debug('tracking: starting with gene %s' % geneName)
+        overlapCsvFname = self.makeWorkdirPath('overlap-%s.csv' % geneName)
+        positionedReadDirname = self.makeWorkdirPath('posread-%s' % geneName)
+        positionedReadFname = self.makeWorkdirPath('posread-%s.fasta' % geneName)
+        os.mkdir(positionedReadDirname)
+        readSrFwdList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=True, includeReverse=False))
+        readSrRevList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=False, includeReverse=True))
+        readSrList = []
+        for readSr in readSrFwdList:
+            readSr.id = '%s-fwd' % readSr.id
+            readSrList.append(readSr)
+        for readSr in readSrRevList:
+            readSr.id = '%s-rev' % readSr.id
+            readSrList.append(readSr)
+        readSrList.extend(paftol.tools.reverseComplementSeqRecordList(readSrList))
+        repGene = result.representativePaftolTargetDict[geneName].seqRecord
+        # repGeneProtein = self.translateGene(repGene)
+        geneReadFname = self.makeGeneReadFname(geneName)
+        # for sr in readSrList:
+        #     sys.stderr.write('%s\n' % sr.id)
+        readSrDict = Bio.SeqIO.to_dict(readSrList)
+        alignmentList = paftol.tools.semiglobalOneVsAll(repGene, readSrList)
+        numReads = len(readSrList)
+        if len(alignmentList) != numReads:
+            raise StandardError, 'readSrList / alignment mismatch'
+        positionedReadList = []
+        for i in xrange(numReads):
+            # sys.stderr.write('%s / %s: %f\n' % (alignmentList[i][0].id, alignmentList[i][1].id, findMaxRelativeIdentity(alignmentList[i], self.windowSize)))
+            maxRelativeIdentity = paftol.tools.findMaxRelativeIdentity(alignmentList[i], self.windowSizeReference)
+            if maxRelativeIdentity >= self.relIdentityThresholdReference:
+                position = paftol.tools.findReadPosition(alignmentList[i])
+                # coreAlignment = findOverlapAlignment(alignmentList[i])
+                # coreLength = coreAlignment.get_alignment_length()
+                # coreMatch = findRelativeIdentity(coreAlignment)
+                coreLength = None
+                coreMatch = None
+                positionedReadList.append(paftol.tools.PositionedRead(readSrList[i], position, maxRelativeIdentity, coreLength, coreMatch))
+            else:
+                pass
+                # sys.stderr.write('skipping read %s with maxRelativeIdentity %f\n' % (readSrList[i].id, maxRelativeIdentity))
+        positionedReadList.sort()
+        # logger.debug('tracking: positioned reads')
+        positionedSrList = [positionedRead.readSr for positionedRead in positionedReadList]
+        if positionedReadDirname is not None:
+            for i in xrange(len(positionedSrList)):
+                Bio.SeqIO.write([positionedSrList[i]], '%s/p%03d.fasta' % (positionedReadDirname, i), 'fasta')
+        if positionedReadFname is not None:
+            Bio.SeqIO.write(positionedSrList, positionedReadFname, 'fasta')
+        if overlapCsvFname is not None:
+            overlapDataFrame = paftol.tools.DataFrame(['read0', 'read1', 'read1pos', 'maxRelId', 'coreLength', 'coreMatch', 'overlapLength', 'overlapMatch'])
+        else:
+            overlapDataFrame = None
+        contigList = []
+        currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+        for i in xrange(len(positionedReadList)):
+            if overlapDataFrame is not None:
+                if i == 0:
+                    overlapRow = {'read0': None, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': None, 'overlapMatch': None}
+                else:
+                    alignmentList = self.alignmentRunner.align(positionedReadList[i - 1].readSr, [positionedReadList[i].readSr])
+                    alignment = alignmentList[0]
+                    overlapAlignment = paftol.tools.findOverlapAlignment(alignment)
+                    overlapMatch = paftol.tools.findRelativeIdentity(overlapAlignment)
+                    overlapRow = {'read0': positionedReadList[i - 1].readSr.id, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': overlapAlignment.get_alignment_length(), 'overlapMatch': overlapMatch}
+                overlapDataFrame.addRow(overlapRow)
+            if currentContig.addRead(positionedReadList[i].readSr):
+                logger.debug('added read %s to current contig', positionedReadList[i].readSr.id)
+            else:
+                logger.debug('started new contig with read %s', positionedReadList[i].readSr.id)
+                currentContig.removeTerminalGaps()
+                contigList.append(currentContig)
+                currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+                currentContig.addRead(positionedReadList[i].readSr)
+        currentContig.removeTerminalGaps()
+        contigList.append(currentContig)
+        if overlapCsvFname is not None:
+            with open(overlapCsvFname, 'w') as f:
+                overlapDataFrame.writeCsv(f)
+        consensusList = []
+        for contig in contigList:
+            consensus = contig.getConsensus()
+            if consensus is not None:
+                consensusList.append(consensus)
+        return consensusList
+
+    def reconstructCds(self, result, geneName, strictOverlapFiltering):
+        logger.debug('reconstructing CDS for gene %s', geneName)
+        if result.representativePaftolTargetDict is None:
+            raise StandardError('illegal state: no represesentative genes')
+        if result.representativePaftolTargetDict[geneName] is None:
+            raise StandardError('no representative for gene %s' % geneName)
+        os.mkdir(self.makeGeneDirPath(geneName))
+        contigList = self.assembleGeneSerialOverlap(result, geneName)
+        if contigList is None:
+            logger.warning('gene %s: no spades contigs', geneName)
+            return None
+        if len(contigList) == 0:
+            logger.warning('gene %s: empty contig list', geneName)
+            return None
+        logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
+        geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
+        exonerateRunner = paftol.tools.ExonerateRunner()
+
+        Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
+        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        # allow stop translation
+        aminoAcidSet.add('*')
+        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
+        if len(setDiff) > 0:
+            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
+            return None
+        contigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-contigs.fasta' % geneName)
+        Bio.SeqIO.write(contigList, contigFname, 'fasta')
+        exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
+        logger.debug('gene %s: %d contigs, %d exonerate results', geneName, len(contigList), len(exonerateResultList))
+        if len(exonerateResultList) == 0:
+            logger.warning('gene %s: no exonerate results from %d contigs', geneName, len(contigList))
+        exonerateResultList.sort(paftol.cmpExonerateResultByQueryAlignmentStart)
+        # reverse complementing extraneous as that is done by exonerate itself
+        # for exonerateResult in exonerateResultList:
+        #     logger.debug('gene %s, contig %s: targetStrand = %s', geneName, exonerateResult.targetId, exonerateResult.targetStrand)
+        #     logger.debug('gene %s, contig %s, raw: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        #     if exonerateResult.targetStrand == '-':
+        #         exonerateResult.reverseComplementTarget()
+        #     logger.debug('gene %s, contig %s, can: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        # logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
+        filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList, strictOverlapFiltering)
+        logger.debug('gene %s: %d exonerate results after filtering', geneName, len(filteredExonerateResultList))
+        Bio.SeqIO.write([e.targetCdsSeq for e in filteredExonerateResultList], os.path.join(self.makeGeneDirPath(geneName), '%s-fecds.fasta' % geneName), 'fasta')
+        if len(filteredExonerateResultList) == 0:
+            logger.warning('gene %s: no exonerate results left after filtering', geneName)
+            return None
+        supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % geneName)
+        logger.debug('gene %s: supercontig length %d', geneName, len(supercontig))
+        if len(supercontig) == 0:
+            logger.warning('gene %s: empty supercontig', geneName)
+            return None
+        supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
+        Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
+        Bio.SeqIO.write([geneProtein], os.path.join(self.makeGeneDirPath(geneName), '%s-supercontigref.fasta' % geneName), 'fasta')
+        # FIXME: use exonerate to align "supercontig" to reference and
+        # retrieve coding sequence of exonerate result with highest
+        # score. In case of tied highest score, select result with
+        # shortest CDS, as this is indicative of highest
+        # "concentration" of matches and fewest gaps.
+        supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', bestn=1)
+        logger.debug('gene %s: %d supercontig exonerate results', geneName, len(supercontigErList))
+        splicedSupercontigEr = None
+        if len(supercontigErList) == 0:
+            logger.warning('gene %s: no exonerate results from supercontig', geneName)
+            return None
+        if len(supercontigErList) > 1:
+            splicedSupercontigEr = supercontigErList[0]
+            minLength = len(splicedSupercontigEr.targetCdsSeq)
+            for supercontigEr in supercontigErList:
+                if len(supercontigEr.targetCdsSeq) < minLength:
+                    splicedSupercontigEr = supercontigEr
+                    minLength = len(splicedSupercontigEr.targetCdsSeq)
+            contigStats = ', '.join(['raw=%d, cdsLen=%d' % (e.rawScore, len(e.targetCdsSeq)) for e in supercontigErList])
+            logger.warning('gene %s: received %d supercontig exonerate results despite bestn=1 (%s), selected raw=%d, cdsLen=%d', geneName, len(supercontigErList), contigStats, splicedSupercontigEr.rawScore, len(splicedSupercontigEr.targetCdsSeq))
+        else:
+            splicedSupercontigEr = supercontigErList[0]
+        # not filtering for percent identity to gene again, as that is already done
+        if result.reverseFastq is not None:
+            readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
+        else:
+            readsSpec = result.forwardFastq
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(str(splicedSupercontigEr.targetCdsSeq.seq)), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
+        logger.debug('gene %s: splicedSupercontig length %d', geneName, len(splicedSupercontig))
+        splicedSupercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-splicedsupercontig.fasta' % geneName)
+        Bio.SeqIO.write([splicedSupercontig], splicedSupercontigFname, 'fasta')
+        return splicedSupercontig
+
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
+        logger.debug('starting')
+	paftolTargetSet = paftol.PaftolTargetSet()
+	paftolTargetSet.readFasta(targetsSourcePath)
+        # FIXME: put allowInvalidBases in result for subsequent reference?
+	paftolTargetSet.sanityCheck(allowInvalidBases)
+        result = paftol.HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
 	try:
             self.setup(result)
             logger.debug('setup done')
