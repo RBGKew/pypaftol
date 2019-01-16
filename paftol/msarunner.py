@@ -29,7 +29,7 @@ This is a base class for runners that wrap specific MSA programs.
 class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def __init__(self):
-        pass
+        self.localpair = None
 
     def align(self, seqRecordList):
         p = self.makeMafftSubprocess()
@@ -62,6 +62,8 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
     def makeMafftArgv(self):
         mafftArgv = ['mafft', '--quiet', '-']
         return mafftArgv
+
+
     
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
@@ -99,4 +101,3 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
     def makeClustaloArgv(self):
         clustaloArgv = ['clustalo', '-i', '-']
         return clustaloArgv
-        
