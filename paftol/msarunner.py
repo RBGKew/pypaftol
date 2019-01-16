@@ -68,6 +68,35 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
     def __init__(self):
         pass
 
-    #def clustalo():
-        #mergedSequences = mergeSequencesAndConvertToFasta(fastaFile)
-        #p = subprocess.Popen(['clustalo' '-i'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+    def align(self, seqRecordList):
+        p = self.makeClustaloSubprocess()
+        clustaloArgv = self.makeClustaloArgv()
+        logger.debug('%s', ' '.join(clustaloArgv))
+        pid = os.fork()
+        if pid == 0:
+            p.stdout.close()
+            Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
+            p.stdin.close()
+            os._exit(0)
+        p.stdin.close()
+        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
+        p.stdout.close()
+        wPid, wExit = os.waitpid(pid, 0)
+        if pid != wPid:
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+        if wExit != 0:
+            raise StandardError, 'wait on forked process returned %d' % wExit
+        clustaloReturncode = p.wait()
+        if clustaloReturncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(clustaloArgv), clustaloReturncode)
+        return alignment
+
+    def makeClustaloSubprocess(self):
+    clustaloArgv = self.makeClustaloArgv()
+    p = subprocess.Popen(clustaloArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        return p
+
+    def makeClustaloArgv(self):
+        clustaloArgv = ['clustalo', '-i', '-']
+        return clustaloArgv
+        
