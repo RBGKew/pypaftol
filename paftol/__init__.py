@@ -381,6 +381,7 @@ the target genes.
         self.targetsFname = 'targets.fasta'
         self.geneReadFnamePattern = 'gene-%s.fasta'
         self.geneRepresentativeFnamePattern = 'generep-%s.fasta'
+        self.exoneratePercentIdentityThreshold = 65.0
 
     def analyse(self):
         raise StandardError('not implemented in this "abstract" base class')
@@ -1592,7 +1593,6 @@ this).
             self.bwaRunner = paftol.tools.BwaRunner()
         else:
             self.bwaRunner = bwaRunner
-        self.exoneratePercentIdentityThreshold = 65.0
 
     def setup(self, result):
         logger.debug('setting up')
@@ -1681,7 +1681,6 @@ this).
             self.tblastnRunner = paftol.tools.TblastnRunner()
         else:
             self.tblastnRunner = tblastnRunner
-        self.exoneratePercentIdentityThreshold = 65.0
 
     def setup(self, result):
         logger.debug('setting up')
@@ -1759,7 +1758,6 @@ class OverlapAnalyser(HybseqAnalyser):
             self.tblastnRunner = paftol.tools.TblastnRunner()
         else:
             self.tblastnRunner = tblastnRunner
-        self.exoneratePercentIdentityThreshold = 65.0
         self.windowSizeReference = None
         self.relIdentityThresholdReference = None
         self.windowSizeReadOverlap = None
