@@ -37,3 +37,7 @@ class MafftRunnerTestCase(unittest.TestCase):
         self.assertIsInstance(alignment, Bio.Align.MultipleSeqAlignment)
 
 
+    def test_mafftattributes(self):
+        mafftRunner = paftol.msarunner.MafftRunner()
+        self.assertIsNone(mafftRunner.localpair)
+        
