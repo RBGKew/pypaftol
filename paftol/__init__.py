@@ -1762,6 +1762,7 @@ class OverlapAnalyser(HybseqAnalyser):
         self.relIdentityThresholdReference = None
         self.windowSizeReadOverlap = None
         self.relIdentityThresholdReadOverlap = None
+        # hard-coded alignment runner while API is incomplete...
         self.alignmentRunner = tools.SemiglobalAlignmentRunner()
 
     def setup(self, result):
@@ -1966,6 +1967,14 @@ class OverlapAnalyser(HybseqAnalyser):
         return splicedSupercontig
 
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
+        if self.windowSizeReference is None:
+            raise StandardError, 'illegal state: windowSizeReference not set, not ready to analyse'
+        if self.relIdentityThresholdReference is None:
+            raise StandardError, 'illegal state: relIdentityThresholdReference not set, not ready to analyse'
+        if self.windowSizeReadOverlap is None:
+            raise StandardError, 'illegal state: windowSizeReadOverlap not set, not ready to analyse'
+        if self.relIdentityThresholdReadOverlap is None:
+            raise StandardError, 'illegal state: relIdentityThresholdReadOverlap not set, not ready to analyse'
         logger.debug('starting')
 	paftolTargetSet = paftol.PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)

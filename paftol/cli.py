@@ -29,19 +29,25 @@ def addBlastRunnerToParser(p):
     p.add_argument('--blastWindowSize', type=int, help='multiple hits window size (see -window_size)')
 
     
-def addHybpiperToParser(p):
-    p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
-    p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+def addHybseqToParser(p):
+    # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
     p.add_argument('--strictOverlapFiltering', action='store_true', help='filter contigs so that no region of the reference target is covered by multiple (overlapping) contigs')
     p.add_argument('--maxNumReadsPerGene', type=int, help='maximal number of reads used for assembly (in development)')
-    p.add_argument('--summaryCsv', help='write analysis stats in CSV format')
+    p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
+    p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
+    p.add_argument('--exoneratePercentIdentityThreshold', type=float, help='percent identity threshold for reference to contig alignment')
     p.add_argument('--tgz', help='put temporary working directory into tgz')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
-    addSpadesRunnerToParser(p)
     p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
+    p.add_argument('--summaryCsv', help='write analysis stats in CSV format')
 
-    
+
+def addHybpiperToParser(p):
+    addHybseqToParser(p)
+    addSpadesRunnerToParser(p)
+
+
 def addTblastnRunnerToParser(p):
     addBlastRunnerToParser(p)
 
@@ -90,13 +96,6 @@ def argToSpadesRunner(argNamespace):
     spadesRunner.numThreads = argNamespace.spadesNumThreads
     spadesRunner.covCutoff = argNamespace.spadesCovCutoff
     return spadesRunner
-    
-
-def runHybseq(argNamespace):
-    """Experimental.
-"""
-    hybseqAnalyser = paftol.HybseqAnalyser(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.tgz)
-    sys.stderr.write('%s\n' % str(hybseqAnalyser))
     
 
 # FIXME: obsolete -- summary stats are now provided by result (so not adding spadesRunner here)
@@ -150,7 +149,6 @@ like approach, unsing tblastn for mapping reads to targets.
         spadesRunner.covCutoff = 8
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
     hybpiperTblastnAnalyser = paftol.HybpiperTblastnAnalyser(argNamespace.tgz, tblastnRunner=tblastnRunner, spadesRunner=spadesRunner)
-    # hybpiperTblastnAnalyser.keepTmpDir = True
     hybpiperResult = hybpiperTblastnAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
@@ -158,6 +156,27 @@ like approach, unsing tblastn for mapping reads to targets.
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = hybpiperResult.summaryStats()
+        with open(argNamespace.summaryCsv, 'w') as f:
+            summaryStats.writeCsv(f)
+
+
+def runOverlapAnalysis(argNamespace):
+    """Run an analysis using tblastn for mapping to targets and overlap based assembly for gene recovery.
+
+    """
+    tblastnRunner = argToTblastnRunner(argNamespace)
+    overlapAnalyser = paftol.OverlapAnalyser(argNamespace.tgz, tblastnRunner=tblastnRunner)
+    overlapAnalyser.windowSizeReference = argNamespace.windowSizeReference
+    overlapAnalyser.relIdentityThresholdReference = argNamespace.relIdentityThresholdReference
+    overlapAnalyser.windowSizeReadOverlap = argNamespace.windowSizeReadOverlap
+    overlapAnalyser.relIdentityThresholdReadOverlap = argNamespace.relIdentityThresholdReadOverlap
+    result = overlapAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    if argNamespace.outfile is not None:
+        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+    else:
+        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+    if argNamespace.summaryCsv is not None:
+        summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
 
@@ -312,32 +331,32 @@ def addHybseqstatsParser(subparsers):
     addBwaRunnerToParser(p)
     addSpadesRunnerToParser(p)
     p.set_defaults(func=runHybseqstats)
-
-    
-def addHybseqParser(subparsers):
-    p = subparsers.add_parser('hybseq', help='test / demo')
-    # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
-    p.add_argument('-f', '--forwardreads', help='forward reads (FASTQ)', required=True)
-    p.add_argument('-r', '--reversereads', help='reverse reads (FASTQ), omit to use single end mode')
-    p.add_argument('--tgz', help='put temporary working directory into tgz')
-    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
-    p.add_argument('outfile', nargs='?', help='output file (FASTA), default stdout')
-    p.set_defaults(func=runHybseq)
     
     
 def addHybpiperBwaParser(subparsers):
-    p = subparsers.add_parser('hybpiperBwa', help='recover PAFTOL gene sequences using BWA for associating reads to genes')
+    p = subparsers.add_parser('hybpiperBwa', help='recover PAFTOL gene sequences using BWA and SPAdes assembly')
     addBwaRunnerToParser(p)
     addHybpiperToParser(p)
     p.set_defaults(func=runHybpiperBwa)
 
     
 def addHybpiperTblastnParser(subparsers):
-    p = subparsers.add_parser('hybpiperTblastn', help='recover PAFTOL gene sequences using tblastn for associating reads to genes')
+    p = subparsers.add_parser('hybpiperTblastn', help='recover PAFTOL gene sequences using tblastn and SPAdes assembly')
     addTblastnRunnerToParser(p)
     addHybpiperToParser(p)
     p.set_defaults(func=runHybpiperTblastn)
+
     
+def addOverlapAnalyserParser(subparsers):
+    p = subparsers.add_parser('overlapRecover', help='recover PAFTOL gene sequences using tblastn and overlap based assembly')
+    addTblastnRunnerToParser(p)
+    addHybseqToParser(p)
+    p.add_argument('--windowSizeReference', type=int, help='window size for reference to read alignment')
+    p.add_argument('--relIdentityThresholdReference', type=float, help='percent identity threshold for reference to read alignment')
+    p.add_argument('--windowSizeReadOverlap', type=int, help='window size for read overlap alignment')
+    p.add_argument('--relIdentityThresholdReadOverlap', type=float, help='percent identity threshold for read overlap alignment')
+    p.set_defaults(func=runOverlapAnalysis)
+
     
 def addTargetGeneScanParser(subparsers):
     p = subparsers.add_parser('genescan', help='identify PAFTOL genes within a reference genome')
@@ -431,9 +450,9 @@ def paftoolsMain():
     p.add_argument('--loglevel', help='set logging level [DEBUG, INFO, WARNING, ERROR, CRITICAL]')
     subparsers = p.add_subparsers(title='paftools subcommands')
     addDevParser(subparsers)
-    addHybseqParser(subparsers)
     addHybpiperBwaParser(subparsers)
     addHybpiperTblastnParser(subparsers)
+    addOverlapAnalyserParser(subparsers)
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
     addExtractCdsListParser(subparsers)
