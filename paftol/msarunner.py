@@ -60,9 +60,10 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         return p
 
     def makeMafftArgv(self):
-        mafftArgv = ['mafft', '--quiet', '-']
+        mafftArgv = ['mafft', '--quiet']
         if self.localpair is not None:
-            mafftArgv.extend(['--localpair', '%d' % self.localpair])
+            mafftArgv.append('--localpair')
+        mafftArgv.append('-')
         return mafftArgv
 
     
