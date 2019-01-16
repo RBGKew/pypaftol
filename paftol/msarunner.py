@@ -61,8 +61,9 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def makeMafftArgv(self):
         mafftArgv = ['mafft', '--quiet', '-']
+        if self.localpair is not None:
+            mafftArgv.extend(['--localpair', '%d' % self.localpair])
         return mafftArgv
-
 
     
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
