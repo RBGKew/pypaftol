@@ -40,6 +40,7 @@ class MafftRunnerTestCase(unittest.TestCase):
     def test_mafftattributes(self):
         mafftRunner = paftol.msarunner.MafftRunner()
         self.assertIsNone(mafftRunner.localpair)
+        self.assertTrue('--localpair' not in mafftRunner.makeMafftArgv())
         mafftRunner.localpair = True
         self.assertTrue('--localpair' in mafftRunner.makeMafftArgv())
         
