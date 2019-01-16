@@ -92,8 +92,8 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
         return alignment
 
     def makeClustaloSubprocess(self):
-    clustaloArgv = self.makeClustaloArgv()
-    p = subprocess.Popen(clustaloArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        clustaloArgv = self.makeClustaloArgv()
+        p = subprocess.Popen(clustaloArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         return p
 
     def makeClustaloArgv(self):
