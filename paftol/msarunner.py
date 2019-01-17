@@ -25,8 +25,6 @@ This is a base class for runners that wrap specific MSA programs.
     def align(self, seqRecordList):
         #raise StandardError, 'abstract method'
         p = self.makeSubprocess()
-        argv = self.makeArgv()
-        logger.debug('%s', ' '.join(argv))
         pid = os.fork()
         if pid == 0:
             p.stdout.close()
@@ -48,6 +46,7 @@ This is a base class for runners that wrap specific MSA programs.
 
     def makeSubprocess(self):
         argv = self.makeArgv()
+        logger.debug('%s', ' '.join(argv))
         p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         return p
 
