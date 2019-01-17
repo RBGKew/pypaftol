@@ -24,6 +24,12 @@ This is a base class for runners that wrap specific MSA programs.
 
     def align(self, seqRecordList):
         raise StandardError, 'abstract method'
+        p = self.makeMSARunnerSubprocess()
+
+    def makeMSARunnerSubprocess(self):
+        argv = self.makeArgv()
+        p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
+        return p
 
 
 class MafftRunner(MultipleSequenceAlignmentRunner):
@@ -34,7 +40,7 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def align(self, seqRecordList):
         p = self.makeMafftSubprocess()
-        mafftArgv = self.makeMafftArgv()
+        mafftArgv = self.makeArgv()
         logger.debug('%s', ' '.join(mafftArgv))
         pid = os.fork()
         if pid == 0:
@@ -55,12 +61,7 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
             raise StandardError, 'process "%s" returned %d' % (' '.join(mafftArgv), mafftReturncode)
         return alignment
 
-    def makeMafftSubprocess(self):
-        mafftArgv = self.makeMafftArgv()
-        p = subprocess.Popen(mafftArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
-        return p
-
-    def makeMafftArgv(self):
+    def makeArgv(self):
         mafftArgv = ['mafft', '--quiet']
         if self.localpair is not None:
             mafftArgv.append('--localpair')
@@ -79,7 +80,7 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
     def align(self, seqRecordList):
         p = self.makeClustaloSubprocess()
-        clustaloArgv = self.makeClustaloArgv()
+        clustaloArgv = self.makeArgv()
         logger.debug('%s', ' '.join(clustaloArgv))
         pid = os.fork()
         if pid == 0:
@@ -100,11 +101,6 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
             raise StandardError, 'process "%s" returned %d' % (' '.join(clustaloArgv), clustaloReturncode)
         return alignment
 
-    def makeClustaloSubprocess(self):
-        clustaloArgv = self.makeClustaloArgv()
-        p = subprocess.Popen(clustaloArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
-        return p
-
-    def makeClustaloArgv(self):
+    def makeArgv(self):
         clustaloArgv = ['clustalo', '-i', '-']
         return clustaloArgv
