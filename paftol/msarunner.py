@@ -64,14 +64,14 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         mafftArgv = ['mafft', '--quiet']
         if self.localpair is not None:
             mafftArgv.append('--localpair')
-        if self.maxiterate is True:
+        if self.maxiterate is not None:
             mafftArgv.append('--maxiterate')
-            if self.maxiterate is 1000:
-                mafftArgv.append('%d' %1000)
+            if self.maxiterate is not None:
+                mafftArgv.append('1000')
         mafftArgv.append('-')
         return mafftArgv
 
-    
+
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
 
     def __init__(self):
