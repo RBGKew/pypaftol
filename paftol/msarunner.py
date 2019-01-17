@@ -30,6 +30,7 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
 
     def __init__(self):
         self.localpair = None
+        self.maxiterate = None
 
     def align(self, seqRecordList):
         p = self.makeMafftSubprocess()
@@ -63,6 +64,10 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         mafftArgv = ['mafft', '--quiet']
         if self.localpair is not None:
             mafftArgv.append('--localpair')
+        if self.maxiterate is True:
+            mafftArgv.append('--maxiterate')
+            if self.maxiterate is 1000:
+                mafftArgv.append('%d' %1000)
         mafftArgv.append('-')
         return mafftArgv
 
