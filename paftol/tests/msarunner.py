@@ -40,12 +40,12 @@ class MafftRunnerTestCase(unittest.TestCase):
     def test_mafftattributes(self):
         mafftRunner = paftol.msarunner.MafftRunner()
         self.assertIsNone(mafftRunner.localpair)
-        self.assertTrue('--localpair' not in mafftRunner.makeMafftArgv())
+        self.assertTrue('--localpair' not in mafftRunner.makeArgv())
         mafftRunner.localpair = True
-        self.assertTrue('--localpair' in mafftRunner.makeMafftArgv())
+        self.assertTrue('--localpair' in mafftRunner.makeArgv())
         self.assertIsNone(mafftRunner.maxiterate)
-        self.assertTrue('--maxiterate' not in mafftRunner.makeMafftArgv())
+        self.assertTrue('--maxiterate' not in mafftRunner.makeArgv())
         mafftRunner.maxiterate = 1000
-        self.assertTrue('1000' in mafftRunner.makeMafftArgv())
-        self.assertTrue('--maxiterate' in mafftRunner.makeMafftArgv())
+        self.assertTrue('1000' in mafftRunner.makeArgv())
+        self.assertTrue('--maxiterate' in mafftRunner.makeArgv())
         
