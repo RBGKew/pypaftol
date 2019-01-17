@@ -23,10 +23,30 @@ This is a base class for runners that wrap specific MSA programs.
         pass
 
     def align(self, seqRecordList):
-        raise StandardError, 'abstract method'
-        p = self.makeMSARunnerSubprocess()
+        #raise StandardError, 'abstract method'
+        p = self.makeSubprocess()
+        argv = self.makeArgv()
+        logger.debug('%s', ' '.join(argv))
+        pid = os.fork()
+        if pid == 0:
+            p.stdout.close()
+            Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
+            p.stdin.close()
+            os._exit(0)
+        p.stdin.close()
+        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
+        p.stdout.close()
+        wPid, wExit = os.waitpid(pid, 0)
+        if pid != wPid:
+            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+        if wExit != 0:
+            raise StandardError, 'wait on forked process returned %d' % wExit
+        returncode = p.wait()
+        if returncode != 0:
+            raise StandardError, 'process "%s" returned %d' % (' '.join(argv), returncode)
+        return alignment
 
-    def makeMSARunnerSubprocess(self):
+    def makeSubprocess(self):
         argv = self.makeArgv()
         p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, universal_newlines=True)
         return p
@@ -38,39 +58,16 @@ class MafftRunner(MultipleSequenceAlignmentRunner):
         self.localpair = None
         self.maxiterate = None
 
-    def align(self, seqRecordList):
-        p = self.makeMafftSubprocess()
-        mafftArgv = self.makeArgv()
-        logger.debug('%s', ' '.join(mafftArgv))
-        pid = os.fork()
-        if pid == 0:
-            p.stdout.close()
-            Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-            p.stdin.close()
-            os._exit(0)
-        p.stdin.close()
-        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
-        p.stdout.close()
-        wPid, wExit = os.waitpid(pid, 0)
-        if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
-        if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
-        mafftReturncode = p.wait()
-        if mafftReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(mafftArgv), mafftReturncode)
-        return alignment
-
     def makeArgv(self):
-        mafftArgv = ['mafft', '--quiet']
+        argv = ['mafft', '--quiet']
         if self.localpair is not None:
-            mafftArgv.append('--localpair')
+            argv.append('--localpair')
         if self.maxiterate is not None:
-            mafftArgv.append('--maxiterate')
+            argv.append('--maxiterate')
             if self.maxiterate is not None:
-                mafftArgv.append('1000')
-        mafftArgv.append('-')
-        return mafftArgv
+                argv.append('1000')
+        argv.append('-')
+        return argv
 
 
 class ClustaloRunner(MultipleSequenceAlignmentRunner):
@@ -78,29 +75,6 @@ class ClustaloRunner(MultipleSequenceAlignmentRunner):
     def __init__(self):
         pass
 
-    def align(self, seqRecordList):
-        p = self.makeClustaloSubprocess()
-        clustaloArgv = self.makeArgv()
-        logger.debug('%s', ' '.join(clustaloArgv))
-        pid = os.fork()
-        if pid == 0:
-            p.stdout.close()
-            Bio.SeqIO.write(seqRecordList, p.stdin, 'fasta')
-            p.stdin.close()
-            os._exit(0)
-        p.stdin.close()
-        alignment = Bio.AlignIO.read(p.stdout, 'fasta')
-        p.stdout.close()
-        wPid, wExit = os.waitpid(pid, 0)
-        if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
-        if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
-        clustaloReturncode = p.wait()
-        if clustaloReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(clustaloArgv), clustaloReturncode)
-        return alignment
-
     def makeArgv(self):
-        clustaloArgv = ['clustalo', '-i', '-']
-        return clustaloArgv
+        argv = ['clustalo', '-i', '-']
+        return argv
