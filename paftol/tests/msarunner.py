@@ -43,7 +43,7 @@ class MafftRunnerTestCase(unittest.TestCase):
         self.assertTrue('--localpair' not in mafftRunner.makeMafftArgv())
         mafftRunner.localpair = True
         self.assertTrue('--localpair' in mafftRunner.makeMafftArgv())
-        self.assertIsNone(MafftRunner.maxiterate)
+        self.assertIsNone(mafftRunner.maxiterate)
         self.assertTrue('--maxiterate' not in mafftRunner.makeMafftArgv())
         mafftRunner.maxiterate = 1000
         self.assertTrue('1000' in mafftRunner.makeMafftArgv())
