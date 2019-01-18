@@ -1872,9 +1872,11 @@ class OverlapAnalyser(HybseqAnalyser):
             with open(overlapCsvFname, 'w') as f:
                 overlapDataFrame.writeCsv(f)
         consensusList = []
+        contigNumber = 0
         for contig in contigList:
             consensus = contig.getConsensus()
             if consensus is not None:
+                consensus.id = 'contig%05d' % contigNumber
                 consensusList.append(consensus)
         return consensusList
 
