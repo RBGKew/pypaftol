@@ -1469,41 +1469,52 @@ annotated with C{None}.
 
 
 def pairwiseAlignmentStatsRowDict(alignment):
-    a1 = alignment[0]
-    a2 = alignment[1]
-    a1gc = addGapClassAnnotation(a1)
-    a2gc = addGapClassAnnotation(a2)
     rowDict = {}
-    rowDict['alignmentLength'] = alignment.get_alignment_length()
-    rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
-    rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
-    rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
-    rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
-    rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
-    rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
-    rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
+    if alignment is None:
+        rowDict['alignmentLength'] = None
+        rowDict['numIdentity'] = None
+        rowDict['terminalGapLength1'] = None
+        rowDict['terminalGapLength2'] = None
+        rowDict['internalGapLength1'] = None
+        rowDict['internalGapLength2'] = None
+        rowDict['numInternalGaps1'] = None
+        rowDict['numInternalGaps2'] = None
+    else:
+        a1 = alignment[0]
+        a2 = alignment[1]
+        a1gc = addGapClassAnnotation(a1)
+        a2gc = addGapClassAnnotation(a2)
+        rowDict['alignmentLength'] = alignment.get_alignment_length()
+        rowDict['numIdentity'] = numIdenticalSymbols(a1, a2)
+        rowDict['terminalGapLength1'] = sum([1 if gc == 't' else 0 for gc in a1gc])
+        rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
+        rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
+        rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
+        rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
+        rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
     return rowDict
 
 
 def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFname=None):
     alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'seqLength1', 'seqLength2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
     alignmentSaveList = []
-    for k in sr1Dict.keys():
-        if k not in sr2Dict:
-            logger.warning('no sequence with key %s in sr2Dict, skipping', k)
-        else:
+    keySet = set(sr1Dict.keys() + sr2Dict.keys())
+    for k in keySet:
+        if k in sr1Dict and k in sr2Dict:
             sr1 = sr1Dict[k]
             sr2 = sr2Dict[k]
             alignmentList = alignmentRunner.align(sr1, sr2)
             alignment = alignmentList[0]
             alignmentSaveList.append(alignment)
             rowDict = pairwiseAlignmentStatsRowDict(alignment)
-            rowDict['seqKey'] = k
+        if k in sr1Dict:
             rowDict['seqId1'] = sr1.id
-            rowDict['seqId2'] = sr2.id
             rowDict['seqLength1'] = len(sr1)
+        if k in sr2Dict:
+            rowDict['seqId2'] = sr2.id
             rowDict['seqLength2'] = len(sr2)
-            alignmentStatsFrame.addRow(rowDict)
+        rowDict['seqKey'] = k
+        alignmentStatsFrame.addRow(rowDict)
     if alignmentFastaFname is not None:
         Bio.AlignIO.write(alignmentSaveList, alignmentFastaFname, 'fasta')
     return alignmentStatsFrame
