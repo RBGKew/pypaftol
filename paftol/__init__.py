@@ -1877,6 +1877,7 @@ class OverlapAnalyser(HybseqAnalyser):
             consensus = contig.getConsensus()
             if consensus is not None:
                 consensus.id = 'contig%05d' % contigNumber
+                contigNumber = contigNumber + 1
                 consensusList.append(consensus)
         return consensusList
 
