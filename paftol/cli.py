@@ -126,7 +126,8 @@ like approach, unsing BWA for mapping reads to targets.
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
     hybpiperBwaAnalyser = paftol.HybpiperBwaAnalyser(argNamespace.tgz, bwaRunner=bwaRunner, spadesRunner=spadesRunner)
     # hybpiperBwaAnalyser.keepTmpDir = True
-    hybpiperResult = hybpiperBwaAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
+    hybpiperResult = hybpiperBwaAnalyser.analyse(targetsFile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
@@ -149,7 +150,8 @@ like approach, unsing tblastn for mapping reads to targets.
         spadesRunner.covCutoff = 8
         logger.warning('SPAdes coverage cutoff not specified, set to %d for backwards compatibility', spadesRunner.covCutoff)
     hybpiperTblastnAnalyser = paftol.HybpiperTblastnAnalyser(argNamespace.tgz, tblastnRunner=tblastnRunner, spadesRunner=spadesRunner)
-    hybpiperResult = hybpiperTblastnAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
+    hybpiperResult = hybpiperTblastnAnalyser.analyse(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
@@ -170,7 +172,9 @@ def runOverlapAnalysis(argNamespace):
     overlapAnalyser.relIdentityThresholdReference = argNamespace.relIdentityThresholdReference
     overlapAnalyser.windowSizeReadOverlap = argNamespace.windowSizeReadOverlap
     overlapAnalyser.relIdentityThresholdReadOverlap = argNamespace.relIdentityThresholdReadOverlap
-    result = overlapAnalyser.analyse(argNamespace.targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
+    result = overlapAnalyser.analyse(    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
+, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
