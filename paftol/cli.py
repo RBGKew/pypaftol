@@ -173,8 +173,7 @@ def runOverlapAnalysis(argNamespace):
     overlapAnalyser.windowSizeReadOverlap = argNamespace.windowSizeReadOverlap
     overlapAnalyser.relIdentityThresholdReadOverlap = argNamespace.relIdentityThresholdReadOverlap
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
-    result = overlapAnalyser.analyse(    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
-, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    result = overlapAnalyser.analyse(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
