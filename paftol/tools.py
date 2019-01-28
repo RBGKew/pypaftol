@@ -1500,19 +1500,31 @@ def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFnam
     alignmentSaveList = []
     keySet = set(sr1Dict.keys() + sr2Dict.keys())
     for k in keySet:
-        if k in sr1Dict and k in sr2Dict:
+        sr1 = None
+        sr2 = None
+        if k in sr1Dict:
             sr1 = sr1Dict[k]
+        if k in sr2Dict:
             sr2 = sr2Dict[k]
+        if sr1 is not None and sr2 is not None:
             alignmentList = alignmentRunner.align(sr1, sr2)
             alignment = alignmentList[0]
             alignmentSaveList.append(alignment)
-            rowDict = pairwiseAlignmentStatsRowDict(alignment)
-        if k in sr1Dict:
+        else:
+            alignment = None
+        rowDict = pairwiseAlignmentStatsRowDict(alignment)
+        if sr1 is not None:
             rowDict['seqId1'] = sr1.id
             rowDict['seqLength1'] = len(sr1)
-        if k in sr2Dict:
+        else:
+            rowDict['seqId1'] = None
+            rowDict['seqLength1'] = None
+        if sr2 is not None:
             rowDict['seqId2'] = sr2.id
             rowDict['seqLength2'] = len(sr2)
+        else:
+            rowDict['seqId2'] = None
+            rowDict['seqLength2'] = None
         rowDict['seqKey'] = k
         alignmentStatsFrame.addRow(rowDict)
     if alignmentFastaFname is not None:
