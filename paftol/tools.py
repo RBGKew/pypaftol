@@ -1926,7 +1926,9 @@ class Contig(object):
         # Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
         overlapAlignment = findOverlapAlignment(alignment)
         # Bio.AlignIO.write(overlapAlignment, sys.stderr, 'fasta')
-        overlapMatch = findRelativeIdentity(overlapAlignment)
+        if overlapAlignment.get_alignment_length() == 0:
+            logger.debug('overlapLength = 0, so not adding without further checks')
+            return False
         logger.debug('overlapLength: %d, overlapMatch: %f', overlapAlignment.get_alignment_length(), overlapMatch)
         if overlapAlignment.get_alignment_length() >= self.overlapLengthThreshold and overlapMatch >= self.overlapMatchThreshold:
             self.readList.append(readSr)
