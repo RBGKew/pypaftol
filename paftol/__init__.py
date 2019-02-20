@@ -1,6 +1,7 @@
 import sys
 import re
 import os
+import os.path
 import copy
 import tempfile
 import subprocess
@@ -65,7 +66,7 @@ def generateFastqcDataFrame(fastqFname):
 @type fastqFname: C{str}
 @return: C{FastqcStats}
 """
-    m = re.match('(.*)\\.fastq', fastqFname)
+    m = re.match('(.*)\\.fastq', os.path.basename(fastqFname))
     if m is None:
         raise StandardError, 'failed to extract basename of fastq filename'
     fastqBasename = m.group(1)
