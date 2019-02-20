@@ -1855,7 +1855,10 @@ class OverlapAnalyser(HybseqAnalyser):
                     alignmentList = self.alignmentRunner.align(positionedReadList[i - 1].readSr, [positionedReadList[i].readSr])
                     alignment = alignmentList[0]
                     overlapAlignment = paftol.tools.findOverlapAlignment(alignment)
-                    overlapMatch = paftol.tools.findRelativeIdentity(overlapAlignment)
+                    if overlapAlignment.get_alignment_length() == 0:
+                        overlapMatch = None
+                    else:
+                        overlapMatch = paftol.tools.findRelativeIdentity(overlapAlignment)
                     overlapRow = {'read0': positionedReadList[i - 1].readSr.id, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': overlapAlignment.get_alignment_length(), 'overlapMatch': overlapMatch}
                 overlapDataFrame.addRow(overlapRow)
             if currentContig.addRead(positionedReadList[i].readSr):
@@ -1963,7 +1966,7 @@ class OverlapAnalyser(HybseqAnalyser):
             readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
         else:
             readsSpec = result.forwardFastq
-        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(str(splicedSupercontigEr.targetCdsSeq.seq)), id=geneName, description='reconstructed CDS computed by paftol.HybpiperAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(str(splicedSupercontigEr.targetCdsSeq.seq)), id=geneName, description='reconstructed CDS computed by paftol.overlapAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
         logger.debug('gene %s: splicedSupercontig length %d', geneName, len(splicedSupercontig))
         splicedSupercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-splicedsupercontig.fasta' % geneName)
         Bio.SeqIO.write([splicedSupercontig], splicedSupercontigFname, 'fasta')
