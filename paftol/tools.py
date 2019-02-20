@@ -1929,6 +1929,7 @@ class Contig(object):
         if overlapAlignment.get_alignment_length() == 0:
             logger.debug('overlapLength = 0, so not adding without further checks')
             return False
+        overlapMatch = findRelativeIdentity(overlapAlignment)
         logger.debug('overlapLength: %d, overlapMatch: %f', overlapAlignment.get_alignment_length(), overlapMatch)
         if overlapAlignment.get_alignment_length() >= self.overlapLengthThreshold and overlapMatch >= self.overlapMatchThreshold:
             self.readList.append(readSr)
