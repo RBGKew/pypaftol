@@ -598,6 +598,9 @@ class ExonerateRunner(object):
     seqStartRe = re.compile('seqStart (.*)')
 
     def __init__(self):
+        # FIXME: consider setting this from environment?
+        self.scratchDir = '/tmp'
+        self.scratchPrefix = 'exoneratequery'
         pass
 
     def nextLine(self, f):
@@ -729,7 +732,7 @@ class ExonerateRunner(object):
         targetSeqDict = None
         if addRawTargetSeqs:
             targetSeqDict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(targetFname, 'fasta'))
-        queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
+        queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', self.scratchPrefix, self.scratchDir)
         try:
             queryScratchFile = os.fdopen(queryScratchFd, 'w')
             Bio.SeqIO.write(querySeq, queryScratchFile, 'fasta')
