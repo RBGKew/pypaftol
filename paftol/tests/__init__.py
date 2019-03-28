@@ -8,6 +8,8 @@ import Bio.SeqRecord
 
 import paftol
 import paftol.tools
+import paftol.database
+
 
 # atggattacagca
 # atggattacagca
@@ -25,7 +27,7 @@ class PaftolTestCase(unittest.TestCase):
         self.seq1 = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('GTGGACTTGACGCGTCATGGAAAGTACAAGATACTTCGACCTGGCAGTGCAAG'), id='seq1', description='x1b')
         
     def test_database(self):
-        import paftol.database
+        paftolDpDetails = paftol.database.PaftolDpDetails()
 
     def test_SemiglobalAlignmentRunner(self):
         semiglobalAlignmentRunner = paftol.tools.SemiglobalAlignmentRunner()
