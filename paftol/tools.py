@@ -598,6 +598,9 @@ class ExonerateRunner(object):
     seqStartRe = re.compile('seqStart (.*)')
 
     def __init__(self):
+        # FIXME: consider setting this from environment?
+        self.scratchDir = '/tmp'
+        self.scratchPrefix = 'exoneratequery'
         pass
 
     def nextLine(self, f):
@@ -729,7 +732,7 @@ class ExonerateRunner(object):
         targetSeqDict = None
         if addRawTargetSeqs:
             targetSeqDict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(targetFname, 'fasta'))
-        queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', 'scratch', '.')
+        queryScratchFd, queryScratchFname = tempfile.mkstemp('.fasta', self.scratchPrefix, self.scratchDir)
         try:
             queryScratchFile = os.fdopen(queryScratchFd, 'w')
             Bio.SeqIO.write(querySeq, queryScratchFile, 'fasta')
@@ -1923,6 +1926,9 @@ class Contig(object):
         # Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
         overlapAlignment = findOverlapAlignment(alignment)
         # Bio.AlignIO.write(overlapAlignment, sys.stderr, 'fasta')
+        if overlapAlignment.get_alignment_length() == 0:
+            logger.debug('overlapLength = 0, so not adding without further checks')
+            return False
         overlapMatch = findRelativeIdentity(overlapAlignment)
         logger.debug('overlapLength: %d, overlapMatch: %f', overlapAlignment.get_alignment_length(), overlapMatch)
         if overlapAlignment.get_alignment_length() >= self.overlapLengthThreshold and overlapMatch >= self.overlapMatchThreshold:
