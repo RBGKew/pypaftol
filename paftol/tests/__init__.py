@@ -25,9 +25,6 @@ class PaftolTestCase(unittest.TestCase):
     def setUp(self):
         self.seq0 = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('CGTGATACATTACTTTTTA'), id='seq0', description='x1a')
         self.seq1 = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq('GTGGACTTGACGCGTCATGGAAAGTACAAGATACTTCGACCTGGCAGTGCAAG'), id='seq1', description='x1b')
-        
-    def test_database(self):
-        paftolDpDetails = paftol.database.PaftolDpDetails()
 
     def test_SemiglobalAlignmentRunner(self):
         semiglobalAlignmentRunner = paftol.tools.SemiglobalAlignmentRunner()
