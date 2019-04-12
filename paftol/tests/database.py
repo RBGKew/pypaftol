@@ -21,5 +21,11 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertEqual(None, paftolDpDetails.dbpassword)
         self.assertEqual(None, paftolDpDetails.dbhost)
         self.assertEqual(None, paftolDpDetails.dbname)
+#         f = cStringIO.StringIO("""username: paftol
+# password: topsecret
+# host: localhost
+# dbname: paftol
+# """
+#         paftolDetailsFromFile = paftol.database.PaftolDpDetails(detailsfile=f)
         # f = open(...)
         # paftolDbDetails.readFile(f)
