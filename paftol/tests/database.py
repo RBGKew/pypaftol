@@ -33,3 +33,6 @@ dbname: paftol
         self.assertEqual('paftol', paftolDpDetailsFromFile.dbname)
         # f = open(...)
         # paftolDbDetails.readFile(f)
+
+# paftolDpDetails = paftol.database.PaftolDpDetails(detailsFile=open('~/.paftol/dpdatabase.cfg'))
+# connection = paftolDpDetails.makeConnection()
