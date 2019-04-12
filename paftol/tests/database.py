@@ -17,15 +17,19 @@ class DatabaseTestCase(unittest.TestCase):
         
     def test_database(self):
         paftolDpDetails = paftol.database.PaftolDpDetails()
-        self.assertEqual(None, paftolDpDetails.dbusername)
-        self.assertEqual(None, paftolDpDetails.dbpassword)
-        self.assertEqual(None, paftolDpDetails.dbhost)
-        self.assertEqual(None, paftolDpDetails.dbname)
-#         f = cStringIO.StringIO("""username: paftol
-# password: topsecret
-# host: localhost
-# dbname: paftol
-# """
-#         paftolDetailsFromFile = paftol.database.PaftolDpDetails(detailsfile=f)
+        self.assertIsNone(None, paftolDpDetails.dbusername)
+        self.assertIsNone(None, paftolDpDetails.dbpassword)
+        self.assertIsNone(None, paftolDpDetails.dbhost)
+        self.assertIsNone(None, paftolDpDetails.dbname)
+        f = cStringIO.StringIO("""username: paftol
+password: topsecret
+host: localhost
+dbname: paftol
+""")
+        paftolDpDetailsFromFile = paftol.database.PaftolDpDetails(detailsFile=f)
+        self.assertEqual('paftol', paftolDpDetailsFromFile.dbusername)
+        self.assertEqual('topsecret', paftolDpDetailsFromFile.dbpassword)
+        self.assertEqual('localhost', paftolDpDetailsFromFile.dbhost)
+        self.assertEqual('paftol', paftolDpDetailsFromFile.dbname)
         # f = open(...)
         # paftolDbDetails.readFile(f)
