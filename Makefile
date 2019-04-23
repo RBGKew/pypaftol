@@ -8,7 +8,7 @@ tests :
 	python setup.py test
 
 doc :
-	epydoc paftol
+	epydoc -v paftol
 
 clean :
 	rm -rf html build dist paftol.egg-info
