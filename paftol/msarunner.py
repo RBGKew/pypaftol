@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class MultipleSequenceAlignmentRunner(object):
 
     """Wrapper class for running Multiple Sequence Alignment (MSA) programs
-     such as Clustal Omega and MAFFT.
+such as Clustal Omega and MAFFT.
 
 This is a base class for runners that wrap specific MSA programs.
 
