@@ -372,6 +372,13 @@ the target genes.
 """
 
     def __init__(self, workdirTgz=None, workDirname='paftoolstmp'):
+        """Initialiser
+
+@param workdirTgz: name of the tgz archive of the working directory
+@type workdirTgz: C{String}
+@param workDirname: name of the working directory
+@type workDirname: C{String}
+"""
         # FIXME: temporary workdir management should be moved out of analyser -- perhaps into result?
         self.workdirTgz = workdirTgz
         self.workDirname = workDirname
@@ -665,6 +672,14 @@ the target genes.
             # moving it to final destination, compute absolute path to
             # final destination and use that directly?
             shutil.move(os.path.join(self.tmpDirname, tmpTgz), self.workdirTgz)
+
+    
+class TargetRecoverer(HybseqAnalyser):
+    
+    def __init__(self, workdirTgz, workDirname, targetMapper=None, targetAssembler=None):
+        super(TargetRecoverer, self).__init__(workdirTgz, workDirname)
+        self.targetMapper = targetMapper
+        self.targetAssembler = targetAssembler
 
 
 class MappedRead(object):
@@ -1461,7 +1476,7 @@ class HybpiperAnalyser(HybseqAnalyser):
 @param workdirTgz: name of the tgz archive of the working directory
 @type workdirTgz: C{String}
 @param workDirname: name of the working directory
-@type workdirTgz: C{String}
+@type workDirname: C{String}
 @param spadesRunner: SPAdes runner for this analyser to use, C{None} to create a default instance
 @type spadesRunner: C{paftol.tools.SpadesRunner} instance
 """
@@ -2019,7 +2034,7 @@ class HybseqResult(object):
     def summaryStats(self):
         raise StandardError, 'not implemented by this abstract class'
 
-
+    
 class HybpiperResult(HybseqResult):
 
     def __init__(self, paftolTargetSet, forwardFastq, reverseFastq):
