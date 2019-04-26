@@ -673,6 +673,49 @@ the target genes.
             # final destination and use that directly?
             shutil.move(os.path.join(self.tmpDirname, tmpTgz), self.workdirTgz)
 
+            
+class TargetMapper(object):
+    
+    def __init__(self):
+        pass
+    
+    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
+        raise StandardError, 'abstract method called'
+
+
+class TargetMapperTblastn(TargetMapper):
+    
+    def __init__(self, tblastnRunner=None):
+        if tblastnRunner is None:
+            tblastnRunner = paftol.tools.TblastnRunner()
+        self.tblastnRunner = tblastnRunner
+
+    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
+        raise StandardError, 'not yet done'
+
+
+class TargetMapperBwa(TargetMapper):
+    
+    def __init__(self, bwaRunner=None):
+        if bwaRunner is None:
+            bwaRunner = paftol.tools.BwaRunner()
+        self.bwaRunner = bwaRunner
+
+    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
+        """Map reads to genes.
+"""
+        logger.debug('mapping reads to gene sequences')
+        referenceFname = self.makeTargetsFname(True)
+        self.bwaRunner.indexReference(referenceFname)
+        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        if result.reverseFastq is None:
+            reverseReadsFname = None
+        else:
+            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
+        result.paftolTargetSet.numOfftargetReads = 0
+        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
+
+            
     
 class TargetRecoverer(HybseqAnalyser):
     
@@ -680,6 +723,65 @@ class TargetRecoverer(HybseqAnalyser):
         super(TargetRecoverer, self).__init__(workdirTgz, workDirname)
         self.targetMapper = targetMapper
         self.targetAssembler = targetAssembler
+
+    def setup(self, result):
+        logger.debug('setting up')
+        self.setupTmpdir()
+        # FIXME: is writing the targets fasta file really part of setup?
+	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+
+    def mapReadsBwa(self, result):
+        """Map reads to gene sequences (from multiple organisms possibly).
+"""
+        logger.debug('mapping reads to gene sequences')
+        referenceFname = self.makeTargetsFname(True)
+        self.bwaRunner.indexReference(referenceFname)
+        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
+        if result.reverseFastq is None:
+            reverseReadsFname = None
+        else:
+            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
+        result.paftolTargetSet.numOfftargetReads = 0
+        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
+
+    # ideas for hybrid / consensus sequence for (multiple) re-mapping
+    # reference CDS:     atgtac------catacagaagagacgtga
+    # reconstructed CDS:    cactcatttcat---gga
+    # "consensus"        atgCACTCAATTCAT   GGAgagacgtga
+    # principe: Where reconstructed symbol is available, use that in preference.
+    #   * gap in reference: use symbols from reconstructed (must be non-gap if pairwise alignment)
+    #   * gap in reconstructed: skip symbols from reference
+    #   * ends / portions with no alignment to reconstructed: fill in from reference
+    # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
+
+    def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
+        logger.debug('starting')
+	paftolTargetSet = PaftolTargetSet()
+	paftolTargetSet.readFasta(targetsSourcePath)
+        # FIXME: put allowInvalidBases in result for subsequent reference?
+	paftolTargetSet.sanityCheck(allowInvalidBases)
+        result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
+	try:
+            self.setup(result)
+            logger.debug('setup done')
+            self.targetMapper.mapReads(result)
+            logger.debug('mapping done')
+            self.distribute(result, maxNumReadsPerGene)
+            logger.debug('read distribution done')
+            self.setRepresentativeGenes(result)
+            self.writeRepresentativeGenes(result)
+            logger.debug('representative genes selected')
+            result.reconstructedCdsDict = {}
+            for geneName in result.paftolTargetSet.paftolGeneDict:
+                result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
+	    logger.debug('CDS reconstruction done')
+            logger.debug('finished')
+            return result
+        finally:
+            self.makeTgz()
+            logger.debug('tgz file made')
+            self.cleanup()
+            logger.debug('cleanup done')
 
 
 class MappedRead(object):
