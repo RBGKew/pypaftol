@@ -120,6 +120,25 @@ if the sequence contains triplets with both gap and non-gap symbols.
     return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
 
 
+def translateSeqRecord(dnaSeqRecord, table='Standard'):
+    """Translate a C{SeqRecord}.
+
+The sequence of the record has to be over a nucleotide alphabet (so it can be meaningfully translated).
+
+@param dnaSeqRecord: sequence to be translated
+@type dnaSeqRecord: C{Bio.SeqRecord.SeqRecord}
+@param table: translation table, passed to BioPython C{translate} method
+@type table: C{int} or C{str} (any type suitable for C{translate})
+@return: translated sequence
+@rtype: C{Bio.SeqRecord.SeqRecord}
+"""
+    l = len(dnaSeqRecord) - (len(dnaSeqRecord) % 3)
+    if l < len(dnaSeqRecord):
+        logger.warning('seqRecord %s: length %d is not an integer multiple of 3 -- not a CDS?', dnaSeqRecord.id, len(dnaSeqRecord))
+    pepSeqRecord = Bio.SeqRecord.SeqRecord(dnaSeqRecord.seq[:l].translate(table), id='%s-pep' % dnaSeqRecord.id, description='%s, translated' % dnaSeqRecord.description)
+    return pepSeqRecord
+
+
 def ascendingRange(rangeStart, rangeEnd):
     """Get start and end into ascending order by switching them if necessary.
 @param rangeStart: the start of the range

@@ -677,45 +677,210 @@ the target genes.
 class TargetMapper(object):
     
     def __init__(self):
-        pass
+        self.workdir = None
+        self.targetsFname = 'targets.fasta'
+        
+    def makePath(self, baseFname):
+        return os.path.join(self.workdir, baseFname)
+        
+    def makeTargetsPath(self):
+        return self.makePath(self.targetsFname)
     
-    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
+    def writeTargetsFile(self, paftolTargetSet):
+        paftolTargetSet.writeFasta(self.makeTargetsPath())
+        
+    def makeWorkdir(self):
+        os.mkdir(self.workdir)
+        
+    def setup(self, workdir):
+        self.workdir = workdir
+        self.makeWorkdir()
+
+    def cleanup(self):
+        shutil.rmtree(self.workdir)
+        self.workdir = None
+
+    def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
         raise StandardError, 'abstract method called'
 
 
 class TargetMapperTblastn(TargetMapper):
     
     def __init__(self, tblastnRunner=None):
+        super(TargetMapperTblastn, self).__init__()
         if tblastnRunner is None:
             tblastnRunner = paftol.tools.TblastnRunner()
         self.tblastnRunner = tblastnRunner
+        self.forwardFasta = 'fwd.fasta'
+        self.reverseFasta = 'rev.fasta'
 
-    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
-        raise StandardError, 'not yet done'
+    def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
+        logger.debug('mapping gene sequences to reads')
+        if self.workdir is None:
+            raise StandardError, 'illegal state: no workdir'
+        self.writeTargetsFile(paftolTargetSet)
+        referenceFname = self.makeTargetsPath()
+        targetProteinList = [paftol.tools.translateSeqRecord(geneSr) for geneSr in paftolTargetSet.getSeqRecordList()]
+        # FIXME: check these parameters, consider numAlignments?
+        self.tblastnRunner.maxTargetSeqs = 10000000
+        self.tblastnRunner.maxHsps = 1
+        # jtk: analyser logic needs developing to mange numOfftargetsReads generically
+        # result.paftolTargetSet.numOfftargetReads = None
+        forwardFastaPath = self.makePath(self.forwardFasta)
+        paftol.tools.fastqToFasta(forwardReadsFname, forwardFastaPath)
+        self.tblastnRunner.indexDatabase(forwardFastaPath)
+        self.tblastnRunner.processTblastn(paftolTargetSet, forwardFastaPath, targetProteinList)
+        if reverseReadsFname is not None:
+            reverseFastaPath = self.makePath(self.reverseFasta)
+            paftol.tools.fastqToFasta(reverseReadsFname, reverseFastaPath)
+            self.tblastnRunner.indexDatabase(reverseFastaPath)
+            self.tblastnRunner.processTblastn(paftolTargetSet, reverseFastaPath, targetProteinList)
 
 
 class TargetMapperBwa(TargetMapper):
     
     def __init__(self, bwaRunner=None):
+        super(TargetMapperBwa, self).__init__()
         if bwaRunner is None:
             bwaRunner = paftol.tools.BwaRunner()
         self.bwaRunner = bwaRunner
-
-    def mapReads(self, targetsFile, forwardReadsFname, reverseReadsFname):
+ 
+    def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
         """Map reads to genes.
 """
         logger.debug('mapping reads to gene sequences')
-        referenceFname = self.makeTargetsFname(True)
+        if self.workdir is None:
+            raise StandardError, 'illegal state: no workdir'
+        referenceFname = self.makeTargetsPath()
         self.bwaRunner.indexReference(referenceFname)
         forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
         if result.reverseFastq is None:
             reverseReadsFname = None
         else:
             reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
-        result.paftolTargetSet.numOfftargetReads = 0
-        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
+        paftolTargetSet.numOfftargetReads = 0
+        self.bwaRunner.processBwa(paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
 
-            
+        
+class TargetAssembler(object):
+    
+    def __init__(self):
+        self.workdir = None
+        
+    def makeWorkdir(self):
+        os.mkdir(self.workdir)
+        
+    def setup(self, workdir):
+        self.workdir = workdir
+        self.makeWorkdir()
+
+    def cleanup(self):
+        shutil.rmtree(self.workdir)
+        self.workdir = None
+
+
+def TargetAssemblerOverlap(TargetAssembler):
+    
+    def __init__(self):
+        super(TargetAssemblerOverlap, self).__init__()
+        self.overlapCsvFnamePattern = 'overlap-%s.csv'
+        self.positionedReadFnamePattern = 'posread-%s.fasta'
+        
+    def makeWorkdirPath(self, filename):
+        return os.path.join(self.workdir, filename)
+
+    def assembleGeneSerialOverlap(self, result, geneName):
+        # logger.debug('tracking: starting with gene %s' % geneName)
+        overlapCsvFname = self.makeWorkdirPath('overlap-%s.csv' % geneName)
+        positionedReadDirname = self.makeWorkdirPath('posread-%s' % geneName)
+        positionedReadFname = self.makeWorkdirPath('posread-%s.fasta' % geneName)
+        os.mkdir(positionedReadDirname)
+        readSrFwdList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=True, includeReverse=False))
+        readSrRevList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=False, includeReverse=True))
+        readSrList = []
+        for readSr in readSrFwdList:
+            readSr.id = '%s-fwd' % readSr.id
+            readSrList.append(readSr)
+        for readSr in readSrRevList:
+            readSr.id = '%s-rev' % readSr.id
+            readSrList.append(readSr)
+        readSrList.extend(paftol.tools.reverseComplementSeqRecordList(readSrList))
+        repGene = result.representativePaftolTargetDict[geneName].seqRecord
+        # repGeneProtein = self.translateGene(repGene)
+        geneReadFname = self.makeGeneReadFname(geneName)
+        # for sr in readSrList:
+        #     sys.stderr.write('%s\n' % sr.id)
+        readSrDict = Bio.SeqIO.to_dict(readSrList)
+        alignmentList = paftol.tools.semiglobalOneVsAll(repGene, readSrList)
+        numReads = len(readSrList)
+        if len(alignmentList) != numReads:
+            raise StandardError, 'readSrList / alignment mismatch'
+        positionedReadList = []
+        for i in xrange(numReads):
+            # sys.stderr.write('%s / %s: %f\n' % (alignmentList[i][0].id, alignmentList[i][1].id, findMaxRelativeIdentity(alignmentList[i], self.windowSize)))
+            maxRelativeIdentity = paftol.tools.findMaxRelativeIdentity(alignmentList[i], self.windowSizeReference)
+            if maxRelativeIdentity >= self.relIdentityThresholdReference:
+                position = paftol.tools.findReadPosition(alignmentList[i])
+                # coreAlignment = findOverlapAlignment(alignmentList[i])
+                # coreLength = coreAlignment.get_alignment_length()
+                # coreMatch = findRelativeIdentity(coreAlignment)
+                coreLength = None
+                coreMatch = None
+                positionedReadList.append(paftol.tools.PositionedRead(readSrList[i], position, maxRelativeIdentity, coreLength, coreMatch))
+            else:
+                pass
+                # sys.stderr.write('skipping read %s with maxRelativeIdentity %f\n' % (readSrList[i].id, maxRelativeIdentity))
+        positionedReadList.sort()
+        # logger.debug('tracking: positioned reads')
+        positionedSrList = [positionedRead.readSr for positionedRead in positionedReadList]
+        if positionedReadDirname is not None:
+            for i in xrange(len(positionedSrList)):
+                Bio.SeqIO.write([positionedSrList[i]], '%s/p%03d.fasta' % (positionedReadDirname, i), 'fasta')
+        if positionedReadFname is not None:
+            Bio.SeqIO.write(positionedSrList, positionedReadFname, 'fasta')
+        if overlapCsvFname is not None:
+            overlapDataFrame = paftol.tools.DataFrame(['read0', 'read1', 'read1pos', 'maxRelId', 'coreLength', 'coreMatch', 'overlapLength', 'overlapMatch'])
+        else:
+            overlapDataFrame = None
+        contigList = []
+        currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+        for i in xrange(len(positionedReadList)):
+            if overlapDataFrame is not None:
+                if i == 0:
+                    overlapRow = {'read0': None, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': None, 'overlapMatch': None}
+                else:
+                    alignmentList = self.alignmentRunner.align(positionedReadList[i - 1].readSr, [positionedReadList[i].readSr])
+                    alignment = alignmentList[0]
+                    overlapAlignment = paftol.tools.findOverlapAlignment(alignment)
+                    if overlapAlignment.get_alignment_length() == 0:
+                        overlapMatch = None
+                    else:
+                        overlapMatch = paftol.tools.findRelativeIdentity(overlapAlignment)
+                    overlapRow = {'read0': positionedReadList[i - 1].readSr.id, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': overlapAlignment.get_alignment_length(), 'overlapMatch': overlapMatch}
+                overlapDataFrame.addRow(overlapRow)
+            if currentContig.addRead(positionedReadList[i].readSr):
+                logger.debug('added read %s to current contig', positionedReadList[i].readSr.id)
+            else:
+                logger.debug('started new contig with read %s', positionedReadList[i].readSr.id)
+                currentContig.removeTerminalGaps()
+                contigList.append(currentContig)
+                currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+                currentContig.addRead(positionedReadList[i].readSr)
+        currentContig.removeTerminalGaps()
+        contigList.append(currentContig)
+        if overlapCsvFname is not None:
+            with open(overlapCsvFname, 'w') as f:
+                overlapDataFrame.writeCsv(f)
+        consensusList = []
+        contigNumber = 0
+        for contig in contigList:
+            consensus = contig.getConsensus()
+            if consensus is not None:
+                consensus.id = 'contig%05d' % contigNumber
+                contigNumber = contigNumber + 1
+                consensusList.append(consensus)
+        return consensusList
+
     
 class TargetRecoverer(HybseqAnalyser):
     
@@ -723,26 +888,14 @@ class TargetRecoverer(HybseqAnalyser):
         super(TargetRecoverer, self).__init__(workdirTgz, workDirname)
         self.targetMapper = targetMapper
         self.targetAssembler = targetAssembler
+        self.targetMapperWorkdir = 'targetmapper'
 
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
+        self.targetMapper.setup(self.makeWorkdirPath(self.targetMapperWorkdir))
         # FIXME: is writing the targets fasta file really part of setup?
-	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
-
-    def mapReadsBwa(self, result):
-        """Map reads to gene sequences (from multiple organisms possibly).
-"""
-        logger.debug('mapping reads to gene sequences')
-        referenceFname = self.makeTargetsFname(True)
-        self.bwaRunner.indexReference(referenceFname)
-        forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
-        if result.reverseFastq is None:
-            reverseReadsFname = None
-        else:
-            reverseReadsFname = os.path.join(os.getcwd(), result.reverseFastq)
-        result.paftolTargetSet.numOfftargetReads = 0
-        self.bwaRunner.processBwa(result.paftolTargetSet, referenceFname, forwardReadsFname, reverseReadsFname)
+	# result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
 
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga
