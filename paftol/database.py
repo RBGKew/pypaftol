@@ -1,3 +1,4 @@
+import sys
 import re
 
 class PaftolDpDetails(object):
@@ -18,11 +19,12 @@ class PaftolDpDetails(object):
             
     def readDetailsLine(self, detailsFile, detailsRe, errorMsg):
         line = detailsFile.readline()
+        sys.stderr.write('got line: "%s"\n' % repr(line))
         m = detailsRe.match(line.strip())
         if m is None:
             raise StandardError, errorMsg
         return m.group(1)
-            
+
     def readFile(self, detailsFile):
         self.dbusername = self.readDetailsLine(detailsFile, self.reDbusername, 'malformed dbusername line')
         self.dbpassword = self.readDetailsLine(detailsFile, self.reDbpassword, 'malformed dbpassword line')
