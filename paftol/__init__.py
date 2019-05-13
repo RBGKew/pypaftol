@@ -387,7 +387,9 @@ the target genes.
         self.forwardFasta = 'fwd.fasta'
         self.reverseFasta = 'rev.fasta'
         self.targetsFname = 'targets.fasta'
+        self.geneAssemblyDirnamePattern = 'targetasm-%s'
         self.geneReadFnamePattern = 'gene-%s.fasta'
+        self.geneContigsFnamePattern = '%s-contigs.fasta'
         self.geneRepresentativeFnamePattern = 'generep-%s.fasta'
         self.exoneratePercentIdentityThreshold = 65.0
 
@@ -412,7 +414,7 @@ the target genes.
         self.cleanupTmpdir()
 
     def makeGeneDirname(self, geneName):
-        return 'spades-%s' % geneName
+        return self.geneAssemblyDirnamePattern % geneName
 
     def makeGeneDirPath(self, geneName):
         return self.makeWorkdirPath(self.makeGeneDirname(geneName))
@@ -425,6 +427,9 @@ the target genes.
 
     def makeWorkdirPath(self, filename):
         return os.path.join(self.makeWorkDirname(), filename)
+    
+    def makeGeneContigsFname(self, geneName):
+        return self.makeWorkdirPath(self.geneContigsFnamePattern % geneName)
 
     def makeTargetsFname(self, absolutePath=False):
         if absolutePath:
@@ -433,6 +438,7 @@ the target genes.
             return self.targetsFname
 
     def makeGeneReadFname(self, geneName, absolutePath=False):
+        # logger.warning('obsolescent -- responsibility for read fnames moving to TargetAssembler')
         geneReadFname = self.geneReadFnamePattern % geneName
         if absolutePath:
             return self.makeWorkdirPath(geneReadFname)
@@ -692,9 +698,13 @@ class TargetMapper(object):
     def makeWorkdir(self):
         os.mkdir(self.workdir)
         
+    def isSetup(self):
+        return self.workdir is not None
+        
     def setup(self, workdir):
         self.workdir = workdir
         self.makeWorkdir()
+        logger.debug('set up workdir: %s', self.workdir)
 
     def cleanup(self):
         shutil.rmtree(self.workdir)
@@ -716,8 +726,8 @@ class TargetMapperTblastn(TargetMapper):
 
     def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
         logger.debug('mapping gene sequences to reads')
-        if self.workdir is None:
-            raise StandardError, 'illegal state: no workdir'
+        if not self.isSetup():
+            raise StandardError, 'illegal state: TargetMapperTblastn instance not set up'
         self.writeTargetsFile(paftolTargetSet)
         referenceFname = self.makeTargetsPath()
         targetProteinList = [paftol.tools.translateSeqRecord(geneSr) for geneSr in paftolTargetSet.getSeqRecordList()]
@@ -766,9 +776,13 @@ class TargetAssembler(object):
     
     def __init__(self):
         self.workdir = None
-        
+        self.geneReadFnamePattern = 'gene-%s.fasta'
+
     def makeWorkdir(self):
         os.mkdir(self.workdir)
+        
+    def isSetup(self):
+        return self.workdir is not None
         
     def setup(self, workdir):
         self.workdir = workdir
@@ -778,19 +792,43 @@ class TargetAssembler(object):
         shutil.rmtree(self.workdir)
         self.workdir = None
 
+    def makeWorkdirPath(self, filename):
+        return os.path.join(self.workdir, filename)
 
-def TargetAssemblerOverlap(TargetAssembler):
-    
-    def __init__(self):
-        super(TargetAssemblerOverlap, self).__init__()
+    def makeGeneReadFname(self, geneName):
+        geneReadFname = self.geneReadFnamePattern % geneName
+        return self.makeWorkdirPath(geneReadFname)
+
+
+class TargetAssemblerOverlapSerial(TargetAssembler):
+
+    def __init__(self, semiglobalAlignmentRunner=None):
+        super(TargetAssemblerOverlapSerial, self).__init__()
         self.overlapCsvFnamePattern = 'overlap-%s.csv'
         self.positionedReadFnamePattern = 'posread-%s.fasta'
+        self.semiglobalAlignmentRunner = semiglobalAlignmentRunner
+        self.windowSizeReference = None
+        self.relIdentityThresholdReference = None
+        self.windowSizeReadOverlap = None
+        self.relIdentityThresholdReadOverlap = None
         
     def makeWorkdirPath(self, filename):
         return os.path.join(self.workdir, filename)
 
-    def assembleGeneSerialOverlap(self, result, geneName):
+    def checkControlParameters(self):
+        controlParameterList = ['windowSizeReference', 'relIdentityThresholdReference', 'windowSizeReadOverlap', 'relIdentityThresholdReadOverlap', 'semiglobalAlignmentRunner']
+        missingControlParameterList = []
+        for controlParameter in controlParameterList:
+            if self.__dict__[controlParameter] is None:
+                missingControlParameterList.append(controlParameter)
+        if len(missingControlParameterList) > 0:
+            raise StandardError, 'missing control parameters: %s' % ', '.join(missingControlParameterList)
+
+    def assembleGene(self, result, geneName):
         # logger.debug('tracking: starting with gene %s' % geneName)
+        if not self.isSetup():
+            raise StandardError, 'cannot assemble gene %s: TargetAssemblerOverlapSerial instance not set up' % geneName
+        self.checkControlParameters()
         overlapCsvFname = self.makeWorkdirPath('overlap-%s.csv' % geneName)
         positionedReadDirname = self.makeWorkdirPath('posread-%s' % geneName)
         positionedReadFname = self.makeWorkdirPath('posread-%s.fasta' % geneName)
@@ -843,13 +881,13 @@ def TargetAssemblerOverlap(TargetAssembler):
         else:
             overlapDataFrame = None
         contigList = []
-        currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+        currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.semiglobalAlignmentRunner)
         for i in xrange(len(positionedReadList)):
             if overlapDataFrame is not None:
                 if i == 0:
                     overlapRow = {'read0': None, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': None, 'overlapMatch': None}
                 else:
-                    alignmentList = self.alignmentRunner.align(positionedReadList[i - 1].readSr, [positionedReadList[i].readSr])
+                    alignmentList = self.semiglobalAlignmentRunner.align(positionedReadList[i - 1].readSr, [positionedReadList[i].readSr])
                     alignment = alignmentList[0]
                     overlapAlignment = paftol.tools.findOverlapAlignment(alignment)
                     if overlapAlignment.get_alignment_length() == 0:
@@ -864,7 +902,7 @@ def TargetAssemblerOverlap(TargetAssembler):
                 logger.debug('started new contig with read %s', positionedReadList[i].readSr.id)
                 currentContig.removeTerminalGaps()
                 contigList.append(currentContig)
-                currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
+                currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.semiglobalAlignmentRunner)
                 currentContig.addRead(positionedReadList[i].readSr)
         currentContig.removeTerminalGaps()
         contigList.append(currentContig)
@@ -889,14 +927,16 @@ class TargetRecoverer(HybseqAnalyser):
         self.targetMapper = targetMapper
         self.targetAssembler = targetAssembler
         self.targetMapperWorkdir = 'targetmapper'
+        self.targetAssemblerWorkdir = 'targetassembler'
 
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
         self.targetMapper.setup(self.makeWorkdirPath(self.targetMapperWorkdir))
+        self.targetAssembler.setup(self.makeWorkdirPath(self.targetAssemblerWorkdir))
         # FIXME: is writing the targets fasta file really part of setup?
 	# result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
-
+        
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga
     # reconstructed CDS:    cactcatttcat---gga
@@ -907,7 +947,98 @@ class TargetRecoverer(HybseqAnalyser):
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
+    def reconstructCds(self, result, geneName, strictOverlapFiltering):
+        logger.debug('reconstructing CDS for gene %s', geneName)
+        if result.representativePaftolTargetDict is None:
+            raise StandardError('illegal state: no represesentative genes')
+        if result.representativePaftolTargetDict[geneName] is None:
+            raise StandardError('no representative for gene %s' % geneName)
+        os.mkdir(self.makeGeneDirPath(geneName))
+        contigList = self.targetAssembler.assembleGene(result, geneName)
+        if contigList is None:
+            logger.warning('gene %s: no overlap contigs', geneName)
+            return None
+        if len(contigList) == 0:
+            logger.warning('gene %s: empty overlap contig list', geneName)
+            return None
+        logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
+        geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
+        exonerateRunner = paftol.tools.ExonerateRunner()
+
+        Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
+        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        # allow stop translation
+        aminoAcidSet.add('*')
+        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
+        if len(setDiff) > 0:
+            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
+            return None
+        contigFname = self.makeGeneContigsFname(geneName)
+        Bio.SeqIO.write(contigList, contigFname, 'fasta')
+        exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
+        logger.debug('gene %s: %d contigs, %d exonerate results', geneName, len(contigList), len(exonerateResultList))
+        if len(exonerateResultList) == 0:
+            logger.warning('gene %s: no exonerate results from %d contigs', geneName, len(contigList))
+        exonerateResultList.sort(paftol.cmpExonerateResultByQueryAlignmentStart)
+        # reverse complementing extraneous as that is done by exonerate itself
+        # for exonerateResult in exonerateResultList:
+        #     logger.debug('gene %s, contig %s: targetStrand = %s', geneName, exonerateResult.targetId, exonerateResult.targetStrand)
+        #     logger.debug('gene %s, contig %s, raw: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        #     if exonerateResult.targetStrand == '-':
+        #         exonerateResult.reverseComplementTarget()
+        #     logger.debug('gene %s, contig %s, can: %d -> %d, %s', geneName, exonerateResult.targetId, exonerateResult.targetCdsStart, exonerateResult.targetCdsEnd, str(exonerateResult.targetAlignmentSeq.seq))
+        # logger.warning('provisional filtering and supercontig construction, handling of overlapping contigs not finalised')
+        filteredExonerateResultList = self.filterExonerateResultList(geneName, exonerateResultList, strictOverlapFiltering)
+        logger.debug('gene %s: %d exonerate results after filtering', geneName, len(filteredExonerateResultList))
+        Bio.SeqIO.write([e.targetCdsSeq for e in filteredExonerateResultList], os.path.join(self.makeGeneDirPath(geneName), '%s-fecds.fasta' % geneName), 'fasta')
+        if len(filteredExonerateResultList) == 0:
+            logger.warning('gene %s: no exonerate results left after filtering', geneName)
+            return None
+        supercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join([str(e.targetCdsSeq.seq) for e in filteredExonerateResultList])), id='%s_supercontig' % geneName)
+        logger.debug('gene %s: supercontig length %d', geneName, len(supercontig))
+        if len(supercontig) == 0:
+            logger.warning('gene %s: empty supercontig', geneName)
+            return None
+        supercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-supercontig.fasta' % geneName)
+        Bio.SeqIO.write([supercontig], supercontigFname, 'fasta')
+        Bio.SeqIO.write([geneProtein], os.path.join(self.makeGeneDirPath(geneName), '%s-supercontigref.fasta' % geneName), 'fasta')
+        # FIXME: use exonerate to align "supercontig" to reference and
+        # retrieve coding sequence of exonerate result with highest
+        # score. In case of tied highest score, select result with
+        # shortest CDS, as this is indicative of highest
+        # "concentration" of matches and fewest gaps.
+        supercontigErList = exonerateRunner.parse(geneProtein, supercontigFname, 'protein2genome', bestn=1)
+        logger.debug('gene %s: %d supercontig exonerate results', geneName, len(supercontigErList))
+        splicedSupercontigEr = None
+        if len(supercontigErList) == 0:
+            logger.warning('gene %s: no exonerate results from supercontig', geneName)
+            return None
+        if len(supercontigErList) > 1:
+            splicedSupercontigEr = supercontigErList[0]
+            minLength = len(splicedSupercontigEr.targetCdsSeq)
+            for supercontigEr in supercontigErList:
+                if len(supercontigEr.targetCdsSeq) < minLength:
+                    splicedSupercontigEr = supercontigEr
+                    minLength = len(splicedSupercontigEr.targetCdsSeq)
+            contigStats = ', '.join(['raw=%d, cdsLen=%d' % (e.rawScore, len(e.targetCdsSeq)) for e in supercontigErList])
+            logger.warning('gene %s: received %d supercontig exonerate results despite bestn=1 (%s), selected raw=%d, cdsLen=%d', geneName, len(supercontigErList), contigStats, splicedSupercontigEr.rawScore, len(splicedSupercontigEr.targetCdsSeq))
+        else:
+            splicedSupercontigEr = supercontigErList[0]
+        # not filtering for percent identity to gene again, as that is already done
+        if result.reverseFastq is not None:
+            readsSpec = '%s, %s' % (result.forwardFastq, result.reverseFastq)
+        else:
+            readsSpec = result.forwardFastq
+        splicedSupercontig = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(str(splicedSupercontigEr.targetCdsSeq.seq)), id=geneName, description='reconstructed CDS computed by paftol.overlapAnalyser, targets: %s, reads: %s' % (result.paftolTargetSet.fastaHandleStr, readsSpec))
+        logger.debug('gene %s: splicedSupercontig length %d', geneName, len(splicedSupercontig))
+        splicedSupercontigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-splicedsupercontig.fasta' % geneName)
+        Bio.SeqIO.write([splicedSupercontig], splicedSupercontigFname, 'fasta')
+        return splicedSupercontig
+    
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
+        raise StandardError, 'obsolete -- use recoverTargets'
+
+    def recoverTargets(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
 	paftolTargetSet = PaftolTargetSet()
 	paftolTargetSet.readFasta(targetsSourcePath)
@@ -917,7 +1048,7 @@ class TargetRecoverer(HybseqAnalyser):
 	try:
             self.setup(result)
             logger.debug('setup done')
-            self.targetMapper.mapReads(result)
+            self.targetMapper.mapReads(paftolTargetSet, forwardFastq, reverseFastq)
             logger.debug('mapping done')
             self.distribute(result, maxNumReadsPerGene)
             logger.debug('read distribution done')
@@ -933,6 +1064,8 @@ class TargetRecoverer(HybseqAnalyser):
         finally:
             self.makeTgz()
             logger.debug('tgz file made')
+            self.targetMapper.cleanup()
+            self.targetAssembler.cleanup()
             self.cleanup()
             logger.debug('cleanup done')
 
@@ -1779,7 +1912,7 @@ class HybpiperAnalyser(HybseqAnalyser):
         if len(setDiff) > 0:
             logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
             return None
-        contigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-contigs.fasta' % geneName)
+        contigFname = self.makeGeneContigsFname(geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
         exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
@@ -2164,10 +2297,10 @@ class OverlapAnalyser(HybseqAnalyser):
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.assembleGeneSerialOverlap(result, geneName)
         if contigList is None:
-            logger.warning('gene %s: no spades contigs', geneName)
+            logger.warning('gene %s: no overlap contigs', geneName)
             return None
         if len(contigList) == 0:
-            logger.warning('gene %s: empty contig list', geneName)
+            logger.warning('gene %s: empty overlap contig list', geneName)
             return None
         logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
         geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
@@ -2181,7 +2314,7 @@ class OverlapAnalyser(HybseqAnalyser):
         if len(setDiff) > 0:
             logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
             return None
-        contigFname = os.path.join(self.makeGeneDirPath(geneName), '%s-contigs.fasta' % geneName)
+        contigFname = self.makeGeneContigsFname(geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
         logger.debug('gene %s: %d contigs, %d exonerate results', geneName, len(contigList), len(exonerateResultList))
