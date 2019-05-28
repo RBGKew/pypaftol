@@ -23,4 +23,4 @@ doc :
 clean :
 	rm -rf html build dist paftol.egg-info paftol/version.py
 
-.PHONY : build ptversion doc clean hinstall tests gitversion
+.PHONY : build ptversion doc clean hinstall tests gitversion ptversion
