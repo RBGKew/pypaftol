@@ -21,6 +21,10 @@ import Bio.File
 import Bio.SeqIO.FastaIO
 
 import paftol.tools
+import paftol.version
+
+
+__version__ = paftol.version.__version__
 
 
 logger = logging.getLogger(__name__)
