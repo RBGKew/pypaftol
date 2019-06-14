@@ -681,7 +681,7 @@ the target genes.
 
             
 class TargetMapper(object):
-    
+
     def __init__(self):
         self.workdir = None
         self.targetsFname = 'targets.fasta'
@@ -1183,7 +1183,10 @@ facilitating handling of multiple genes and multiple organisms.
         d = {}
         d['organism'] = self.organism.name
         d['gene'] = self.paftolGene.name
-        d['seqLength'] = len(self.seqRecord)
+        if self.seqRecord is None:
+            d['seqRecord'] = None
+        else:
+            d['seqLength'] = len(self.seqRecord)
         d['numMappedReads'] = self.numMappedReads()
         return d
 
