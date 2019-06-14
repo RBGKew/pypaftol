@@ -29,6 +29,13 @@ def addBlastRunnerToParser(p):
     p.add_argument('--blastWindowSize', type=int, help='multiple hits window size (see -window_size)')
 
     
+def addOverlapAssemblerToParser(p):
+    p.add_argument('--windowSizeReference', type=int, help='window size for reference to read alignment')
+    p.add_argument('--relIdentityThresholdReference', type=float, help='percent identity threshold for reference to read alignment')
+    p.add_argument('--windowSizeReadOverlap', type=int, help='window size for read overlap alignment')
+    p.add_argument('--relIdentityThresholdReadOverlap', type=float, help='percent identity threshold for read overlap alignment')
+    
+    
 def addHybseqToParser(p):
     # p.add_argument('-t', '--targetseqs', help='target sequences (FASTA)')
     p.add_argument('--allowInvalidBases', action='store_true', help='allow any symbol in reference sequence (e.g. IUPAC ambiguity but also entirely invalid ones)')
@@ -59,6 +66,21 @@ def addBlastnRunnerToParser(p):
 def addSpadesRunnerToParser(p):
     p.add_argument('--spadesNumThreads', type=int, help='set number of threads for SPAdes (see spades -t)')
     p.add_argument('--spadesCovCutoff', help='set coverage cutoff for SPAdes (see spades --cov-cutoff, string to allow "auto" and "off")')
+
+
+def requiredArg(arg, msg):
+    if arg is None:
+        raise StandardError, msg
+    return arg
+
+def argToOverlapAssemblerSerial(argNamespace):
+    targetAssemblerOverlapSerial = paftol.TargetAssemblerOverlapSerial()
+    targetAssemblerOverlapSerial.windowSizeReference = requiredArg(argNamespace.windowSizeReference, 'windowSizeReference is required')
+    targetAssemblerOverlapSerial.relIdentityThresholdReference = requiredArg(argNamespace.relIdentityThresholdReference, 'relIdentityThresholdReference is required')
+    targetAssemblerOverlapSerial.windowSizeReadOverlap = requiredArg(argNamespace.windowSizeReadOverlap, 'windowSizeReadOverlap is required')
+    targetAssemblerOverlapSerial.relIdentityThresholdReadOverlap = requiredArg(argNamespace.relIdentityThresholdReadOverlap, 'relIdentityThresholdReadOverlap is required')
+    targetAssemblerOverlapSerial.semiglobalAlignmentRunner = paftol.tools.SemiglobalAlignmentRunner()
+    return targetAssemblerOverlapSerial
 
 
 def argToBwaRunner(argNamespace):
@@ -161,6 +183,32 @@ like approach, unsing tblastn for mapping reads to targets.
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
 
+            
+def runTargetRecovery(argNamespace):
+    if argNamespace.mapper == 'tblastn':
+        tblastnRunner = argToTblastnRunner(argNamespace)
+        targetMapper = paftol.TargetMapperTblastn(tblastnRunner)
+    elif argNamespace.mapper == 'bwa':
+        bwaRunner = argToBwaRunner(argNamespace)
+        targetMapper = paftol.TargetMapperBwa(bwaRunner)
+    else:
+        raise StandardError, 'unsupported / unknown mapper %s' % argNamespace.mapper
+    if argNamespace.assembler == 'spades':
+        raise StandardError, 'spades assembly not yet refactored'
+    elif argNamespace.assembler == 'overlapSerial':
+        targetAssembler = argToOverlapAssemblerSerial(argNamespace)
+    targetRecoverer = paftol.TargetRecoverer(argNamespace.tgz, 'targetrecover', targetMapper=targetMapper, targetAssembler=targetAssembler)
+    targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
+    result = targetRecoverer.recoverTargets(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    if argNamespace.outfile is not None:
+        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+    else:
+        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+    if argNamespace.summaryCsv is not None:
+        summaryStats = result.summaryStats()
+        with open(argNamespace.summaryCsv, 'w') as f:
+            summaryStats.writeCsv(f)
+    
 
 def runOverlapAnalysis(argNamespace):
     """Run an analysis using tblastn for mapping to targets and overlap based assembly for gene recovery.
@@ -354,11 +402,19 @@ def addOverlapAnalyserParser(subparsers):
     p = subparsers.add_parser('overlapRecover', help='recover PAFTOL gene sequences using tblastn and overlap based assembly')
     addTblastnRunnerToParser(p)
     addHybseqToParser(p)
-    p.add_argument('--windowSizeReference', type=int, help='window size for reference to read alignment')
-    p.add_argument('--relIdentityThresholdReference', type=float, help='percent identity threshold for reference to read alignment')
-    p.add_argument('--windowSizeReadOverlap', type=int, help='window size for read overlap alignment')
-    p.add_argument('--relIdentityThresholdReadOverlap', type=float, help='percent identity threshold for read overlap alignment')
+    addOverlapAssemblerToParser(p)
     p.set_defaults(func=runOverlapAnalysis)
+    
+    
+def addRecoverParser(subparsers):
+    p = subparsers.add_parser('recoverSeqs', help='recover target sequences from HybSeq NGS files')
+    addHybseqToParser(p)
+    p.add_argument('--mapper', choices=['tblastn', 'bwa'], help='method to be used for mapping reads to target genes', required=True)
+    p.add_argument('--assembler', choices=['spades', 'overlapSerial'], help='method to be used to assemble reads mapped to a gene into contigs', required=True)
+    addTblastnRunnerToParser(p)
+    addBwaRunnerToParser(p)    
+    addOverlapAssemblerToParser(p)
+    p.set_defaults(func=runTargetRecovery)
 
     
 def addTargetGeneScanParser(subparsers):
@@ -456,6 +512,7 @@ def paftoolsMain():
     addHybpiperBwaParser(subparsers)
     addHybpiperTblastnParser(subparsers)
     addOverlapAnalyserParser(subparsers)
+    addRecoverParser(subparsers)
     addTargetGeneScanParser(subparsers)
     addGenomeReadScanParser(subparsers)
     addExtractCdsListParser(subparsers)
