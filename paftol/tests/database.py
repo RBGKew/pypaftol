@@ -16,22 +16,22 @@ class DatabaseTestCase(unittest.TestCase):
     
         
     def test_database(self):
-        paftolDpDetails = paftol.database.PaftolDpDetails()
-        self.assertIsNone(None, paftolDpDetails.dbusername)
-        self.assertIsNone(None, paftolDpDetails.dbpassword)
-        self.assertIsNone(None, paftolDpDetails.dbhost)
-        self.assertIsNone(None, paftolDpDetails.dbname)
+        paftolDatabaseDetails = paftol.database.PaftolDatabaseDetails()
+        self.assertIsNone(None, paftolDatabaseDetails.dbusername)
+        self.assertIsNone(None, paftolDatabaseDetails.dbpassword)
+        self.assertIsNone(None, paftolDatabaseDetails.dbhost)
+        self.assertIsNone(None, paftolDatabaseDetails.dbname)
         f = cStringIO.StringIO("""username: paftol
 password: topsecret
 host: localhost
 dbname: paftol
 """)
-        paftolDpDetailsFromFile = paftol.database.PaftolDpDetails(detailsFile=f)
-        self.assertEqual('paftol', paftolDpDetailsFromFile.dbusername)
-        self.assertEqual('topsecret', paftolDpDetailsFromFile.dbpassword)
-        self.assertEqual('localhost', paftolDpDetailsFromFile.dbhost)
-        self.assertEqual('paftol', paftolDpDetailsFromFile.dbname)
+        paftolDatabaseDetailsFromFile = paftol.database.PaftolDatabaseDetails(detailsFile=f)
+        self.assertEqual('paftol', paftolDatabaseDetailsFromFile.dbusername)
+        self.assertEqual('topsecret', paftolDatabaseDetailsFromFile.dbpassword)
+        self.assertEqual('localhost', paftolDatabaseDetailsFromFile.dbhost)
+        self.assertEqual('paftol', paftolDatabaseDetailsFromFile.dbname)
         # f = open(...)
 
-# paftolDpDetails = paftol.database.PaftolDpDetails(detailsFile=open('~/.paftol/dpdatabase.cfg'))
-# connection = paftolDpDetails.makeConnection()
+# paftolDatabaseDetails = paftol.database.PaftolDatabaseDetails(detailsFile=open('~/.paftol/dpdatabase.cfg'))
+# connection = paftolDatabaseDetails.makeConnection()

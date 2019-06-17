@@ -1,8 +1,11 @@
 import sys
 import re
+import os
 
-class PaftolDpDetails(object):
-    
+import mysql.connector
+
+class PaftolDatabaseDetails(object):
+
     reDbusername = re.compile('username: *([^ ]+)')
     reDbpassword = re.compile('password: *([^ ]+)')
     reDbhost = re.compile('host: *([^ ]+)')
@@ -16,10 +19,10 @@ class PaftolDpDetails(object):
             self.dbname = None
         else:
             self.readFile(detailsFile)
-            
+
     def readDetailsLine(self, detailsFile, detailsRe, errorMsg):
         line = detailsFile.readline()
-        sys.stderr.write('got line: "%s"\n' % repr(line))
+        # sys.stderr.write('got line: "%s"\n' % repr(line))
         m = detailsRe.match(line.strip())
         if m is None:
             raise StandardError, errorMsg
@@ -32,6 +35,18 @@ class PaftolDpDetails(object):
         self.dbname = self.readDetailsLine(detailsFile, self.reDbname, 'malformed dbname line')
 
     def makeConnection(self):
-        return mysql.connector.connection.MySQlConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname)
+        return mysql.connector.connection.MySQLConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname)
+               
 
-    
+
+def getDatabaseDetails(detailsFname):
+    productionDatabaseDetails = None
+    with open(detailsFname, 'r') as f:
+        productionDatabaseDetails = PaftolDatabaseDetails(f)
+    return productionDatabaseDetails
+
+
+def getProductionDatabaseDetails(detailsFname=None):
+    if detailsFname is None:
+        detailsFname = os.path.join(os.environ['HOME'], '.paftol', 'productiondb.cfg')
+    return getDatabaseDetails(detailsFname)
