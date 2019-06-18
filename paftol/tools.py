@@ -11,6 +11,7 @@ import tempfile
 import logging
 import copy
 import math
+import md5
 
 import Bio
 import Bio.Alphabet
@@ -30,6 +31,17 @@ import paftol.clib
 
 logger = logging.getLogger(__name__)
 
+
+def md5HexDigest(s):
+    m = md5.new(s)
+    return m.hexdigest()
+
+
+def md5HexdigestFromFile(fname):
+    with open(fname, 'rb') as f:
+        md5Hex = md5HexDigest(f.read())
+    return md5Hex
+    
 
 def fastqToFasta(fastqFname, fastaFname):
     with open(fastqFname, 'r') as fastqFile:
