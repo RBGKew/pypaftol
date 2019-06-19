@@ -9,6 +9,7 @@ import Bio.SeqRecord
 import Bio.AlignIO
 
 import paftol
+import paftol.database
 
 
 logger = logging.getLogger(__name__)
@@ -365,6 +366,13 @@ def runExonerateStarAlignment(argNamespace):
         with open(argNamespace.outfile, 'w') as f:
             Bio.AlignIO.write(exonerateStarAlignment.xstarAlignment, f, 'fasta')
 
+            
+def runAddTargetsFile(argNamespace):
+    targetsfile = argNamespace.targetsfile
+    description = argNamespace.description
+    # sys.stderr.write('insertGenes: %s, geneType: %s\n' % (str(argNamespace.insertGenes), str(argNamespace.geneType)))
+    paftol.database.addTargetsFile(targetsfile, description, argNamespace.insertGenes, argNamespace.geneType)
+
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev', help='for testing argparse')
@@ -496,6 +504,15 @@ def addExonerateStarAlignmentParser(subparsers):
     p.set_defaults(func=runExonerateStarAlignment)
     
     
+def addAddTargetsFileParser(subparsers):
+    p = subparsers.add_parser('addTargetsFile', help='add reference targets from a targets file')
+    p.add_argument('--description', help='description of the targets file')
+    p.add_argument('--geneType', help='specify gene type')
+    p.add_argument('--insertGenes', action='store_true', help='insert new genes that are not already in database')
+    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), required')
+    p.set_defaults(func=runAddTargetsFile)
+
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -522,6 +539,7 @@ def paftoolsMain():
     addNeedleComparisonParser(subparsers)
     addGeneSetStatsParser(subparsers)
     addExonerateStarAlignmentParser(subparsers)
+    addAddTargetsFileParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
