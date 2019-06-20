@@ -118,7 +118,9 @@ def makeSymlink(symlinkDirname, sequence, fastqFname):
     gzipped = paftol.tools.isGzipped(fastqFname)
     symlinkName = canonicalSymlinkName(sequence, orientation, gzipped)
     symlinkPath = os.path.join(symlinkDirname, symlinkName)
-    if not os.path.lexists(symlinkPath):
+    if os.path.lexists(symlinkPath) or os.path.exists(symlinkPath):
+        logger.warning('sequence %d: link %s already exists', sequence.idSequencing, symlinkPath)
+    else:
         os.symlink(fastqFname, symlinkPath)
 
 

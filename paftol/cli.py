@@ -205,6 +205,12 @@ def runTargetRecovery(argNamespace):
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+    if argNamespace.contigFname is not None:
+        allContigList = []
+        for contigList in result.contigDict.values():
+            if contigList is not None:
+                allContigList.extend(contigList)
+        Bio.SeqIO.write(allContigList, argNamespace.contigFname, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
@@ -419,6 +425,7 @@ def addRecoverParser(subparsers):
     addHybseqToParser(p)
     p.add_argument('--mapper', choices=['tblastn', 'bwa'], help='method to be used for mapping reads to target genes', required=True)
     p.add_argument('--assembler', choices=['spades', 'overlapSerial'], help='method to be used to assemble reads mapped to a gene into contigs', required=True)
+    p.add_argument('--contigFname', help='filename for contigs')
     addTblastnRunnerToParser(p)
     addBwaRunnerToParser(p)    
     addOverlapAssemblerToParser(p)

@@ -1075,7 +1075,7 @@ class ExonerateStarAlignment(object):
             y = y - lineHeight
         epsFile.write('%%EOF\n')
 
-        
+
 class TrimmomaticRunner(object):
     
     def __init__(self, numThreads=None, leadingQuality=None, trailingQuality=None, minLength=None, slidingWindowSize=None, slidingWindowQuality=None, adapterFname=None):
