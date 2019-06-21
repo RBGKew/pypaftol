@@ -918,7 +918,7 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         for contig in contigList:
             consensus = contig.getConsensus()
             if consensus is not None:
-                consensus.id = 'contig%05d' % contigNumber
+                consensus.id = '%s--contig%05d' % (geneName, contigNumber)
                 contigNumber = contigNumber + 1
                 consensusList.append(consensus)
         return consensusList
@@ -966,6 +966,8 @@ class TargetRecoverer(HybseqAnalyser):
             logger.warning('gene %s: empty contig list', geneName)
             return None
         logger.debug('gene %s: %d contigs', geneName, len(contigList))
+        for contig in contigList:
+            contig.description = 'representativeGene=%s, targetsFasta=%s, %s' % (result.representativePaftolTargetDict[geneName].getName(), result.paftolTargetSet.fastaHandleStr, contig.description)
         return contigList
     
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
@@ -2300,7 +2302,7 @@ class OverlapAnalyser(HybseqAnalyser):
         for contig in contigList:
             consensus = contig.getConsensus()
             if consensus is not None:
-                consensus.id = 'contig%05d' % contigNumber
+                consensus.id = '%s--contig%05d' % (geneName, contigNumber)
                 contigNumber = contigNumber + 1
                 consensusList.append(consensus)
         return consensusList
