@@ -2,11 +2,33 @@ import sys
 import re
 import os
 import os.path
+import unicodedata
 
 import mysql.connector
 
 import paftol
 import paftol.tools
+
+
+def strOrNone(x):
+    if x is None:
+        return None
+    else:
+        return unicodedata.normalize('NFKD', x).encode('ascii', 'ignore').strip()
+
+    
+def intOrNone(x):
+    if x is None:
+        return None
+    else:
+        return int(x)
+    
+
+def floatOrNone(x):
+    if x is None:
+        return None
+    else:
+        return float(x)
 
 
 class PaftolDatabaseDetails(object):
@@ -196,5 +218,25 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
             newReferenceTargetId = generateUnusedPrimaryKey(connection, 'ReferenceTarget')
             cursor.execute('INSERT INTO ReferenceTarget (id, paftolGeneId, paftolOrganism, paftolTargetLength, targetsFastaFileId) VALUES (%s, %s, %s, %s, %s)', (newReferenceTargetId, geneIdDict[paftolTarget.paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), newFastaFileId, ))
     cursor.close()
+    connection.commit()
+    connection.close()
+
+    
+def addRecoveryResult(result):
+    analysisDatabaseDetails = getAnalysisDatabaseDetails()
+    connection = analysisDatabaseDetails.makeConnection()
+    analysisDatabase = analysis.AnalysisDatabase(connection)
+    paftolGeneEntityDict = {}
+    for paftolGeneEntity in analysisDatabase.paftolGeneDict:
+        paftolGeneEntityDict[paftolGeneEntity.geneName] = paftolGeneEntity
+    for geneName in result.contigDict:
+        if geneName not in paftolGeneEntityDict:
+            raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+    cursor = connection.cursor(prepared=True)
+    for geneName in result.contigDict:
+        if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
+            for contig in result.contigDict[geneName]:
+                recoveredContigId = generateUnusedPrimaryKey(connection, 'RecoveredContig')
+                cursor.execute('INSERT INTO RecoveredContig (id, contigRecoveryId, paftolGeneId, seqLength, fwdPaftolFastqId, revPaftolFastqId, representativeReferenceTargetId VALUES (%s, %s, %s, %s, %s, %s, %s', (recoveredContigId, paftolGeneEntityDict[geneName].id, len(contig), None, None, None))
     connection.commit()
     connection.close()
