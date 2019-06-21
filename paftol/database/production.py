@@ -6,28 +6,7 @@ import unicodedata
 
 import mysql.connector
 
-import production
-
-
-def strOrNone(x):
-    if x is None:
-        return None
-    else:
-        return unicodedata.normalize('NFKD', x).encode('ascii', 'ignore').strip()
-
-    
-def intOrNone(x):
-    if x is None:
-        return None
-    else:
-        return int(x)
-    
-
-def floatOrNone(x):
-    if x is None:
-        return None
-    else:
-        return float(x)
+import paftol.database
 
 
 class Action(object):
@@ -304,8 +283,8 @@ def loadActionDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Action()
-        entity.idAction = intOrNone(row[0])
-        entity.action = strOrNone(row[1])
+        entity.idAction = paftol.database.intOrNone(row[0])
+        entity.action = paftol.database.strOrNone(row[1])
         entityDict[entity.idAction] = entity
     cursor.close()
     return entityDict
@@ -318,8 +297,8 @@ def loadCoordinatesDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Coordinates()
-        entity.coordinate = strOrNone(row[0])
-        entity.sortOrder = intOrNone(row[1])
+        entity.coordinate = paftol.database.strOrNone(row[0])
+        entity.sortOrder = paftol.database.intOrNone(row[1])
         entityDict[entity.coordinate] = entity
     cursor.close()
     return entityDict
@@ -332,10 +311,10 @@ def loadDBVersionDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = DBVersion()
-        entity.id = intOrNone(row[0])
-        entity.dbName = strOrNone(row[1])
-        entity.dbDescription = strOrNone(row[2])
-        entity.dbVersion = strOrNone(row[3])
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.dbName = paftol.database.strOrNone(row[1])
+        entity.dbDescription = paftol.database.strOrNone(row[2])
+        entity.dbVersion = paftol.database.strOrNone(row[3])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -348,8 +327,8 @@ def loadDNAVolumeDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = DNAVolume()
-        entity.idDnaVolume = intOrNone(row[0])
-        entity.dnaVolume = strOrNone(row[1])
+        entity.idDnaVolume = paftol.database.intOrNone(row[0])
+        entity.dnaVolume = paftol.database.strOrNone(row[1])
         entityDict[entity.idDnaVolume] = entity
     cursor.close()
     return entityDict
@@ -362,8 +341,8 @@ def loadExtractionTypeDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ExtractionType()
-        entity.idExtractionType = intOrNone(row[0])
-        entity.extractionType = strOrNone(row[1])
+        entity.idExtractionType = paftol.database.intOrNone(row[0])
+        entity.extractionType = paftol.database.strOrNone(row[1])
         entityDict[entity.idExtractionType] = entity
     cursor.close()
     return entityDict
@@ -376,10 +355,10 @@ def loadFamilyDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Family()
-        entity.idFamily = intOrNone(row[0])
-        entity.family = strOrNone(row[1])
+        entity.idFamily = paftol.database.intOrNone(row[0])
+        entity.family = paftol.database.strOrNone(row[1])
         # many to one: order
-        entityId = intOrNone(row[2])
+        entityId = paftol.database.intOrNone(row[2])
         if entityId is None:
             entity.order = None
         elif entityId not in productionDatabase.orderDict:
@@ -399,9 +378,9 @@ def loadGenusDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Genus()
-        entity.idGenus = intOrNone(row[0])
+        entity.idGenus = paftol.database.intOrNone(row[0])
         # many to one: family
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.family = None
         elif entityId not in productionDatabase.familyDict:
@@ -409,9 +388,9 @@ def loadGenusDict(connection, productionDatabase):
         else:
             entity.family = productionDatabase.familyDict[entityId]
             entity.family.genusList.append(entity)
-        entity.genus = strOrNone(row[2])
+        entity.genus = paftol.database.strOrNone(row[2])
         # many to one: source
-        entityId = intOrNone(row[3])
+        entityId = paftol.database.intOrNone(row[3])
         if entityId is None:
             entity.source = None
         elif entityId not in productionDatabase.sourceDict:
@@ -419,13 +398,13 @@ def loadGenusDict(connection, productionDatabase):
         else:
             entity.source = productionDatabase.sourceDict[entityId]
             entity.source.genusList.append(entity)
-        entity.status = strOrNone(row[4])
-        entity.acceptedId = intOrNone(row[5])
-        entity.subfamily = strOrNone(row[6])
-        entity.tribe = strOrNone(row[7])
-        entity.subtribe = strOrNone(row[8])
-        entity.description = strOrNone(row[9])
-        entity.ipniId = strOrNone(row[10])
+        entity.status = paftol.database.strOrNone(row[4])
+        entity.acceptedId = paftol.database.intOrNone(row[5])
+        entity.subfamily = paftol.database.strOrNone(row[6])
+        entity.tribe = paftol.database.strOrNone(row[7])
+        entity.subtribe = paftol.database.strOrNone(row[8])
+        entity.description = paftol.database.strOrNone(row[9])
+        entity.ipniId = paftol.database.strOrNone(row[10])
         entityDict[entity.idGenus] = entity
     cursor.close()
     return entityDict
@@ -438,12 +417,12 @@ def loadIndexesDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Indexes()
-        entity.indexes = strOrNone(row[0])
-        entity.indexNameFwd = strOrNone(row[1])
-        entity.seqFwdPlatform1 = strOrNone(row[2])
-        entity.seqFwdPlatform2 = strOrNone(row[3])
-        entity.indexNameRv = strOrNone(row[4])
-        entity.seqRv = strOrNone(row[5])
+        entity.indexes = paftol.database.strOrNone(row[0])
+        entity.indexNameFwd = paftol.database.strOrNone(row[1])
+        entity.seqFwdPlatform1 = paftol.database.strOrNone(row[2])
+        entity.seqFwdPlatform2 = paftol.database.strOrNone(row[3])
+        entity.indexNameRv = paftol.database.strOrNone(row[4])
+        entity.seqRv = paftol.database.strOrNone(row[5])
         entityDict[entity.indexes] = entity
     cursor.close()
     return entityDict
@@ -456,9 +435,9 @@ def loadLibraryDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Library()
-        entity.idLibrary = intOrNone(row[0])
+        entity.idLibrary = paftol.database.intOrNone(row[0])
         # many to one: sample
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.sample = None
         elif entityId not in productionDatabase.sampleDict:
@@ -466,15 +445,15 @@ def loadLibraryDict(connection, productionDatabase):
         else:
             entity.sample = productionDatabase.sampleDict[entityId]
             entity.sample.libraryList.append(entity)
-        entity.libConcentration = floatOrNone(row[2])
-        entity.hybridisationPool = strOrNone(row[3])
-        entity.libQuality = strOrNone(row[4])
-        entity.remainingVolume = floatOrNone(row[5])
-        entity.libTapeStation = strOrNone(row[6])
-        entity.sonication = intOrNone(row[7])
-        entity.plate_No = strOrNone(row[8])
+        entity.libConcentration = paftol.database.floatOrNone(row[2])
+        entity.hybridisationPool = paftol.database.strOrNone(row[3])
+        entity.libQuality = paftol.database.strOrNone(row[4])
+        entity.remainingVolume = paftol.database.floatOrNone(row[5])
+        entity.libTapeStation = paftol.database.strOrNone(row[6])
+        entity.sonication = paftol.database.intOrNone(row[7])
+        entity.plate_No = paftol.database.strOrNone(row[8])
         # many to one: coordinate
-        entityId = strOrNone(row[9])
+        entityId = paftol.database.strOrNone(row[9])
         if entityId is None:
             entity.coordinate = None
         elif entityId not in productionDatabase.coordinatesDict:
@@ -482,9 +461,9 @@ def loadLibraryDict(connection, productionDatabase):
         else:
             entity.coordinate = productionDatabase.coordinatesDict[entityId]
             entity.coordinate.libraryList.append(entity)
-        entity.description = strOrNone(row[10])
+        entity.description = paftol.database.strOrNone(row[10])
         # many to one: status
-        entityId = intOrNone(row[11])
+        entityId = paftol.database.intOrNone(row[11])
         if entityId is None:
             entity.status = None
         elif entityId not in productionDatabase.statusDict:
@@ -493,7 +472,7 @@ def loadLibraryDict(connection, productionDatabase):
             entity.status = productionDatabase.statusDict[entityId]
             entity.status.libraryList.append(entity)
         # many to one: indexes
-        entityId = strOrNone(row[12])
+        entityId = paftol.database.strOrNone(row[12])
         if entityId is None:
             entity.indexes = None
         elif entityId not in productionDatabase.indexesDict:
@@ -501,7 +480,7 @@ def loadLibraryDict(connection, productionDatabase):
         else:
             entity.indexes = productionDatabase.indexesDict[entityId]
             entity.indexes.libraryList.append(entity)
-        entity.generateLibrary = intOrNone(row[13])
+        entity.generateLibrary = paftol.database.intOrNone(row[13])
         entityDict[entity.idLibrary] = entity
     cursor.close()
     return entityDict
@@ -514,8 +493,8 @@ def loadOrderDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Order()
-        entity.idOrder = intOrNone(row[0])
-        entity.order = strOrNone(row[1])
+        entity.idOrder = paftol.database.intOrNone(row[0])
+        entity.order = paftol.database.strOrNone(row[1])
         entityDict[entity.idOrder] = entity
     cursor.close()
     return entityDict
@@ -528,8 +507,8 @@ def loadProjectDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Project()
-        entity.idProject = intOrNone(row[0])
-        entity.project = strOrNone(row[1])
+        entity.idProject = paftol.database.intOrNone(row[0])
+        entity.project = paftol.database.strOrNone(row[1])
         entityDict[entity.idProject] = entity
     cursor.close()
     return entityDict
@@ -543,7 +522,7 @@ def loadProjectLinkDict(connection, productionDatabase):
     for row in cursor:
         entity = ProjectLink()
         # many to one: project
-        entityId = intOrNone(row[0])
+        entityId = paftol.database.intOrNone(row[0])
         if entityId is None:
             entity.project = None
         elif entityId not in productionDatabase.projectDict:
@@ -552,7 +531,7 @@ def loadProjectLinkDict(connection, productionDatabase):
             entity.project = productionDatabase.projectDict[entityId]
             entity.project.projectLinkList.append(entity)
         # many to one: genus
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.genus = None
         elif entityId not in productionDatabase.genusDict:
@@ -560,8 +539,8 @@ def loadProjectLinkDict(connection, productionDatabase):
         else:
             entity.genus = productionDatabase.genusDict[entityId]
             entity.genus.projectLinkList.append(entity)
-        entity.notes = strOrNone(row[2])
-        entity.idProjectLink = intOrNone(row[3])
+        entity.notes = paftol.database.strOrNone(row[2])
+        entity.idProjectLink = paftol.database.intOrNone(row[3])
         entityDict[entity.idProjectLink] = entity
     cursor.close()
     return entityDict
@@ -574,8 +553,8 @@ def loadProjectUserDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ProjectUser()
-        entity.idUser = strOrNone(row[0])
-        entity.name = strOrNone(row[1])
+        entity.idUser = paftol.database.strOrNone(row[0])
+        entity.name = paftol.database.strOrNone(row[1])
         entityDict[entity.idUser] = entity
     cursor.close()
     return entityDict
@@ -589,7 +568,7 @@ def loadProjectUserLinkDict(connection, productionDatabase):
     for row in cursor:
         entity = ProjectUserLink()
         # many to one: user
-        entityId = strOrNone(row[0])
+        entityId = paftol.database.strOrNone(row[0])
         if entityId is None:
             entity.user = None
         elif entityId not in productionDatabase.projectUserDict:
@@ -598,7 +577,7 @@ def loadProjectUserLinkDict(connection, productionDatabase):
             entity.user = productionDatabase.projectUserDict[entityId]
             entity.user.projectUserLinkList.append(entity)
         # many to one: project
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.project = None
         elif entityId not in productionDatabase.projectDict:
@@ -606,7 +585,7 @@ def loadProjectUserLinkDict(connection, productionDatabase):
         else:
             entity.project = productionDatabase.projectDict[entityId]
             entity.project.projectUserLinkList.append(entity)
-        entity.idProjectUserLink = intOrNone(row[2])
+        entity.idProjectUserLink = paftol.database.intOrNone(row[2])
         entityDict[entity.idProjectUserLink] = entity
     cursor.close()
     return entityDict
@@ -619,8 +598,8 @@ def loadQualityDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Quality()
-        entity.idQuality = intOrNone(row[0])
-        entity.quality = strOrNone(row[1])
+        entity.idQuality = paftol.database.intOrNone(row[0])
+        entity.quality = paftol.database.strOrNone(row[1])
         entityDict[entity.idQuality] = entity
     cursor.close()
     return entityDict
@@ -633,9 +612,9 @@ def loadSampleDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sample()
-        entity.idSample = intOrNone(row[0])
+        entity.idSample = paftol.database.intOrNone(row[0])
         # many to one: specimen
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.specimen = None
         elif entityId not in productionDatabase.specimenDict:
@@ -643,9 +622,9 @@ def loadSampleDict(connection, productionDatabase):
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
             entity.specimen.sampleList.append(entity)
-        entity.description = strOrNone(row[2])
+        entity.description = paftol.database.strOrNone(row[2])
         # many to one: action
-        entityId = intOrNone(row[3])
+        entityId = paftol.database.intOrNone(row[3])
         if entityId is None:
             entity.action = None
         elif entityId not in productionDatabase.actionDict:
@@ -654,7 +633,7 @@ def loadSampleDict(connection, productionDatabase):
             entity.action = productionDatabase.actionDict[entityId]
             entity.action.sampleList.append(entity)
         # many to one: extractionType
-        entityId = intOrNone(row[4])
+        entityId = paftol.database.intOrNone(row[4])
         if entityId is None:
             entity.extractionType = None
         elif entityId not in productionDatabase.extractionTypeDict:
@@ -663,7 +642,7 @@ def loadSampleDict(connection, productionDatabase):
             entity.extractionType = productionDatabase.extractionTypeDict[entityId]
             entity.extractionType.sampleList.append(entity)
         # many to one: quality
-        entityId = intOrNone(row[5])
+        entityId = paftol.database.intOrNone(row[5])
         if entityId is None:
             entity.quality = None
         elif entityId not in productionDatabase.qualityDict:
@@ -671,12 +650,12 @@ def loadSampleDict(connection, productionDatabase):
         else:
             entity.quality = productionDatabase.qualityDict[entityId]
             entity.quality.sampleList.append(entity)
-        entity.sampleConcentration = floatOrNone(row[6])
-        entity.newSampleConcentration = floatOrNone(row[7])
-        entity.gelImage = strOrNone(row[8])
-        entity.sampleTapeStation = strOrNone(row[9])
+        entity.sampleConcentration = paftol.database.floatOrNone(row[6])
+        entity.newSampleConcentration = paftol.database.floatOrNone(row[7])
+        entity.gelImage = paftol.database.strOrNone(row[8])
+        entity.sampleTapeStation = paftol.database.strOrNone(row[9])
         # many to one: dnaVolume
-        entityId = intOrNone(row[10])
+        entityId = paftol.database.intOrNone(row[10])
         if entityId is None:
             entity.dnaVolume = None
         elif entityId not in productionDatabase.dNAVolumeDict:
@@ -684,9 +663,9 @@ def loadSampleDict(connection, productionDatabase):
         else:
             entity.dnaVolume = productionDatabase.dNAVolumeDict[entityId]
             entity.dnaVolume.sampleList.append(entity)
-        entity.compliant = strOrNone(row[11])
-        entity.materialSource = strOrNone(row[12])
-        entity.ageOfMaterial = intOrNone(row[13])
+        entity.compliant = paftol.database.strOrNone(row[11])
+        entity.materialSource = paftol.database.strOrNone(row[12])
+        entity.ageOfMaterial = paftol.database.intOrNone(row[13])
         entityDict[entity.idSample] = entity
     cursor.close()
     return entityDict
@@ -699,9 +678,9 @@ def loadSequenceDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sequence()
-        entity.idSequencing = intOrNone(row[0])
+        entity.idSequencing = paftol.database.intOrNone(row[0])
         # many to one: library
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.library = None
         elif entityId not in productionDatabase.libraryDict:
@@ -709,13 +688,13 @@ def loadSequenceDict(connection, productionDatabase):
         else:
             entity.library = productionDatabase.libraryDict[entityId]
             entity.library.sequenceList.append(entity)
-        entity.platform = strOrNone(row[2])
-        entity.location = strOrNone(row[3])
-        entity.sequencingRun = strOrNone(row[4])
-        entity.numInferredCds = intOrNone(row[5])
-        entity.medianHybpiperCdsLength = floatOrNone(row[6])
+        entity.platform = paftol.database.strOrNone(row[2])
+        entity.location = paftol.database.strOrNone(row[3])
+        entity.sequencingRun = paftol.database.strOrNone(row[4])
+        entity.numInferredCds = paftol.database.intOrNone(row[5])
+        entity.medianHybpiperCdsLength = paftol.database.floatOrNone(row[6])
         # many to one: status
-        entityId = intOrNone(row[7])
+        entityId = paftol.database.intOrNone(row[7])
         if entityId is None:
             entity.status = None
         elif entityId not in productionDatabase.statusDict:
@@ -723,9 +702,9 @@ def loadSequenceDict(connection, productionDatabase):
         else:
             entity.status = productionDatabase.statusDict[entityId]
             entity.status.sequenceList.append(entity)
-        entity.hybridisationPool = strOrNone(row[8])
-        entity.r2FastqFile = strOrNone(row[9])
-        entity.r1FastqFile = strOrNone(row[10])
+        entity.hybridisationPool = paftol.database.strOrNone(row[8])
+        entity.r2FastqFile = paftol.database.strOrNone(row[9])
+        entity.r1FastqFile = paftol.database.strOrNone(row[10])
         entityDict[entity.idSequencing] = entity
     cursor.close()
     return entityDict
@@ -738,8 +717,8 @@ def loadSourceDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Source()
-        entity.idSource = intOrNone(row[0])
-        entity.source = strOrNone(row[1])
+        entity.idSource = paftol.database.intOrNone(row[0])
+        entity.source = paftol.database.strOrNone(row[1])
         entityDict[entity.idSource] = entity
     cursor.close()
     return entityDict
@@ -752,8 +731,8 @@ def loadSourceSpecimenDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SourceSpecimen()
-        entity.idSourceSpecimen = intOrNone(row[0])
-        entity.sourceSpecimen = strOrNone(row[1])
+        entity.idSourceSpecimen = paftol.database.intOrNone(row[0])
+        entity.sourceSpecimen = paftol.database.strOrNone(row[1])
         entityDict[entity.idSourceSpecimen] = entity
     cursor.close()
     return entityDict
@@ -766,9 +745,9 @@ def loadSpeciesDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Species()
-        entity.idSpecies = intOrNone(row[0])
-        entity.species = strOrNone(row[1])
-        entity.source = strOrNone(row[2])
+        entity.idSpecies = paftol.database.intOrNone(row[0])
+        entity.species = paftol.database.strOrNone(row[1])
+        entity.source = paftol.database.strOrNone(row[2])
         entityDict[entity.idSpecies] = entity
     cursor.close()
     return entityDict
@@ -781,9 +760,9 @@ def loadSpecimenDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Specimen()
-        entity.idSpecimen = intOrNone(row[0])
+        entity.idSpecimen = paftol.database.intOrNone(row[0])
         # many to one: genus
-        entityId = intOrNone(row[1])
+        entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
             entity.genus = None
         elif entityId not in productionDatabase.genusDict:
@@ -791,9 +770,9 @@ def loadSpecimenDict(connection, productionDatabase):
         else:
             entity.genus = productionDatabase.genusDict[entityId]
             entity.genus.specimenList.append(entity)
-        entity.idPaftol = intOrNone(row[2])
+        entity.idPaftol = paftol.database.intOrNone(row[2])
         # many to one: species
-        entityId = intOrNone(row[3])
+        entityId = paftol.database.intOrNone(row[3])
         if entityId is None:
             entity.species = None
         elif entityId not in productionDatabase.speciesDict:
@@ -801,18 +780,18 @@ def loadSpecimenDict(connection, productionDatabase):
         else:
             entity.species = productionDatabase.speciesDict[entityId]
             entity.species.specimenList.append(entity)
-        entity.description = strOrNone(row[4])
-        entity.bankId = intOrNone(row[5])
-        entity.lcd = strOrNone(row[6])
-        entity.msb = intOrNone(row[7])
-        entity.collector = strOrNone(row[8])
-        entity.collectorNo = strOrNone(row[9])
-        entity.voucherNo = strOrNone(row[10])
-        entity.museumId = strOrNone(row[11])
-        entity.museumBarcode = strOrNone(row[12])
-        entity.oldSpeciesName = strOrNone(row[13])
+        entity.description = paftol.database.strOrNone(row[4])
+        entity.bankId = paftol.database.intOrNone(row[5])
+        entity.lcd = paftol.database.strOrNone(row[6])
+        entity.msb = paftol.database.intOrNone(row[7])
+        entity.collector = paftol.database.strOrNone(row[8])
+        entity.collectorNo = paftol.database.strOrNone(row[9])
+        entity.voucherNo = paftol.database.strOrNone(row[10])
+        entity.museumId = paftol.database.strOrNone(row[11])
+        entity.museumBarcode = paftol.database.strOrNone(row[12])
+        entity.oldSpeciesName = paftol.database.strOrNone(row[13])
         # many to one: sourceSpecimen
-        entityId = intOrNone(row[14])
+        entityId = paftol.database.intOrNone(row[14])
         if entityId is None:
             entity.sourceSpecimen = None
         elif entityId not in productionDatabase.sourceSpecimenDict:
@@ -821,7 +800,7 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.sourceSpecimen = productionDatabase.sourceSpecimenDict[entityId]
             entity.sourceSpecimen.specimenList.append(entity)
         # many to one: project
-        entityId = intOrNone(row[15])
+        entityId = paftol.database.intOrNone(row[15])
         if entityId is None:
             entity.project = None
         elif entityId not in productionDatabase.projectDict:
@@ -841,8 +820,8 @@ def loadStatusDict(connection, productionDatabase):
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Status()
-        entity.idStatus = intOrNone(row[0])
-        entity.status = strOrNone(row[1])
+        entity.idStatus = paftol.database.intOrNone(row[0])
+        entity.status = paftol.database.strOrNone(row[1])
         entityDict[entity.idStatus] = entity
     cursor.close()
     return entityDict
