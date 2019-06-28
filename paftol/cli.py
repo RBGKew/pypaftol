@@ -184,8 +184,10 @@ like approach, unsing tblastn for mapping reads to targets.
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
 
-            
+
 def runTargetRecovery(argNamespace):
+    if argNamespace.usePaftolDb:
+        paftol.database.preRecoveryCheck(argNamespace.forwardreads, argNamespace.reversereads)
     if argNamespace.mapper == 'tblastn':
         tblastnRunner = argToTblastnRunner(argNamespace)
         targetMapper = paftol.TargetMapperTblastn(tblastnRunner)
@@ -215,6 +217,8 @@ def runTargetRecovery(argNamespace):
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
+    if argNamespace.usePaftolDb:
+        paftol.database.addRecoveryResult(result)
     
 
 def runOverlapAnalysis(argNamespace):
@@ -379,6 +383,10 @@ def runAddTargetsFile(argNamespace):
     # sys.stderr.write('insertGenes: %s, geneType: %s\n' % (str(argNamespace.insertGenes), str(argNamespace.geneType)))
     paftol.database.addTargetsFile(targetsfile, description, argNamespace.insertGenes, argNamespace.geneType)
 
+    
+def runAddPaftolFastqFiles(argNamespace):
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq)
+
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev', help='for testing argparse')
@@ -426,6 +434,7 @@ def addRecoverParser(subparsers):
     p.add_argument('--mapper', choices=['tblastn', 'bwa'], help='method to be used for mapping reads to target genes', required=True)
     p.add_argument('--assembler', choices=['spades', 'overlapSerial'], help='method to be used to assemble reads mapped to a gene into contigs', required=True)
     p.add_argument('--contigFname', help='filename for contigs')
+    p.add_argument('--usePaftolDb', action='store_true', help='store results in PAFTOL database')
     addTblastnRunnerToParser(p)
     addBwaRunnerToParser(p)    
     addOverlapAssemblerToParser(p)
@@ -520,6 +529,12 @@ def addAddTargetsFileParser(subparsers):
     p.set_defaults(func=runAddTargetsFile)
 
     
+def addAddPaftolFastqFilesParser(subparsers):
+    p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
+    p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
+    p.set_defaults(func=runAddPaftolFastqFiles)
+    
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -547,6 +562,7 @@ def paftoolsMain():
     addGeneSetStatsParser(subparsers)
     addExonerateStarAlignmentParser(subparsers)
     addAddTargetsFileParser(subparsers)
+    addAddPaftolFastqFilesParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)

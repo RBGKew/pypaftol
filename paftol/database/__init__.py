@@ -8,6 +8,8 @@ import mysql.connector
 
 import paftol
 import paftol.tools
+import paftol.database.analysis
+import paftol.database.production
 
 
 def strOrNone(x):
@@ -63,7 +65,6 @@ class PaftolDatabaseDetails(object):
 
     def makeConnection(self):
         return mysql.connector.connection.MySQLConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname)
-               
 
 
 def getDatabaseDetails(detailsFname):
@@ -165,6 +166,29 @@ def insertGene(connection, geneName, geneTypeId):
     cursor.close()
 
 
+def addPaftolFastqFiles(fastqFnameList):
+    productionDatabaseDetails = getProductionDatabaseDetails()
+    connection = productionDatabaseDetails.makeConnection()
+    productionDatabase = paftol.database.production.ProductionDatabase(connection)
+    connection.close()
+    analysisDatabaseDetails = getAnalysisDatabaseDetails()
+    connection = analysisDatabaseDetails.makeConnection()
+    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    cursor = connection.cursor(prepared=True)
+    for fastqFname in fastqFnameList:
+        idSequencing, orientation = parseCanonicalSymlink(fastqFname)
+        if idSequencing is not None:
+            md5 = paftol.tools.md5HexdigestFromFile(fastqFname)
+            fastqFileId = generateUnusedPrimaryKey(connection, 'FastqFile')
+            paftolFastqFileId = generateUnusedPrimaryKey(connection, 'PaftolFastqFile')
+            cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, numReads, qual28, description) VALUES (%s, %s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5, None, None, None, None, ))
+            cursor.execute('INSERT INTO PaftolFastqFile (id, idSequencing, fastqFileId) VALUES (%s, %s, %s)', (paftolFastqFileId, idSequencing, fastqFileId, ))
+        else:
+            logger.warning('not a canonical PAFTOL fastq name: %s', fastqFname)
+    connection.commit()
+    connection.close()
+
+
 def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeName=None):
     if insertGenes and geneTypeName is None:
         raise StandardError, 'illegal state: insertion of new genes requested but no gene type name given'
@@ -222,21 +246,110 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
     connection.close()
 
     
+def findFastqFile(analysisDatabase, fastqFname):
+    for fastqFile in analysisDatabase.fastqFileDict.values():
+        if fastqFile.filename == fastqFname:
+            return fastqFile
+    return None
+
+
+def findFastqFiles(analysisDatabase, result):
+    fwdFastqFname = os.path.basename(result.forwardFastq)
+    revFastqFname = os.path.basename(result.reverseFastq)
+    fwdFastqFile = None
+    revFastqFile = None
+    for fastqFile in analysisDatabase.fastqFileDict.values():
+        if fastqFile.filename == fwdFastqFname:
+            fwdFastqFile = fastqFile
+        if fastqFile.filename == revFastqFname:
+            revFastqFile = fastqFile
+    return fwdFastqFile, revFastqFile
+
+
+def findContigRecoveryForFastqFname(analysisDatabase, fastqFname):
+    fastqFile = findFastqFile(analysisDatabase, fastqFname)
+    if fastqFile is None:
+        return None
+    if len(fastqFile.contigRecoveryFwdFastqList) + len(fastqFile.contigRecoveryRevFastqList) > 1:
+        raise StandardError, 'multiple ContigRecovery instances for %s: %s' % (fastqFname, ', '.join(['%d' % cr.id for cr in fastqFile.contigRecoveryFwdFastqList +  fastqFile.contigRecoveryRevFastqList]))
+    if len(fastqFile.contigRecoveryFwdFastqList) == 1:
+        return fastqFile.contigRecoveryFwdFastqList[0]
+    if len(fastqFile.contigRecoveryRevFastqList) == 1:
+        return fastqFile.contigRecoveryRevFastqList[0]
+    return None
+
+
+def preRecoveryCheck(forwardFastqFname, reverseFastqFname):
+    msgList = []
+    analysisDatabaseDetails = getAnalysisDatabaseDetails()
+    connection = analysisDatabaseDetails.makeConnection()
+    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    contigRecovery = findContigRecoveryForFastqFname(analysisDatabase, forwardFastqFname)
+    if contigRecovery is not None:
+        msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (forwardFastqFname, contigRecovery.id))
+    contigRecovery = findContigRecoveryForFastqFname(analysisDatabase, reverseFastqFname)
+    if contigRecovery is not None:
+        msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (reverseFastqFname, contigRecovery.id))
+    if len(msgList) > 0:
+        raise StandardError, ', '.join(msgList)
+
+
+def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
+    fastqFileList = []
+    for paftolFastqFile in analysisDatabase.paftolFastqFileDict.values():
+        if paftolFastqFile.idSequencing is not None and paftolFastqFile.idSequencing == idSequencing:
+            if paftolFastqFile.fastqFile is None:
+                raise StandardError, 'illegal state: PaftolFastqFile instance %d has no fastqFile' % paftolFastqFile.id
+            fastqFile.List.append(paftolFastqFile.fastqFile)
+    contigRecoveryList = []
+    for fastqFile in fastqFileList:
+        for contigRecovery in fastqFile.contigRecoveryFwdFastqList:
+            if contigRecovery not in contigRecoveryList:
+                contigRecoveryList.append(contigRecovery)
+        for contigRecovery in fastqFile.contigRecoveryRevFastqList:
+            if contigRecovery not in contigRecoveryList:
+                contigRecoveryList.append(contigRecovery)
+    if len(contigRecoveryList) == 0:
+        return None
+    elif len(contigRecoveryList) == 1:
+        return contigRecoveryList[0]
+    else:
+        raise StandardError, 'idSequencing %d: found multiple ContigRecovery instances: %s' % (idSequencing, ', '.join(['%d' % cr.id for cr in contigRecoveryList]))
+
+
+def findFastafile(analysisDatabase, fastaFname):
+    for fastaFile in analysisDatabase.fastaFileDict.values():
+        if fastaFile.filename == fastaFname:
+            return fastaFile
+    return None
+
+
 def addRecoveryResult(result):
     analysisDatabaseDetails = getAnalysisDatabaseDetails()
     connection = analysisDatabaseDetails.makeConnection()
-    analysisDatabase = analysis.AnalysisDatabase(connection)
+    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    targetsFastafile = findFastafile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
+    if targetsFastafile is None:
+        raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+    fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
+    if fwdFastqFile is None:
+        raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
+    if revFastqFile is None:
+        raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
     paftolGeneEntityDict = {}
-    for paftolGeneEntity in analysisDatabase.paftolGeneDict:
+    for paftolGeneEntity in analysisDatabase.paftolGeneDict.values():
         paftolGeneEntityDict[paftolGeneEntity.geneName] = paftolGeneEntity
     for geneName in result.contigDict:
         if geneName not in paftolGeneEntityDict:
             raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+    contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
     cursor = connection.cursor(prepared=True)
+    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, targetsFastaFileId, numMappedReads, totNumUnmappedReads) VALUES (%s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, targetsFastafile.id, None, None))
+    # FIXME: should check result
     for geneName in result.contigDict:
         if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
             for contig in result.contigDict[geneName]:
                 recoveredContigId = generateUnusedPrimaryKey(connection, 'RecoveredContig')
-                cursor.execute('INSERT INTO RecoveredContig (id, contigRecoveryId, paftolGeneId, seqLength, fwdPaftolFastqId, revPaftolFastqId, representativeReferenceTargetId VALUES (%s, %s, %s, %s, %s, %s, %s', (recoveredContigId, paftolGeneEntityDict[geneName].id, len(contig), None, None, None))
+                cursor.execute('INSERT INTO RecoveredContig (id, contigRecoveryId, paftolGeneId, seqLength, fwdPaftolFastqId, revPaftolFastqId, representativeReferenceTargetId) VALUES (%s, %s, %s, %s, %s, %s, %s)', (recoveredContigId, None, paftolGeneEntityDict[geneName].id, len(contig), None, None, None))
     connection.commit()
     connection.close()

@@ -9,6 +9,8 @@ import Bio.SeqRecord
 import paftol
 import paftol.tools
 import paftol.database
+import paftol.database.analysis
+import paftol.database.production
 
 
 # atggattacagca

@@ -15,7 +15,8 @@ class Action(object):
         self.idAction = idAction
         self.action = action
         # one-to-many
-        self.sampleList = []
+        # ActionLookup: Sample.idAction REFERENCES Action(idAction)
+        self.sampleActionList = []
 
 
 class Coordinates(object):
@@ -24,7 +25,8 @@ class Coordinates(object):
         self.coordinate = coordinate
         self.sortOrder = sortOrder
         # one-to-many
-        self.libraryList = []
+        # fk_coordinate: Library.Coordinate REFERENCES Coordinates(Coordinate)
+        self.libraryCoordinateList = []
 
 
 class DBVersion(object):
@@ -43,7 +45,8 @@ class DNAVolume(object):
         self.idDnaVolume = idDnaVolume
         self.dnaVolume = dnaVolume
         # one-to-many
-        self.sampleList = []
+        # DNALookup: Sample.idDNAVolume REFERENCES DNAVolume(idDNAVolume)
+        self.sampleDnaVolumeList = []
 
 
 class ExtractionType(object):
@@ -52,7 +55,8 @@ class ExtractionType(object):
         self.idExtractionType = idExtractionType
         self.extractionType = extractionType
         # one-to-many
-        self.sampleList = []
+        # ExtractionLookup: Sample.idExtractionType REFERENCES ExtractionType(idExtractionType)
+        self.sampleExtractionTypeList = []
 
 
 class Family(object):
@@ -62,7 +66,8 @@ class Family(object):
         self.family = family
         self.order = order
         # one-to-many
-        self.genusList = []
+        # FamilyLink: Genus.idFamily REFERENCES Family(idFamily)
+        self.genusFamilyList = []
 
 
 class Genus(object):
@@ -80,8 +85,10 @@ class Genus(object):
         self.description = description
         self.ipniId = ipniId
         # one-to-many
-        self.projectLinkList = []
-        self.specimenList = []
+        # GenusLink2: ProjectLink.idGenus REFERENCES Genus(idGenus)
+        self.projectLinkGenusList = []
+        # GenusLink: Specimen.idGenus REFERENCES Genus(idGenus)
+        self.specimenGenusList = []
 
 
 class Indexes(object):
@@ -94,7 +101,8 @@ class Indexes(object):
         self.indexNameRv = indexNameRv
         self.seqRv = seqRv
         # one-to-many
-        self.libraryList = []
+        # fk_indexes: Library.Indexes REFERENCES Indexes(Indexes)
+        self.libraryIndexesList = []
 
 
 class Library(object):
@@ -115,7 +123,8 @@ class Library(object):
         self.indexes = indexes
         self.generateLibrary = generateLibrary
         # one-to-many
-        self.sequenceList = []
+        # LibraryLink: Sequence.idLibrary REFERENCES Library(idLibrary)
+        self.sequenceLibraryList = []
 
 
 class Order(object):
@@ -124,7 +133,8 @@ class Order(object):
         self.idOrder = idOrder
         self.order = order
         # one-to-many
-        self.familyList = []
+        # OrderLink: Family.idOrder REFERENCES Order(idOrder)
+        self.familyOrderList = []
 
 
 class Project(object):
@@ -133,9 +143,12 @@ class Project(object):
         self.idProject = idProject
         self.project = project
         # one-to-many
-        self.projectLinkList = []
-        self.projectUserLinkList = []
-        self.specimenList = []
+        # ProjectLink: ProjectLink.idProject REFERENCES Project(idProject)
+        self.projectLinkProjectList = []
+        # ProjectLink3: ProjectUserLink.idProject REFERENCES Project(idProject)
+        self.projectUserLinkProjectList = []
+        # fk_idProject: Specimen.idProject REFERENCES Project(idProject)
+        self.specimenProjectList = []
 
 
 class ProjectLink(object):
@@ -154,7 +167,8 @@ class ProjectUser(object):
         self.idUser = idUser
         self.name = name
         # one-to-many
-        self.projectUserLinkList = []
+        # ProjectUserLink3: ProjectUserLink.idUser REFERENCES ProjectUser(idUser)
+        self.projectUserLinkUserList = []
 
 
 class ProjectUserLink(object):
@@ -172,7 +186,8 @@ class Quality(object):
         self.idQuality = idQuality
         self.quality = quality
         # one-to-many
-        self.sampleList = []
+        # QualityLookup: Sample.idQuality REFERENCES Quality(idQuality)
+        self.sampleQualityList = []
 
 
 class Sample(object):
@@ -193,7 +208,8 @@ class Sample(object):
         self.materialSource = materialSource
         self.ageOfMaterial = ageOfMaterial
         # one-to-many
-        self.libraryList = []
+        # SampleLink: Library.idSample REFERENCES Sample(idSample)
+        self.librarySampleList = []
 
 
 class Sequence(object):
@@ -219,7 +235,8 @@ class Source(object):
         self.idSource = idSource
         self.source = source
         # one-to-many
-        self.genusList = []
+        # SourceLookup: Genus.idSource REFERENCES Source(idSource)
+        self.genusSourceList = []
 
 
 class SourceSpecimen(object):
@@ -228,7 +245,8 @@ class SourceSpecimen(object):
         self.idSourceSpecimen = idSourceSpecimen
         self.sourceSpecimen = sourceSpecimen
         # one-to-many
-        self.specimenList = []
+        # fk_SourceSpecimen: Specimen.idSourceSpecimen REFERENCES SourceSpecimen(idSourceSpecimen)
+        self.specimenSourceSpecimenList = []
 
 
 class Species(object):
@@ -238,7 +256,8 @@ class Species(object):
         self.species = species
         self.source = source
         # one-to-many
-        self.specimenList = []
+        # SpeciesLookup: Specimen.idSpecies REFERENCES Species(idSpecies)
+        self.specimenSpeciesList = []
 
 
 class Specimen(object):
@@ -261,7 +280,8 @@ class Specimen(object):
         self.sourceSpecimen = sourceSpecimen
         self.project = project
         # one-to-many
-        self.sampleList = []
+        # SpecimenLink: Sample.idSpecimen REFERENCES Specimen(idSpecimen)
+        self.sampleSpecimenList = []
         # no python attribute: SourceSpecimen
         # no python attribute: Project
 
@@ -272,8 +292,10 @@ class Status(object):
         self.idStatus = idStatus
         self.status = status
         # one-to-many
-        self.libraryList = []
-        self.sequenceList = []
+        # StatusLookup: Library.idStatus REFERENCES Status(idStatus)
+        self.libraryStatusList = []
+        # fk_status: Sequence.idStatus REFERENCES Status(idStatus)
+        self.sequenceStatusList = []
 
 
 def loadActionDict(connection, productionDatabase):
@@ -365,7 +387,8 @@ def loadFamilyDict(connection, productionDatabase):
             raise StandardError, 'no Order entity with idOrder = %d' % entityId
         else:
             entity.order = productionDatabase.orderDict[entityId]
-            entity.order.familyList.append(entity)
+            # type: int, name: idOrder, foreignTable: Order, foreignColumn: idOrder
+            entity.order.familyOrderList.append(entity)
         entityDict[entity.idFamily] = entity
     cursor.close()
     return entityDict
@@ -387,7 +410,8 @@ def loadGenusDict(connection, productionDatabase):
             raise StandardError, 'no Family entity with idFamily = %d' % entityId
         else:
             entity.family = productionDatabase.familyDict[entityId]
-            entity.family.genusList.append(entity)
+            # type: int, name: idFamily, foreignTable: Family, foreignColumn: idFamily
+            entity.family.genusFamilyList.append(entity)
         entity.genus = paftol.database.strOrNone(row[2])
         # many to one: source
         entityId = paftol.database.intOrNone(row[3])
@@ -397,7 +421,8 @@ def loadGenusDict(connection, productionDatabase):
             raise StandardError, 'no Source entity with idSource = %d' % entityId
         else:
             entity.source = productionDatabase.sourceDict[entityId]
-            entity.source.genusList.append(entity)
+            # type: int, name: idSource, foreignTable: Source, foreignColumn: idSource
+            entity.source.genusSourceList.append(entity)
         entity.status = paftol.database.strOrNone(row[4])
         entity.acceptedId = paftol.database.intOrNone(row[5])
         entity.subfamily = paftol.database.strOrNone(row[6])
@@ -444,7 +469,8 @@ def loadLibraryDict(connection, productionDatabase):
             raise StandardError, 'no Sample entity with idSample = %d' % entityId
         else:
             entity.sample = productionDatabase.sampleDict[entityId]
-            entity.sample.libraryList.append(entity)
+            # type: int, name: idSample, foreignTable: Sample, foreignColumn: idSample
+            entity.sample.librarySampleList.append(entity)
         entity.libConcentration = paftol.database.floatOrNone(row[2])
         entity.hybridisationPool = paftol.database.strOrNone(row[3])
         entity.libQuality = paftol.database.strOrNone(row[4])
@@ -460,7 +486,8 @@ def loadLibraryDict(connection, productionDatabase):
             raise StandardError, 'no Coordinates entity with coordinate = %d' % entityId
         else:
             entity.coordinate = productionDatabase.coordinatesDict[entityId]
-            entity.coordinate.libraryList.append(entity)
+            # type: varchar, name: Coordinate, foreignTable: Coordinates, foreignColumn: Coordinate
+            entity.coordinate.libraryCoordinateList.append(entity)
         entity.description = paftol.database.strOrNone(row[10])
         # many to one: status
         entityId = paftol.database.intOrNone(row[11])
@@ -470,7 +497,8 @@ def loadLibraryDict(connection, productionDatabase):
             raise StandardError, 'no Status entity with idStatus = %d' % entityId
         else:
             entity.status = productionDatabase.statusDict[entityId]
-            entity.status.libraryList.append(entity)
+            # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
+            entity.status.libraryStatusList.append(entity)
         # many to one: indexes
         entityId = paftol.database.strOrNone(row[12])
         if entityId is None:
@@ -479,7 +507,8 @@ def loadLibraryDict(connection, productionDatabase):
             raise StandardError, 'no Indexes entity with indexes = %d' % entityId
         else:
             entity.indexes = productionDatabase.indexesDict[entityId]
-            entity.indexes.libraryList.append(entity)
+            # type: char, name: Indexes, foreignTable: Indexes, foreignColumn: Indexes
+            entity.indexes.libraryIndexesList.append(entity)
         entity.generateLibrary = paftol.database.intOrNone(row[13])
         entityDict[entity.idLibrary] = entity
     cursor.close()
@@ -529,7 +558,8 @@ def loadProjectLinkDict(connection, productionDatabase):
             raise StandardError, 'no Project entity with idProject = %d' % entityId
         else:
             entity.project = productionDatabase.projectDict[entityId]
-            entity.project.projectLinkList.append(entity)
+            # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
+            entity.project.projectLinkProjectList.append(entity)
         # many to one: genus
         entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
@@ -538,7 +568,8 @@ def loadProjectLinkDict(connection, productionDatabase):
             raise StandardError, 'no Genus entity with idGenus = %d' % entityId
         else:
             entity.genus = productionDatabase.genusDict[entityId]
-            entity.genus.projectLinkList.append(entity)
+            # type: int, name: idGenus, foreignTable: Genus, foreignColumn: idGenus
+            entity.genus.projectLinkGenusList.append(entity)
         entity.notes = paftol.database.strOrNone(row[2])
         entity.idProjectLink = paftol.database.intOrNone(row[3])
         entityDict[entity.idProjectLink] = entity
@@ -575,7 +606,8 @@ def loadProjectUserLinkDict(connection, productionDatabase):
             raise StandardError, 'no ProjectUser entity with idUser = %d' % entityId
         else:
             entity.user = productionDatabase.projectUserDict[entityId]
-            entity.user.projectUserLinkList.append(entity)
+            # type: varchar, name: idUser, foreignTable: ProjectUser, foreignColumn: idUser
+            entity.user.projectUserLinkUserList.append(entity)
         # many to one: project
         entityId = paftol.database.intOrNone(row[1])
         if entityId is None:
@@ -584,7 +616,8 @@ def loadProjectUserLinkDict(connection, productionDatabase):
             raise StandardError, 'no Project entity with idProject = %d' % entityId
         else:
             entity.project = productionDatabase.projectDict[entityId]
-            entity.project.projectUserLinkList.append(entity)
+            # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
+            entity.project.projectUserLinkProjectList.append(entity)
         entity.idProjectUserLink = paftol.database.intOrNone(row[2])
         entityDict[entity.idProjectUserLink] = entity
     cursor.close()
@@ -621,7 +654,8 @@ def loadSampleDict(connection, productionDatabase):
             raise StandardError, 'no Specimen entity with idSpecimen = %d' % entityId
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
-            entity.specimen.sampleList.append(entity)
+            # type: int, name: idSpecimen, foreignTable: Specimen, foreignColumn: idSpecimen
+            entity.specimen.sampleSpecimenList.append(entity)
         entity.description = paftol.database.strOrNone(row[2])
         # many to one: action
         entityId = paftol.database.intOrNone(row[3])
@@ -631,7 +665,8 @@ def loadSampleDict(connection, productionDatabase):
             raise StandardError, 'no Action entity with idAction = %d' % entityId
         else:
             entity.action = productionDatabase.actionDict[entityId]
-            entity.action.sampleList.append(entity)
+            # type: int, name: idAction, foreignTable: Action, foreignColumn: idAction
+            entity.action.sampleActionList.append(entity)
         # many to one: extractionType
         entityId = paftol.database.intOrNone(row[4])
         if entityId is None:
@@ -640,7 +675,8 @@ def loadSampleDict(connection, productionDatabase):
             raise StandardError, 'no ExtractionType entity with idExtractionType = %d' % entityId
         else:
             entity.extractionType = productionDatabase.extractionTypeDict[entityId]
-            entity.extractionType.sampleList.append(entity)
+            # type: int, name: idExtractionType, foreignTable: ExtractionType, foreignColumn: idExtractionType
+            entity.extractionType.sampleExtractionTypeList.append(entity)
         # many to one: quality
         entityId = paftol.database.intOrNone(row[5])
         if entityId is None:
@@ -649,7 +685,8 @@ def loadSampleDict(connection, productionDatabase):
             raise StandardError, 'no Quality entity with idQuality = %d' % entityId
         else:
             entity.quality = productionDatabase.qualityDict[entityId]
-            entity.quality.sampleList.append(entity)
+            # type: int, name: idQuality, foreignTable: Quality, foreignColumn: idQuality
+            entity.quality.sampleQualityList.append(entity)
         entity.sampleConcentration = paftol.database.floatOrNone(row[6])
         entity.newSampleConcentration = paftol.database.floatOrNone(row[7])
         entity.gelImage = paftol.database.strOrNone(row[8])
@@ -662,7 +699,8 @@ def loadSampleDict(connection, productionDatabase):
             raise StandardError, 'no DNAVolume entity with idDnaVolume = %d' % entityId
         else:
             entity.dnaVolume = productionDatabase.dNAVolumeDict[entityId]
-            entity.dnaVolume.sampleList.append(entity)
+            # type: int, name: idDNAVolume, foreignTable: DNAVolume, foreignColumn: idDNAVolume
+            entity.dnaVolume.sampleDnaVolumeList.append(entity)
         entity.compliant = paftol.database.strOrNone(row[11])
         entity.materialSource = paftol.database.strOrNone(row[12])
         entity.ageOfMaterial = paftol.database.intOrNone(row[13])
@@ -687,7 +725,8 @@ def loadSequenceDict(connection, productionDatabase):
             raise StandardError, 'no Library entity with idLibrary = %d' % entityId
         else:
             entity.library = productionDatabase.libraryDict[entityId]
-            entity.library.sequenceList.append(entity)
+            # type: int, name: idLibrary, foreignTable: Library, foreignColumn: idLibrary
+            entity.library.sequenceLibraryList.append(entity)
         entity.platform = paftol.database.strOrNone(row[2])
         entity.location = paftol.database.strOrNone(row[3])
         entity.sequencingRun = paftol.database.strOrNone(row[4])
@@ -701,7 +740,8 @@ def loadSequenceDict(connection, productionDatabase):
             raise StandardError, 'no Status entity with idStatus = %d' % entityId
         else:
             entity.status = productionDatabase.statusDict[entityId]
-            entity.status.sequenceList.append(entity)
+            # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
+            entity.status.sequenceStatusList.append(entity)
         entity.hybridisationPool = paftol.database.strOrNone(row[8])
         entity.r2FastqFile = paftol.database.strOrNone(row[9])
         entity.r1FastqFile = paftol.database.strOrNone(row[10])
@@ -769,7 +809,8 @@ def loadSpecimenDict(connection, productionDatabase):
             raise StandardError, 'no Genus entity with idGenus = %d' % entityId
         else:
             entity.genus = productionDatabase.genusDict[entityId]
-            entity.genus.specimenList.append(entity)
+            # type: int, name: idGenus, foreignTable: Genus, foreignColumn: idGenus
+            entity.genus.specimenGenusList.append(entity)
         entity.idPaftol = paftol.database.intOrNone(row[2])
         # many to one: species
         entityId = paftol.database.intOrNone(row[3])
@@ -779,7 +820,8 @@ def loadSpecimenDict(connection, productionDatabase):
             raise StandardError, 'no Species entity with idSpecies = %d' % entityId
         else:
             entity.species = productionDatabase.speciesDict[entityId]
-            entity.species.specimenList.append(entity)
+            # type: int, name: idSpecies, foreignTable: Species, foreignColumn: idSpecies
+            entity.species.specimenSpeciesList.append(entity)
         entity.description = paftol.database.strOrNone(row[4])
         entity.bankId = paftol.database.intOrNone(row[5])
         entity.lcd = paftol.database.strOrNone(row[6])
@@ -798,7 +840,8 @@ def loadSpecimenDict(connection, productionDatabase):
             raise StandardError, 'no SourceSpecimen entity with idSourceSpecimen = %d' % entityId
         else:
             entity.sourceSpecimen = productionDatabase.sourceSpecimenDict[entityId]
-            entity.sourceSpecimen.specimenList.append(entity)
+            # type: int, name: idSourceSpecimen, foreignTable: SourceSpecimen, foreignColumn: idSourceSpecimen
+            entity.sourceSpecimen.specimenSourceSpecimenList.append(entity)
         # many to one: project
         entityId = paftol.database.intOrNone(row[15])
         if entityId is None:
@@ -807,7 +850,8 @@ def loadSpecimenDict(connection, productionDatabase):
             raise StandardError, 'no Project entity with idProject = %d' % entityId
         else:
             entity.project = productionDatabase.projectDict[entityId]
-            entity.project.specimenList.append(entity)
+            # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
+            entity.project.specimenProjectList.append(entity)
         entityDict[entity.idSpecimen] = entity
     cursor.close()
     return entityDict
