@@ -1077,7 +1077,7 @@ class ExonerateStarAlignment(object):
 
 
 class TrimmomaticRunner(object):
-    
+
     def __init__(self, numThreads=None, leadingQuality=None, trailingQuality=None, minLength=None, slidingWindowSize=None, slidingWindowQuality=None, adapterFname=None):
         self.numThreads = numThreads
         self.leadingQuality = leadingQuality

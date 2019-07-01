@@ -926,12 +926,18 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
     
 class TargetRecoverer(HybseqAnalyser):
 
-    def __init__(self, workdirTgz, workDirname, targetMapper=None, targetAssembler=None):
+    def __init__(self, workdirTgz, workDirname, trimmomaticRunner=None, targetMapper=None, targetAssembler=None):
         super(TargetRecoverer, self).__init__(workdirTgz, workDirname)
+        self.trimmomaticRunner = trimmomaticRunner
         self.targetMapper = targetMapper
         self.targetAssembler = targetAssembler
         self.targetMapperWorkdir = 'targetmapper'
         self.targetAssemblerWorkdir = 'targetassembler'
+        self.trimmedPairedFwd = 'trimmed_paired_fwd.fastq'
+        self.trimmedPairedRev = 'trimmed_paired_rev.fastq'
+        self.trimmedUnpairedFwd = 'trimmed_unpaired_fwd.fastq'
+        self.trimmedUnpairedRev = 'trimmed_unpaired_rev.fastq'
+        self.trimlogFname = 'trimlog.txt'
 
     def setup(self, result):
         logger.debug('setting up')
@@ -1062,7 +1068,17 @@ class TargetRecoverer(HybseqAnalyser):
 	try:
             self.setup(result)
             logger.debug('setup done')
-            self.targetMapper.mapReads(paftolTargetSet, forwardFastq, reverseFastq)
+            if self.trimmomaticRunner is None:
+                trimmedForwardPairedFastqPath = forwardFastq
+                trimmedReversePairedFastqPath = reverseFastq
+            else:
+                trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
+                trimmedReversePairedFastqPath = self.makeWorkdirPath(self.trimmedPairedRev)
+                trimmedForwardUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedFwd)
+                trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
+                trimlogPath = self.makeWorkdirPath(self.trimlogFname)
+                self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairdFastqPath, trimmedForwardUnpariedFastqParth, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
+            self.targetMapper.mapReads(paftolTargetSet, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath)
             logger.debug('mapping done')
             self.distribute(result, maxNumReadsPerGene)
             logger.debug('read distribution done')
