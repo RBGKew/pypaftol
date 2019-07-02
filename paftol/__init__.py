@@ -2454,11 +2454,21 @@ class HybseqResult(object):
     def __init__(self):
         self.contigDict = None
         self.reconstructedCdsDict = None
+        self.contigFastaFname = None
+        self.cmdLine = None
 
     def summaryStats(self):
         raise StandardError, 'not implemented by this abstract class'
 
-    
+    def writeContigFastaFile(self, contigFastaFname):
+        allContigList = []
+        for contigList in self.contigDict.values():
+            if contigList is not None:
+                allContigList.extend(contigList)
+        Bio.SeqIO.write(allContigList, contigFastaFname, 'fasta')
+        self.contigFastaFname = contigFastaFname
+
+        
 class HybpiperResult(HybseqResult):
 
     def __init__(self, paftolTargetSet, forwardFastq, reverseFastq):

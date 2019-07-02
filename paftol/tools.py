@@ -64,6 +64,10 @@ def fastqToFasta(fastqFname, fastaFname):
                 Bio.SeqIO.write(record, fastaFile, 'fasta')
 
 
+def fastaSeqRecordList(fastaFname):
+    return list(Bio.SeqIO.parse(fastaFname, 'fasta'))
+
+
 def alignCdsByProtein(alignedProteinSeqRecord, cdsSeqRecord):
     u = str(alignedProteinSeqRecord.seq)
     c = str(cdsSeqRecord.seq)

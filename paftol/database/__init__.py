@@ -164,6 +164,20 @@ def insertGene(connection, geneName, geneTypeId):
     paftolGeneId = generateUnusedPrimaryKey(connection, 'PaftolGene')
     cursor.execute('INSERT INTO PaftolGene (id, geneName, geneTypeId) VALUES (%s, %s, %s)', (paftolGeneId, geneName, geneTypeId, ))
     cursor.close()
+    return paftolGeneId
+
+    
+def insertFastaFile(connection, fastaFname, dirname=None):
+    fastaPath = fastaFname
+    if dirname is not None:
+        fastaPath = os.path.join(dirname, fastaFname)
+    md5 = paftol.tools.md5HexdigestFromFile(fastaPath)
+    numSequences = len(paftol.tools.fastaSeqRecordList(fastaPath))
+    cursor = connection.cursor(prepared=True)
+    fastaFileId = generateUnusedPrimaryKey(connection, 'PaftolGene')
+    cursor.execute('INSERT INTO FastaFile (id, filename, md5sum, numSequences) VALUES (%s, %s, %s, %s)', (fastaFileId, fastaFname, md5, numSequences, ))
+    cursor.close()
+    return fastaFileId
 
 
 def addPaftolFastqFiles(fastqFnameList):
@@ -234,8 +248,8 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
             geneIdDict[geneName] = geneId
     valueTuple = (newFastaFileId, targetsFname, md5sum, description, numSequences, )
     sqlStatement = 'INSERT INTO FastaFile (id, filename, md5sum, description, numSequences) VALUES (%s, %s, %s, %s, %s)'
-    sys.stderr.write('%s\n' % sqlStatement)
-    sys.stderr.write('%s\n' % str(valueTuple))
+    # sys.stderr.write('%s\n' % sqlStatement)
+    # sys.stderr.write('%s\n' % str(valueTuple))
     cursor.execute(sqlStatement, valueTuple)
     for paftolGene in paftolTargetSet.paftolGeneDict.values():
         for paftolTarget in paftolGene.paftolTargetDict.values():
@@ -244,7 +258,7 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
     cursor.close()
     connection.commit()
     connection.close()
-
+    
     
 def findFastqFile(analysisDatabase, fastqFname):
     for fastqFile in analysisDatabase.fastqFileDict.values():
@@ -342,9 +356,12 @@ def addRecoveryResult(result):
     for geneName in result.contigDict:
         if geneName not in paftolGeneEntityDict:
             raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+    contigFastaFileId = None
+    if result.contigFastaFname is not None:
+        contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
     contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
     cursor = connection.cursor(prepared=True)
-    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, targetsFastaFileId, numMappedReads, totNumUnmappedReads) VALUES (%s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, targetsFastafile.id, None, None))
+    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastafile.id, None, None, result.cmdLine))
     # FIXME: should check result
     for geneName in result.contigDict:
         if result.contigDict is not None and len(result.contigDict[geneName]) > 0:

@@ -260,16 +260,13 @@ def runTargetRecovery(argNamespace):
     targetRecoverer = paftol.TargetRecoverer(argNamespace.tgz, 'targetrecover', trimmomaticRunner=trimmomaticRunner, targetMapper=targetMapper, targetAssembler=targetAssembler)
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
     result = targetRecoverer.recoverTargets(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
+    result.cmdLine = argNamespace.rawCmdLine
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
     if argNamespace.contigFname is not None:
-        allContigList = []
-        for contigList in result.contigDict.values():
-            if contigList is not None:
-                allContigList.extend(contigList)
-        Bio.SeqIO.write(allContigList, argNamespace.contigFname, 'fasta')
+        result.writeContigFastaFile(argNamespace.contigFname)
     if argNamespace.summaryCsv is not None:
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
@@ -623,6 +620,7 @@ def paftoolsMain():
     addAddTargetsFileParser(subparsers)
     addAddPaftolFastqFilesParser(subparsers)
     args = p.parse_args()
+    args.rawCmdLine = ' '.join(['%s' % arg for arg in sys.argv])
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
         if loglevel is None:
