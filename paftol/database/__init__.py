@@ -129,11 +129,11 @@ def canonicalSymlinkName(sequence, orientation, gzipped):
     gzExt = ''
     if gzipped:
         gzExt = '.gz'
-    return 'XPAFTOL_%06d_R%1d.fastq%s' % (sequence.idSequencing, orientation, gzExt)
+    return 'PAFTOL_%06d_R%1d.fastq%s' % (sequence.idSequencing, orientation, gzExt)
 
 
 def parseCanonicalSymlink(symlinkName):
-    symlinkRe = re.compile('XPAFTOL_([0-9]+)_R([12])\\.fastq')
+    symlinkRe = re.compile('PAFTOL_([0-9]+)_R([12])\\.fastq')
     m = symlinkRe.match(symlinkName)
     if m is not None:
         return int(m.group(1)), int(m.group(2))
