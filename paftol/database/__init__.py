@@ -2,6 +2,7 @@ import sys
 import re
 import os
 import os.path
+import logging
 import unicodedata
 
 import mysql.connector
@@ -10,6 +11,9 @@ import paftol
 import paftol.tools
 import paftol.database.analysis
 import paftol.database.production
+
+
+logger = logging.getLogger(__name__)
 
 
 def strOrNone(x):
@@ -68,10 +72,10 @@ class PaftolDatabaseDetails(object):
 
 
 def getDatabaseDetails(detailsFname):
-    productionDatabaseDetails = None
+    databaseDetails = None
     with open(detailsFname, 'r') as f:
-        productionDatabaseDetails = PaftolDatabaseDetails(f)
-    return productionDatabaseDetails
+        databaseDetails = PaftolDatabaseDetails(f)
+    return databaseDetails
 
 
 def getProductionDatabaseDetails(detailsFname=None):
