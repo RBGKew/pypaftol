@@ -1094,12 +1094,14 @@ class TrimmomaticRunner(object):
     def runTrimmomaticPaired(self, forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, trimlogFname=None, workDirname=None):
         if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
             raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
-        trimmomaticArgv = ['TrimmomaticPE', '-threads', str(self.numThreads)]
+        trimmomaticArgv = ['TrimmomaticPE']
+        if self.numThreads is not None:
+            trimmomaticArgv.extend(['-threads', str(self.numThreads)])
         if trimlogFname is not None:
             trimmomaticArgv.extend(['-trimlog', trimlogFname])
         trimmomaticArgv.extend([forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname])
         if self.adapterFname is not None:
-            trimmomaticArgv.append('ILLUMINACLIP:%S' % self.adapterFname)
+            trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
         if self.leadingQuality is not None:
             trimmomaticArgv.append('LEADING:%d' % self.leadingQuality)
         if self.trailingQuality is not None:

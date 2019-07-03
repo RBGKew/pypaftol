@@ -1069,15 +1069,17 @@ class TargetRecoverer(HybseqAnalyser):
             self.setup(result)
             logger.debug('setup done')
             if self.trimmomaticRunner is None:
+                logger.debug('running without trimming')
                 trimmedForwardPairedFastqPath = forwardFastq
                 trimmedReversePairedFastqPath = reverseFastq
             else:
+                logger.debug('running with trimmomatic trimming')
                 trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
                 trimmedReversePairedFastqPath = self.makeWorkdirPath(self.trimmedPairedRev)
                 trimmedForwardUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedFwd)
                 trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
                 trimlogPath = self.makeWorkdirPath(self.trimlogFname)
-                self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairdFastqPath, trimmedForwardUnpariedFastqParth, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
+                self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath, trimmedForwardUnpairedFastqPath, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
             self.targetMapper.mapReads(paftolTargetSet, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath)
             logger.debug('mapping done')
             self.distribute(result, maxNumReadsPerGene)

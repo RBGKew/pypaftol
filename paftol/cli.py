@@ -112,6 +112,7 @@ def argToTrimmomaticRunner(argNamespace):
     trimmomaticRunner.slidingWindowSize = argNamespace.trimmomaticSlidingWindowSize
     trimmomaticRunner.slidingWindowQuality = argNamespace.trimmomaticSlidingWindowQuality
     trimmomaticRunner.adapterFname = argNamespace.trimmomaticAdapterFname
+    return trimmomaticRunner
 
 
 def checkAbsenceOfTrimmomaticOptions(argNamespace, msg):
@@ -241,6 +242,7 @@ def runTargetRecovery(argNamespace):
     trimmomaticRunner = None
     if argNamespace.trimmer == 'trimmomatic':
         trimmomaticRunner = argToTrimmomaticRunner(argNamespace)
+        logger.debug('got trimmomaticRunner')
     else:
         checkAbsenceOfTrimmomaticOptions(argNamespace, 'options illegal without "--trim trimmomatic"')
     if argNamespace.mapper == 'tblastn':
