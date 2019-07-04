@@ -371,7 +371,7 @@ def runSelectgenes(argNamespace):
     if argNamespace.genefile is not None:
         with open(argNamespace.genefile) as f:
             for line in f:
-                geneNameSet.add(line.strip())
+                geneNameSet.append(line.strip())
     if len(geneNameSet) == 0:
         geneNameSet = None
     paftolTargetSet = paftol.PaftolTargetSet()
