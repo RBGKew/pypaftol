@@ -347,8 +347,8 @@ def addRecoveryResult(result):
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
     targetsFastafile = findFastafile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
-    if targetsFastafile is None:
-        raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+    # if targetsFastafile is None:
+    #     raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
     fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
     if fwdFastqFile is None:
         raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
