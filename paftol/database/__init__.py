@@ -35,7 +35,7 @@ def floatOrNone(x):
         return None
     else:
         return float(x)
-
+    
 
 def findFastaFile(analysisDatabase, fastaFname):
     for fastaFile in analysisDatabase.fastaFileDict.values():
@@ -102,6 +102,20 @@ def getAnalysisDatabaseDetails(detailsFname=None):
     if detailsFname is None:
         detailsFname = os.path.join(os.environ['HOME'], '.paftol', 'analysisdb.cfg')
     return getDatabaseDetails(detailsFname)
+
+
+def getProductionDatabase(detailsFname=None):
+    productionDatabaseDetails = getProductionDatabaseDetails(detailsFname)
+    connection = productionDatabaseDetails.makeConnection()
+    productionDatabase = paftol.database.production.AnalysisDatabase(connection)
+    return productionDatabase
+
+
+def getAnalysisDatabase(detailsFname=None):
+    analysisDatabaseDetails = getAnalysisDatabaseDetails(detailsFname)
+    connection = analysisDatabaseDetails.makeConnection()
+    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    return analysisDatabase
 
 
 def matchesExpectedFastqFname(fastqFname, sequence):
@@ -323,9 +337,7 @@ def findContigRecoveryForFastqFname(analysisDatabase, fastqFname):
 
 def preRecoveryCheck(forwardFastqFname, reverseFastqFname):
     msgList = []
-    analysisDatabaseDetails = getAnalysisDatabaseDetails()
-    connection = analysisDatabaseDetails.makeConnection()
-    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    analysisDatabase = getAnalysisDatabase()
     contigRecovery = findContigRecoveryForFastqFname(analysisDatabase, forwardFastqFname)
     if contigRecovery is not None:
         msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (forwardFastqFname, contigRecovery.id))
