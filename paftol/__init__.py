@@ -2563,6 +2563,7 @@ def extractPaftolSampleId(fastqName):
 
 
 def getQual28(fastqcDataFrame):
+    # FIXME: returns 0 if there is no position with median qual below 28 -- should that not be None?
     medianList = fastqcDataFrame.getColumn('median')
     baseList = fastqcDataFrame.getColumn('base')
     index = 0
@@ -2576,6 +2577,7 @@ def getQual28(fastqcDataFrame):
         return 0
     else:
         return baseList[pos]
+
 
 def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
     summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'totNumMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength']
