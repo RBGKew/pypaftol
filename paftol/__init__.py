@@ -62,7 +62,7 @@ def cmpExonerateResultByQueryAlignmentStart(e1, e2):
     return 0
 
 
-def generateFastqcDataFrame(fastqFname):
+def generateFastqcStats(fastqFname):
     # FIXME: returns fastqcstats, which has several FastqcDataFrame attributes, so function name is misleading
     """Method that runs fastqc and returns C{FastqcStats}.
 
@@ -2487,11 +2487,11 @@ class HybpiperResult(HybseqResult):
         if self.reconstructedCdsDict is None:
 	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
 	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
-        fqDataFrameFwd = generateFastqcDataFrame(self.forwardFastq)
+        fqDataFrameFwd = generateFastqcStats(self.forwardFastq)
         perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
         perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
         if self.reverseFastq is not None:
-            fqDataFrameRev = generateFastqcDataFrame(self.reverseFastq)
+            fqDataFrameRev = generateFastqcStats(self.reverseFastq)
             perBaseSequenceContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseSequenceContent)
             perBaseNContentRev = fqDataFrameRev.calculateMeanStd(fqDataFrameRev.perBaseNContent)
         summaryDataFrame = paftol.tools.DataFrame(summaryColumnList)
@@ -2590,8 +2590,8 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         paftolSampleId = extractPaftolSampleId(fastqFwd)
         rowDict['sampleName'] = paftolSampleId
         rowDict['targetsFile'] = paftolTargetFname
-        fqDataFrameFwd = generateFastqcDataFrame(fastqFwd)
-        fqDataFrameRev = generateFastqcDataFrame(fastqRev)
+        fqDataFrameFwd = generateFastqcStats(fastqFwd)
+        fqDataFrameRev = generateFastqcStats(fastqRev)
         rowDict['qual28Fwd'] = getQual28(fqDataFrameFwd.perBaseSequenceQuality)
         rowDict['qual28Rev'] = getQual28(fqDataFrameRev.perBaseSequenceQuality)
         perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)

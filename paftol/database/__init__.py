@@ -347,8 +347,11 @@ def addRecoveryResult(result):
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
     targetsFastafile = findFastafile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
-    # if targetsFastafile is None:
-    #     raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+    if targetsFastafile is None:
+        # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+        targestFastaFileId = None
+    else:
+        targetsFastaFileId = targetsFastaFile.id
     fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
     if fwdFastqFile is None:
         raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
@@ -365,7 +368,7 @@ def addRecoveryResult(result):
         contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
     contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
     cursor = connection.cursor(prepared=True)
-    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastafile.id, None, None, result.cmdLine))
+    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastafileId, None, None, result.cmdLine))
     # FIXME: should check result
     for geneName in result.contigDict:
         if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
