@@ -378,7 +378,7 @@ def addRecoveryResult(result):
     targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
     if targetsFastaFile is None:
         # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
-        targestFastaFileId = None
+        targetsFastaFileId = None
     else:
         targetsFastaFileId = targetsFastaFile.id
     fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
