@@ -12,6 +12,7 @@ import logging
 import copy
 import math
 import md5
+import shutil
 
 import Bio
 import Bio.Alphabet
@@ -182,6 +183,345 @@ def ascendingRange(rangeStart, rangeEnd):
         return rangeEnd, rangeStart
     else:
         return rangeStart, rangeEnd
+
+
+class DataFrame(object):
+
+    def __init__(self, columnHeaderList):
+        self.columnHeaderList = columnHeaderList[:]
+        self.rowDictList = []
+
+    def addRow(self, rowDict):
+        if set(rowDict.keys()) != set(self.columnHeaderList):
+            raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
+        self.rowDictList.append(copy.copy(rowDict))
+
+    def nrow(self):
+        return len(self.rowDictList)
+
+    def getRowDict(self, rowIndex):
+        return self.rowDictList[rowIndex]
+
+    def writeCsv(self, f):
+        csvDictWriter = csv.DictWriter(f, self.columnHeaderList)
+        csvDictWriter.writeheader()
+        for rowDict in self.rowDictList:
+            csvDictWriter.writerow(rowDict)
+
+    def getColumn(self, columnName):
+        return [rowDict[columnName] for rowDict in self.rowDictList]
+
+    def colMeanAndStddev(self, columnName):
+        return MeanAndStddev(self.getColumn(columnName))
+
+    def colStats(self, columnName):
+        d = {}
+        for columnName in self.columnHeaderList:
+            d[columnHeader] = self.colMeanAndStddev(columnName)
+        return d
+
+
+class FastqcDataFrame(DataFrame):
+
+    def __init__(self, columnHeaderList, description=None, result=None):
+        super(FastqcDataFrame, self).__init__(columnHeaderList)
+        self.description = description
+        self.result = result
+        self.annotations = {}
+
+
+class FastqcStats(object):
+
+    fastqcVersionRe = re.compile('##FastQC\t(.+)')
+    fastqcModuleStartRe = re.compile('>>([^\t]+)\t([^\t]+)')
+
+    def readCompleteLine(self, f):
+        l = f.readline()
+        if len(l) == 0:
+            raise StandardError, 'unexpected empty line'
+        if l[-1] != '\n':
+            raise StandardError, 'unexpected truncated line'
+        return l
+
+    def readTableHeader(self, f):
+        # FIXME: should probably use readCompleteLine?
+        l = f.readline()
+        if l[0] != '#':
+            raise StandardError, 'malformed FastQC table header: %s' % l.strip()
+        return l[1:].strip().split('\t')
+
+    def checkFastqcVersion(self, f):
+        # FIXME: need to check for empty string (premature EOF) -- check all readline() uses for parsing
+        l = self.readCompleteLine(f)
+        m = self.fastqcVersionRe.match(l)
+        if m is None:
+            raise StandardError, 'malformed FastQC version line: %s' % l.strip()
+        v = m.group(1)
+        if v not in ['0.11.5']:
+            raise StandardError, 'unsupported FastQC version %s' % v
+
+    def nextModuleDescription(self, f):
+        l = self.readCompleteLine(f)
+        m = self.fastqcModuleStartRe.match(l)
+        if m is None:
+            raise StandardError, 'malformed FastQC module start: %s' % l.strip()
+        description = m.group(1)
+        result = m.group(2)
+        return description, result
+
+    def parseBasicStatistics(self, f):
+        description, result = self.nextModuleDescription(f)
+        if description != 'Basic Statistics':
+            raise StandardError, 'expected "Basic Statistics" module but found "%s"' % description
+        if self.readTableHeader(f) != ['Measure', 'Value']:
+            raise StandardError, 'malformed "Basic Statistics" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['measure', 'value'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'measure': w[0], 'value': w[1]})
+            l = self.readCompleteLine(f)
+        self.basicStatistics = fastqcDataFrame
+
+    def parsePerBaseSequenceQuality(self, f):
+        description, result = self.nextModuleDescription(f)
+        if description != 'Per base sequence quality':
+            raise StandardError, 'expected "Per base sequency quality" module but found "%s"' % description
+        if self.readTableHeader(f) != ['Base', 'Mean', 'Median', 'Lower Quartile', 'Upper Quartile', '10th Percentile', '90th Percentile']:
+            raise StandardError, 'malformed "Per base sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 7:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'base': int(w[0]), 'mean': float(w[1]), 'median': float(w[2]), 'lowerQuartile': float(w[3]), 'upperQuartile': float(w[4]), 'percentile10': float(w[5]), 'percentile90': float(w[6])})
+            l = self.readCompleteLine(f)
+        self.perBaseSequenceQuality = fastqcDataFrame
+
+    def parsePerTileSequenceQualityBody(self, f, description, result):
+        if self.readTableHeader(f) != ['Tile', 'Base', 'Mean']:
+            raise StandardError, 'malformed "Per tile sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['tile', 'base', 'mean'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 3:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'tile': int(w[0]), 'base': int(w[1]), 'mean': float(w[2])})
+            l = self.readCompleteLine(f)
+        self.perTileSequenceQuality = fastqcDataFrame
+
+    def parsePerSequenceQualityScoresBody(self, f, description, result):
+        if self.readTableHeader(f) != ['Quality', 'Count']:
+            raise StandardError, 'malformed "Per sequence quality scores" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['quality', 'count'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'quality': w[0], 'count': w[1]})
+            l = self.readCompleteLine(f)
+        self.perSequenceQualityScores = fastqcDataFrame
+
+    def parsePerBaseSequenceContent(self, f):
+        description, result = self.nextModuleDescription(f)
+        if description != 'Per base sequence content':
+            raise StandardError, 'expected "Per base sequence content" module but found "%s"' % description
+        if self.readTableHeader(f) != ['Base', 'G', 'A', 'T', 'C']:
+            raise StandardError, 'malformed "Per base sequence content" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['base', 'g', 'a', 't', 'c'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 5:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'base': int(w[0]), 'g': float(w[1]), 'a': float(w[2]), 't': float(w[3]), 'c': float(w[4])})
+            l = self.readCompleteLine(f)
+        self.perBaseSequenceContent = fastqcDataFrame
+
+    def parsePerSequenceGCContent(self, f):
+        description, result = self.nextModuleDescription(f)
+        if description != 'Per sequence GC content':
+            raise StandardError, 'expected "Per sequence GC content" module but found "%s"' % description
+        if self.readTableHeader(f) != ['GC Content', 'Count']:
+            raise StandardError, 'malformed "Per sequence GC content" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['gcContent', 'count'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'gcContent': int(w[0]), 'count': float(w[0])})
+            l = self.readCompleteLine(f)
+        self.perSequenceGCContent = fastqcDataFrame
+
+    def parsePerBaseNContent(self, f):
+        description, result = self.nextModuleDescription(f)
+        if description != 'Per base N content':
+            raise StandardError, 'expected "Per base N content" module but found "%s"' % description
+        if self.readTableHeader(f) != ['Base', 'N-Count']:
+            raise StandardError, 'malformed "Per base N content" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['base', 'nCount'], description, result)
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'base': int(w[0]), 'nCount': float(w[1])})
+            l = self.readCompleteLine(f)
+        self.perBaseNContent = fastqcDataFrame
+
+    def parseSequenceLengthDistribution(self, f):
+        sys.stderr.write('WARNING: FastQC module "Sequence length Distribution" not implemented\n')
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            l = self.readCompleteLine(f)
+        self.sequenceLengthDistribution = None
+
+    def parseSequenceDuplicationLevels(self, f):
+        # fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
+        # fastqcDataFrame.annotaions['totalDeduplicatedPercentage'] = float( ... )
+        sys.stderr.write('WARNING: FastQC module "Sequence Duplication Levels" not implemented\n')
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            l = self.readCompleteLine(f)
+        self.sequenceDuplicationLevels = None
+
+    def parseOverrepresentedSequences(self, f):
+        sys.stderr.write('WARNING: FastQC module "Overrepresented sequences" not implemented\n')
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            l = self.readCompleteLine(f)
+        self.overrepresentedSequences = None
+
+    def parseAdapterContent(self, f):
+        sys.stderr.write('WARNING: FastQC module "Adapter Content" not implemented\n')
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            l = self.readCompleteLine(f)
+        self.adapterContent = None
+
+    def parseKmerContent(self, f):
+        sys.stderr.write('WARNING: FastQC module "Kmer Content" not implemented\n')
+        l = self.readCompleteLine(f)
+        while l.strip() != '>>END_MODULE':
+            l = self.readCompleteLine(f)
+        self.kmerContent = None
+
+    def __init__(self, fastqcStatsFname):
+        with open(fastqcStatsFname, 'r') as f:
+            self.checkFastqcVersion(f)
+            self.parseBasicStatistics(f)
+            self.parsePerBaseSequenceQuality(f)
+            description, result = self.nextModuleDescription(f)
+            if description == 'Per tile sequence quality':
+                self.parsePerTileSequenceQualityBody(f, description, result)
+                description, result = self.nextModuleDescription(f)
+                if description != 'Per sequence quality scores':
+                    raise StandardError, 'expected "Per sequence quality scores" module but found "%s"' % description
+                self.parsePerSequenceQualityScoresBody(f, description, result)
+            elif description == 'Per sequence quality scores':
+                self.parsePerSequenceQualityScoresBody(f, description, result)
+            else:
+                raise StandardError, 'expected "Per tile sequence quality" or "Per sequence quality scores" module but found "%s"' % description
+            self.parsePerBaseSequenceContent(f)
+            self.parsePerSequenceGCContent(f)
+            self.parsePerBaseNContent(f)
+            self.parseSequenceLengthDistribution(f)
+            self.parseSequenceDuplicationLevels(f)
+            self.parseOverrepresentedSequences(f)
+            self.parseAdapterContent(f)
+            self.parseKmerContent(f)
+            
+    def getNumReads(self):
+        for rowDict in self.basicStatistics.rowDictList:
+            if rowDict['measure'] == 'Total Sequences':
+                return int(rowDict['value'])
+        return None
+
+    def getMedian(self, index):
+        return float(self.perBaseSequenceQuality.getRowDict(index)['median'])
+
+    def getN(self):
+        l = []
+        for index in range(len(self.perBaseNContent.rowDictList)):
+            l.append(self.perBaseNContent.rowDictList[index]['nCount'])
+        return l
+
+    # FIXME: not really a method, doesn't use self...
+    def calculateMeanStd(self, dataframe):
+        colList = dataframe.columnHeaderList[:]
+        colList.remove('base')
+        params = {}
+        for column in colList:
+            l = []
+            for row in range(len(dataframe.rowDictList)):
+                l.append(float(dataframe.rowDictList[row][column]))
+            params[column] = MeanAndStddev(l)
+        return params
+
+
+def generateFastqcStats(fastqFname):
+    # FIXME: returns fastqcstats, which has several FastqcDataFrame attributes, so function name is misleading
+    """Method that runs fastqc and returns C{FastqcStats}.
+
+@param fastqFname: fastq file name
+@type fastqFname: C{str}
+@return: C{FastqcStats}
+"""
+    m = re.match('(.*)\\.fastq', os.path.basename(fastqFname))
+    if m is None:
+        raise StandardError, 'failed to extract basename of fastq filename'
+    fastqBasename = m.group(1)
+    try:
+        tmpDirName = tempfile.mkdtemp()
+        outFname = os.path.join(tmpDirName, '%s_fastqc' % fastqBasename, 'fastqc_data.txt')
+        fastqcArgs = ['fastqc', '--extract', '--outdir', tmpDirName, '--nogroup', fastqFname]
+        fastqcProcess = subprocess.check_call(fastqcArgs)
+        fastqcStats = FastqcStats(outFname)
+    finally:
+        shutil.rmtree(tmpDirName)
+    return fastqcStats
+
+
+def getQual28(fastqcDataFrame):
+    # FIXME: returns 0 if there is no position with median qual below 28 -- should that not be None?
+    medianList = fastqcDataFrame.getColumn('median')
+    baseList = fastqcDataFrame.getColumn('base')
+    index = 0
+    boolVar = 0
+    while (index < len(medianList)) and (boolVar == 0):
+        if (medianList[index] < 28):
+            pos = index
+            boolVar = 1
+        index = index + 1
+    if boolVar == 0:
+        return 0
+    else:
+        return baseList[pos]
+
+
+class FastqcSummaryStats(object):
+
+    def __init__(self, fastqcStats):
+        perBaseSequenceContent = fastqcStats.calculateMeanStd(fastqcStats.perBaseSequenceContent)
+        perBaseNContent = fastqcStats.calculateMeanStd(fastqcStats.perBaseNContent)
+        self.numReads = fastqcStats.getNumReads()
+        self.qual28 = getQual28(fastqcStats.perBaseSequenceQuality)
+        self.meanA = perBaseSequenceContent['a'].mean
+        self.stddevA = perBaseSequenceContent['a'].std
+        self.meanC = perBaseSequenceContent['c'].mean
+        self.stddevC = perBaseSequenceContent['c'].std
+        self.meanG = perBaseSequenceContent['g'].mean
+        self.stddevG = perBaseSequenceContent['g'].std
+        self.meanT = perBaseSequenceContent['t'].mean
+        self.stddevT = perBaseSequenceContent['t'].std
+        self.meanN = perBaseNContent['nCount'].mean
+        self.stddevN = perBaseNContent['nCount'].std
 
 
 class BlastAlignment(object):
@@ -1017,7 +1357,7 @@ class ExonerateStarAlignment(object):
         return exonerateResultList
 
     def makeStarAlignment(self):
-        exonerateRunner = paftol.tools.ExonerateRunner()
+        exonerateRunner = ExonerateRunner()
         exonerateResultList = []
         for seqRecord in Bio.SeqIO.parse(self.fastaFname, 'fasta'):
             exonerateResultList.extend(self.makeExonerateResult(seqRecord, exonerateRunner))
@@ -1466,42 +1806,6 @@ class MeanAndStddev(object):
         for num in l:
             sdList.append((self.mean - num) ** 2)
         self.std = math.sqrt(sum(sdList) / (len(sdList) - 1))
-
-
-class DataFrame(object):
-
-    def __init__(self, columnHeaderList):
-        self.columnHeaderList = columnHeaderList[:]
-        self.rowDictList = []
-
-    def addRow(self, rowDict):
-        if set(rowDict.keys()) != set(self.columnHeaderList):
-            raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
-        self.rowDictList.append(copy.copy(rowDict))
-
-    def nrow(self):
-        return len(self.rowDictList)
-
-    def getRowDict(self, rowIndex):
-        return self.rowDictList[rowIndex]
-
-    def writeCsv(self, f):
-        csvDictWriter = csv.DictWriter(f, self.columnHeaderList)
-        csvDictWriter.writeheader()
-        for rowDict in self.rowDictList:
-            csvDictWriter.writerow(rowDict)
-
-    def getColumn(self, columnName):
-        return [rowDict[columnName] for rowDict in self.rowDictList]
-
-    def colMeanAndStddev(self, columnName):
-        return MeanAndStddev(self.getColumn(columnName))
-
-    def colStats(self, columnName):
-        d = {}
-        for columnName in self.columnHeaderList:
-            d[columnHeader] = self.colMeanAndStddev(columnName)
-        return d
 
 
 def numIdenticalSymbols(sr1, sr2, ignoreCase=True):

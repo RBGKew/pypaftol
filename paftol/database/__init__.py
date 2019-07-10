@@ -212,6 +212,16 @@ def insertFastaFile(connection, fastaFname, dirname=None):
     return fastaFileId
 
 
+def addFastqStats(connection, fastqFname):
+    fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
+    fastqcSummaryStats = paftol.tools.FastqcSummaryStats(fastqcStats)
+    cursor = connection.cursor(prepared=True)
+    fastqStatsId = generateUnusedPrimaryKey(connection, 'FastqStats')
+    cursor.execute('INSERT INTO FastqStats (id, numReads, qual28, meanA, meanC, meanG, meanT, stddevA, stddevC, stddevG, stddevT, meanN, stddevN) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (fastqStatsId, fastqcSummaryStats.numReads, fastqcSummaryStats.qual28, fastqcSummaryStats.meanA, fastqcSummaryStats.meanC, fastqcSummaryStats.meanG, fastqcSummaryStats.meanT, fastqcSummaryStats.stddevA, fastqcSummaryStats.stddevC, fastqcSummaryStats.stddevG, fastqcSummaryStats.stddevT, fastqcSummaryStats.meanN, fastqcSummaryStats.stddevN))
+    cursor.close()
+    return fastqStatsId
+
+
 def addPaftolFastqFiles(fastqFnameList):
     productionDatabaseDetails = getProductionDatabaseDetails()
     connection = productionDatabaseDetails.makeConnection()
@@ -227,9 +237,10 @@ def addPaftolFastqFiles(fastqFnameList):
             md5sum = paftol.tools.md5HexdigestFromFile(fastqFname)
             fastqFile = findFastqFile(analysisDatabase, fastqFname)
             if fastqFile is None:
+                fastqStatsId = addFastqStats(connection, fastqFname)
                 fastqFileId = generateUnusedPrimaryKey(connection, 'FastqFile')
                 paftolFastqFileId = generateUnusedPrimaryKey(connection, 'PaftolFastqFile')
-                cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, numReads, qual28, description) VALUES (%s, %s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5sum, None, None, None, None, ))
+                cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, description, fastqStatsId) VALUES (%s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5sum, None, None, fastqStatsId, ))
                 cursor.execute('INSERT INTO PaftolFastqFile (id, idSequencing, fastqFileId) VALUES (%s, %s, %s)', (paftolFastqFileId, idSequencing, fastqFileId, ))
                 logger.info('added new fastq file %s', fastqFname)
             else:

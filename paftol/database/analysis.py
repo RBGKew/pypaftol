@@ -11,7 +11,7 @@ import paftol.database
 
 class ContigRecovery(object):
 
-    def __init__(self, id=None, fwdFastq=None, revFastq=None, contigFastaFile=None, targetsFastaFile=None, numMappedReads=None, totNumUnmappedReads=None, cmdLine=None):
+    def __init__(self, id=None, fwdFastq=None, revFastq=None, contigFastaFile=None, targetsFastaFile=None, numMappedReads=None, totNumUnmappedReads=None, softwareVersion=None, cmdLine=None):
         self.id = id
         self.fwdFastq = fwdFastq
         self.revFastq = revFastq
@@ -19,6 +19,7 @@ class ContigRecovery(object):
         self.targetsFastaFile = targetsFastaFile
         self.numMappedReads = numMappedReads
         self.totNumUnmappedReads = totNumUnmappedReads
+        self.softwareVersion = softwareVersion
         self.cmdLine = cmdLine
         # one-to-many
         # fk_RecoveredContig_contigRecoveryId: RecoveredContig.contigRecoveryId REFERENCES ContigRecovery(contigRecoveryId)
@@ -44,33 +45,53 @@ class FastaFile(object):
 
 class FastqFile(object):
 
-    def __init__(self, id=None, filename=None, md5sum=None, enaAccession=None, numReads=None, qual28=None, description=None):
+    def __init__(self, id=None, filename=None, md5sum=None, enaAccession=None, description=None, fastqStats=None):
         self.id = id
         self.filename = filename
         self.md5sum = md5sum
         self.enaAccession = enaAccession
+        self.description = description
+        self.fastqStats = fastqStats
+        # one-to-many
+        # fk_ContigRecovery_fwdFastqId: ContigRecovery.fwdFastqId REFERENCES FastqFile(fwdFastqId)
+        self.contigRecoveryFwdFastqList = []
+        # fk_ContigRecovery_revFastqId: ContigRecovery.revFastqId REFERENCES FastqFile(revFastqId)
+        self.contigRecoveryRevFastqList = []
+        # fk_PaftolFastqFile_fastqFileId: PaftolFastqFile.fastqFileId REFERENCES FastqFile(fastqFileId)
+        self.paftolFastqFileFastqFileList = []
+        # fk_Trimming_rawFwdFastqId: Trimming.rawFwdFastqId REFERENCES FastqFile(rawFwdFastqId)
+        self.trimmingRawFwdFastqList = []
+        # fk_Trimming_rawRevFastqId: Trimming.rawRevFastqId REFERENCES FastqFile(rawRevFastqId)
+        self.trimmingRawRevFastqList = []
+        # fk_Trimming_trimmedFwdPairedFastqId: Trimming.trimmedFwdPairedFastqId REFERENCES FastqFile(trimmedFwdPairedFastqId)
+        self.trimmingTrimmedFwdPairedFastqList = []
+        # fk_Trimming_trimmedRevPairedFastqId: Trimming.trimmedRevPairedFastqId REFERENCES FastqFile(trimmedRevPairedFastqId)
+        self.trimmingTrimmedRevPairedFastqList = []
+        # fk_Trimming_trimmedFwdUnpairedFastqId: Trimming.trimmedFwdUnpairedFastqId REFERENCES FastqFile(trimmedFwdUnpairedFastqId)
+        self.trimmingTrimmedFwdUnpairedFastqList = []
+        # fk_Trimming_trimmedRevUnpairedFastqId: Trimming.trimmedRevUnpairedFastqId REFERENCES FastqFile(trimmedRevUnpairedFastqId)
+        self.trimmingTrimmedRevUnpairedFastqList = []
+
+
+class FastqStats(object):
+
+    def __init__(self, id=None, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None):
+        self.id = id
         self.numReads = numReads
         self.qual28 = qual28
-        self.description = description
+        self.meanA = meanA
+        self.meanC = meanC
+        self.meanG = meanG
+        self.meanT = meanT
+        self.stddevA = stddevA
+        self.stddevC = stddevC
+        self.stddevG = stddevG
+        self.stddevT = stddevT
+        self.meanN = meanN
+        self.stddevN = stddevN
         # one-to-many
-        # fk_ContigRecovery_fwdFastqId_FastqFile: ContigRecovery.fwdFastqId REFERENCES FastqFile(fwdFastqId)
-        self.contigRecoveryFwdFastqList = []
-        # fk_ContigRecovery_revFastqId_FastqFile: ContigRecovery.revFastqId REFERENCES FastqFile(revFastqId)
-        self.contigRecoveryRevFastqList = []
-        # fk_PaftolFastqFile_fastqFileId_FastqFile: PaftolFastqFile.fastqFileId REFERENCES FastqFile(fastqFileId)
-        self.paftolFastqFileFastqFileList = []
-        # fk_Trimming_rawFwdFastqId_FastqFile: Trimming.rawFwdFastqId REFERENCES FastqFile(rawFwdFastqId)
-        self.trimmingRawFwdFastqList = []
-        # fk_Trimming_rawRevFastqId_FastqFile: Trimming.rawRevFastqId REFERENCES FastqFile(rawRevFastqId)
-        self.trimmingRawRevFastqList = []
-        # fk_Trimming_trimmedFwdPairedFastqId_FastqFile: Trimming.trimmedFwdPairedFastqId REFERENCES FastqFile(trimmedFwdPairedFastqId)
-        self.trimmingTrimmedFwdPairedFastqList = []
-        # fk_Trimming_trimmedRevPairedFastqId_FastqFile: Trimming.trimmedRevPairedFastqId REFERENCES FastqFile(trimmedRevPairedFastqId)
-        self.trimmingTrimmedRevPairedFastqList = []
-        # fk_Trimming_trimmedFwdUnpairedFastqId_FastqFile: Trimming.trimmedFwdUnpairedFastqId REFERENCES FastqFile(trimmedFwdUnpairedFastqId)
-        self.trimmingTrimmedFwdUnpairedFastqList = []
-        # fk_Trimming_trimmedRevUnpairedFastqId_FastqFile: Trimming.trimmedRevUnpairedFastqId REFERENCES FastqFile(trimmedRevUnpairedFastqId)
-        self.trimmingTrimmedRevUnpairedFastqList = []
+        # fk_FastqFile_fastqStatsId: FastqFile.fastqStatsId REFERENCES FastqStats(fastqStatsId)
+        self.fastqFileFastqStatsList = []
 
 
 class GeneType(object):
@@ -79,7 +100,7 @@ class GeneType(object):
         self.id = id
         self.geneTypeName = geneTypeName
         # one-to-many
-        # fk_PaftolGene_geneTypeId_GeneType_id: PaftolGene.geneTypeId REFERENCES GeneType(geneTypeId)
+        # fk_PaftolGene_geneTypeId: PaftolGene.geneTypeId REFERENCES GeneType(geneTypeId)
         self.paftolGeneGeneTypeList = []
 
 
@@ -105,7 +126,7 @@ class PaftolGene(object):
         # one-to-many
         # fk_RecoveredContig_paftolGeneId: RecoveredContig.paftolGeneId REFERENCES PaftolGene(paftolGeneId)
         self.recoveredContigPaftolGeneList = []
-        # fk_ReferenceTarget_paftolGeneId_PaftolGene: ReferenceTarget.paftolGeneId REFERENCES PaftolGene(paftolGeneId)
+        # fk_ReferenceTarget_paftolGeneId: ReferenceTarget.paftolGeneId REFERENCES PaftolGene(paftolGeneId)
         self.referenceTargetPaftolGeneList = []
 
 
@@ -152,7 +173,7 @@ class Trimming(object):
 def loadContigRecoveryDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `contigFastaFileId`, `targetsFastaFileId`, `numMappedReads`, `totNumUnmappedReads`, `cmdLine` FROM `ContigRecovery`'
+    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `contigFastaFileId`, `targetsFastaFileId`, `numMappedReads`, `totNumUnmappedReads`, `softwareVersion`, `cmdLine` FROM `ContigRecovery`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ContigRecovery()
@@ -199,7 +220,8 @@ def loadContigRecoveryDict(connection, productionDatabase):
             entity.targetsFastaFile.contigRecoveryTargetsFastaFileList.append(entity)
         entity.numMappedReads = paftol.database.intOrNone(row[5])
         entity.totNumUnmappedReads = paftol.database.intOrNone(row[6])
-        entity.cmdLine = paftol.database.strOrNone(row[7])
+        entity.softwareVersion = paftol.database.strOrNone(row[7])
+        entity.cmdLine = paftol.database.strOrNone(row[8])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -225,7 +247,7 @@ def loadFastaFileDict(connection, productionDatabase):
 def loadFastqFileDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `enaAccession`, `numReads`, `qual28`, `description` FROM `FastqFile`'
+    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `enaAccession`, `description`, `fastqStatsId` FROM `FastqFile`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastqFile()
@@ -233,9 +255,42 @@ def loadFastqFileDict(connection, productionDatabase):
         entity.filename = paftol.database.strOrNone(row[1])
         entity.md5sum = paftol.database.strOrNone(row[2])
         entity.enaAccession = paftol.database.strOrNone(row[3])
-        entity.numReads = paftol.database.intOrNone(row[4])
-        entity.qual28 = paftol.database.floatOrNone(row[5])
-        entity.description = paftol.database.strOrNone(row[6])
+        entity.description = paftol.database.strOrNone(row[4])
+        # many to one: fastqStats
+        entityId = paftol.database.intOrNone(row[5])
+        if entityId is None:
+            entity.fastqStats = None
+        elif entityId not in productionDatabase.fastqStatsDict:
+            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+        else:
+            entity.fastqStats = productionDatabase.fastqStatsDict[entityId]
+            # type: int, name: fastqStatsId, foreignTable: FastqStats, foreignColumn: id
+            entity.fastqStats.fastqFileFastqStatsList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadFastqStatsDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN` FROM `FastqStats`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = FastqStats()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.numReads = paftol.database.intOrNone(row[1])
+        entity.qual28 = paftol.database.intOrNone(row[2])
+        entity.meanA = paftol.database.floatOrNone(row[3])
+        entity.meanC = paftol.database.floatOrNone(row[4])
+        entity.meanG = paftol.database.floatOrNone(row[5])
+        entity.meanT = paftol.database.floatOrNone(row[6])
+        entity.stddevA = paftol.database.floatOrNone(row[7])
+        entity.stddevC = paftol.database.floatOrNone(row[8])
+        entity.stddevG = paftol.database.floatOrNone(row[9])
+        entity.stddevT = paftol.database.floatOrNone(row[10])
+        entity.meanN = paftol.database.floatOrNone(row[11])
+        entity.stddevN = paftol.database.floatOrNone(row[12])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -482,12 +537,14 @@ class AnalysisDatabase(object):
         self.contigRecoveryDict = {}
         self.fastaFileDict = {}
         self.fastqFileDict = {}
+        self.fastqStatsDict = {}
         self.geneTypeDict = {}
         self.paftolFastqFileDict = {}
         self.paftolGeneDict = {}
         self.recoveredContigDict = {}
         self.referenceTargetDict = {}
         self.trimmingDict = {}
+        self.fastqStatsDict = loadFastqStatsDict(connection, self)
         self.fastqFileDict = loadFastqFileDict(connection, self)
         self.fastaFileDict = loadFastaFileDict(connection, self)
         self.contigRecoveryDict = loadContigRecoveryDict(connection, self)
@@ -500,6 +557,7 @@ class AnalysisDatabase(object):
 
     def __str__(self):
         s = ''
+        s = s + 'fastqStats: %d\n' % len(self.fastqStatsDict)
         s = s + 'fastqFile: %d\n' % len(self.fastqFileDict)
         s = s + 'fastaFile: %d\n' % len(self.fastaFileDict)
         s = s + 'contigRecovery: %d\n' % len(self.contigRecoveryDict)
