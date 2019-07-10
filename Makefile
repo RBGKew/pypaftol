@@ -1,8 +1,5 @@
-GITBRANCH       = $(shell git rev-parse --abbrev-ref HEAD)
-GITTAG          = $(shell git describe --tags)
-ifneq ($(.SHELLSTATUS),0)
-	GITTAG	= untagged
-endif
+GITBRANCH       := $(shell git rev-parse --abbrev-ref HEAD)
+GITTAG          := $(shell git describe --tags)
 
 
 build : ptversion
@@ -15,6 +12,7 @@ tests : build
 	python setup.py test
 
 ptversion :
+	echo "branch: $(GITBRANCH), tag $(GITTAG)"
 	echo "__version__ = '$(GITBRANCH)-$(GITTAG)'" > paftol/version.py
 
 doc :
