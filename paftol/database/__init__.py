@@ -262,6 +262,7 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
             return
         else:
             raise StandardError, 'targets file %s in database with md5sum = %s, but found md5sum = %s' % (targetsFname, targetsFile.md5sum, md5sum)
+    logger.info('adding new targets file %s', targetsFname)
     newFastaFileId = generateUnusedPrimaryKey(connection, 'FastaFile')
     cursor = connection.cursor(prepared=True)
     geneTypeId = None
@@ -397,7 +398,7 @@ def addRecoveryResult(result):
         contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
     contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
     cursor = connection.cursor(prepared=True)
-    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastaFileId, None, None, result.cmdLine))
+    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, softwareVersion, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastaFileId, None, None, paftol.__version__, result.cmdLine))
     # FIXME: should check result
     for geneName in result.contigDict:
         if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
