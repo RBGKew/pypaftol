@@ -11,6 +11,7 @@ import tempfile
 import logging
 import copy
 import math
+import md5
 
 import Bio
 import Bio.Alphabet
@@ -30,6 +31,31 @@ import paftol.clib
 
 logger = logging.getLogger(__name__)
 
+
+def isGzipped(fastqFname):
+    if len(fastqFname) > 3 and fastqFname[-3:] == '.gz':
+        return True
+    return False
+
+
+def fastqOrientation(fastqFname):
+    miseqOrientationRe = re.compile('L001_R([12])_001\\.fastq')
+    m = miseqOrientationRe.search(fastqFname)
+    if m is not None:
+        return int(m.group(1))
+    return None
+
+
+def md5HexDigest(s):
+    m = md5.new(s)
+    return m.hexdigest()
+
+
+def md5HexdigestFromFile(fname):
+    with open(fname, 'rb') as f:
+        md5Hex = md5HexDigest(f.read())
+    return md5Hex
+    
 
 def fastqToFasta(fastqFname, fastaFname):
     with open(fastqFname, 'r') as fastqFile:
@@ -1048,6 +1074,42 @@ class ExonerateStarAlignment(object):
             self.epsSketchSr(sr, epsFile, y, symbolWidth, symbolHeight, (0.0, 0.0, 0.0, ), (0.5, 0.5, 0.5, ), (0.9, 0.9, 0.9, ))
             y = y - lineHeight
         epsFile.write('%%EOF\n')
+
+
+class TrimmomaticRunner(object):
+
+    def __init__(self, numThreads=None, leadingQuality=None, trailingQuality=None, minLength=None, slidingWindowSize=None, slidingWindowQuality=None, adapterFname=None):
+        self.numThreads = numThreads
+        self.leadingQuality = leadingQuality
+        self.trailingQuality = trailingQuality
+        self.minLength = minLength
+        self.slidingWindowSize = slidingWindowSize
+        self.slidingWindowQuality = slidingWindowQuality
+        self.adapterFname = adapterFname
+
+    def runTrimmomaticPaired(self, forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, trimlogFname=None, workDirname=None):
+        if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
+            raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
+        trimmomaticArgv = ['TrimmomaticPE', '-threads', str(self.numThreads)]
+        if trimlogFname is not None:
+            trimmomaticArgv.extend(['-trimlog', trimlogFname])
+        trimmomaticArgv.extend([forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname])
+        if self.adapterFname is not None:
+            trimmomaticArgv.append('ILLUMINACLIP:%S' % self.adapterFname)
+        if self.leadingQuality is not None:
+            trimmomaticArgv.append('LEADING:%d' % self.leadingQuality)
+        if self.trailingQuality is not None:
+            trimmomaticArgv.append('TRAILING:%d' % self.trailingQuality)
+        if self.slidingWindowSize is not None:
+            trimmomaticArgv.append('SLIDINGWINDOW:%d:%d' % (self.slidingWindowSize, self.slidingWindowQuality))
+        if self.minLength is not None:
+            trimmomaticArgv.append('MINLEN:%d' % self.minLength)
+        logger.debug('%s', ' '.join(trimmomaticArgv))
+        trimmomaticProcess = subprocess.Popen(trimmomaticArgv, cwd=workDirname)
+        returncode = trimmomaticProcess.wait()
+        if returncode != 0:
+            raise StandardError('trimmomatic process "%s" exited with %d' % (' '.join(trimmomaticArgv), returncode))
+        return (forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, )
 
 
 class BwaRunner(object):

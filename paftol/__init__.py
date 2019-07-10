@@ -685,7 +685,7 @@ the target genes.
 
             
 class TargetMapper(object):
-    
+
     def __init__(self):
         self.workdir = None
         self.targetsFname = 'targets.fasta'
@@ -918,20 +918,26 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         for contig in contigList:
             consensus = contig.getConsensus()
             if consensus is not None:
-                consensus.id = 'contig%05d' % contigNumber
+                consensus.id = '%s--contig%05d' % (geneName, contigNumber)
                 contigNumber = contigNumber + 1
                 consensusList.append(consensus)
         return consensusList
 
     
 class TargetRecoverer(HybseqAnalyser):
-    
-    def __init__(self, workdirTgz, workDirname, targetMapper=None, targetAssembler=None):
+
+    def __init__(self, workdirTgz, workDirname, trimmomaticRunner=None, targetMapper=None, targetAssembler=None):
         super(TargetRecoverer, self).__init__(workdirTgz, workDirname)
+        self.trimmomaticRunner = trimmomaticRunner
         self.targetMapper = targetMapper
         self.targetAssembler = targetAssembler
         self.targetMapperWorkdir = 'targetmapper'
         self.targetAssemblerWorkdir = 'targetassembler'
+        self.trimmedPairedFwd = 'trimmed_paired_fwd.fastq'
+        self.trimmedPairedRev = 'trimmed_paired_rev.fastq'
+        self.trimmedUnpairedFwd = 'trimmed_unpaired_fwd.fastq'
+        self.trimmedUnpairedRev = 'trimmed_unpaired_rev.fastq'
+        self.trimlogFname = 'trimlog.txt'
 
     def setup(self, result):
         logger.debug('setting up')
@@ -951,7 +957,7 @@ class TargetRecoverer(HybseqAnalyser):
     #   * ends / portions with no alignment to reconstructed: fill in from reference
     # Problem: avoid non-homologous alignment portions (e.g. around borders of reconstructed)?
 
-    def reconstructCds(self, result, geneName, strictOverlapFiltering):
+    def recoverContigs(self, result, geneName):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if result.representativePaftolTargetDict is None:
             raise StandardError('illegal state: no represesentative genes')
@@ -960,15 +966,25 @@ class TargetRecoverer(HybseqAnalyser):
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.targetAssembler.assembleGene(result, geneName)
         if contigList is None:
-            logger.warning('gene %s: no overlap contigs', geneName)
+            logger.warning('gene %s: no contigs', geneName)
             return None
         if len(contigList) == 0:
-            logger.warning('gene %s: empty overlap contig list', geneName)
+            logger.warning('gene %s: empty contig list', geneName)
             return None
-        logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
+        logger.debug('gene %s: %d contigs', geneName, len(contigList))
+        for contig in contigList:
+            contig.description = 'representativeGene=%s, targetsFasta=%s, %s' % (result.representativePaftolTargetDict[geneName].getName(), result.paftolTargetSet.fastaHandleStr, contig.description)
+        return contigList
+    
+    def reconstructCds(self, result, geneName, strictOverlapFiltering):
+        if geneName not in result.contigDict:
+            raise StandardError, 'no contig recovery result for gene %s' % geneName
+        contigList = result.contigDict[geneName]
+        if contigList is None:
+            logger.warning('gene %s: no cds reconstruction possible because no contigs were recovered' % geneName)
+            return None
         geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
         exonerateRunner = paftol.tools.ExonerateRunner()
-
         Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
         aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
         # allow stop translation
@@ -1052,15 +1068,27 @@ class TargetRecoverer(HybseqAnalyser):
 	try:
             self.setup(result)
             logger.debug('setup done')
-            self.targetMapper.mapReads(paftolTargetSet, forwardFastq, reverseFastq)
+            if self.trimmomaticRunner is None:
+                trimmedForwardPairedFastqPath = forwardFastq
+                trimmedReversePairedFastqPath = reverseFastq
+            else:
+                trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
+                trimmedReversePairedFastqPath = self.makeWorkdirPath(self.trimmedPairedRev)
+                trimmedForwardUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedFwd)
+                trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
+                trimlogPath = self.makeWorkdirPath(self.trimlogFname)
+                self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairdFastqPath, trimmedForwardUnpariedFastqParth, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
+            self.targetMapper.mapReads(paftolTargetSet, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath)
             logger.debug('mapping done')
             self.distribute(result, maxNumReadsPerGene)
             logger.debug('read distribution done')
             self.setRepresentativeGenes(result)
             self.writeRepresentativeGenes(result)
             logger.debug('representative genes selected')
+            result.contigDict = {}
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
+                result.contigDict[geneName] = self.recoverContigs(result, geneName)
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
 	    logger.debug('CDS reconstruction done')
             logger.debug('finished')
@@ -1187,7 +1215,10 @@ facilitating handling of multiple genes and multiple organisms.
         d = {}
         d['organism'] = self.organism.name
         d['gene'] = self.paftolGene.name
-        d['seqLength'] = len(self.seqRecord)
+        if self.seqRecord is None:
+            d['seqRecord'] = None
+        else:
+            d['seqLength'] = len(self.seqRecord)
         d['numMappedReads'] = self.numMappedReads()
         return d
 
@@ -2287,7 +2318,7 @@ class OverlapAnalyser(HybseqAnalyser):
         for contig in contigList:
             consensus = contig.getConsensus()
             if consensus is not None:
-                consensus.id = 'contig%05d' % contigNumber
+                consensus.id = '%s--contig%05d' % (geneName, contigNumber)
                 contigNumber = contigNumber + 1
                 consensusList.append(consensus)
         return consensusList
@@ -2421,6 +2452,7 @@ class OverlapAnalyser(HybseqAnalyser):
 class HybseqResult(object):
 
     def __init__(self):
+        self.contigDict = None
         self.reconstructedCdsDict = None
 
     def summaryStats(self):

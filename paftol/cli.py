@@ -9,10 +9,21 @@ import Bio.SeqRecord
 import Bio.AlignIO
 
 import paftol
+import paftol.database
 
 
 logger = logging.getLogger(__name__)
 
+
+def addTrimmomaticRunnerToParser(p):
+    p.add_argument('--trimmomaticNumThreads', type=int, help='set number of threads for trimmomatic (see trimmomatic -threads)')
+    p.add_argument('--trimmomaticLeadingQuality', type=int, help='set leading quality threshold (see trimmomatic LEADING step)')
+    p.add_argument('--trimmomaticTrailingQuality', type=int, help='set trailing quality threshold (see trimmomatic TRAILING step)')
+    p.add_argument('--trimmomaticMinLength', type=int, help='set minimum length after trimming (see trimmomatic MINLEN step)')
+    p.add_argument('--trimmomaticSlidingWindowSize', type=int, help='set sliding window size (see trimmomatic SLIDINGWINDOW step, first parameter)')
+    p.add_argument('--trimmomaticSlidingWindowQuality', type=int, help='set sliding window average quality (see trimmomatic SLIDINGWINDOW step, second parameter)')
+    p.add_argument('--trimmomaticAdapterFname', help='set adapter file name (see trimmomatic ILLUMINACLIP step)')
+    
     
 def addBwaRunnerToParser(p):
     p.add_argument('--bwaNumThreads', type=int, help='set number of threads for BWA (see bwa mem -t)')
@@ -68,6 +79,15 @@ def addSpadesRunnerToParser(p):
     p.add_argument('--spadesCovCutoff', help='set coverage cutoff for SPAdes (see spades --cov-cutoff, string to allow "auto" and "off")')
 
 
+def checkAbsenceOfOptions(illegalOptNameList, argNamespace, msg):
+    foundIllegalOptNameList = []
+    for optName in illegalOptNameList:
+        if argNamespace.__dict__[optName] is not None :
+            foundIllegalOptNameList.append(optName)
+    if len(foundIllegalOptNameList) > 0:
+        raise StandardError, '%s: %s' % (msg, ', '.join(foundIllegalOptNameList))
+
+
 def requiredArg(arg, msg):
     if arg is None:
         raise StandardError, msg
@@ -83,6 +103,21 @@ def argToOverlapAssemblerSerial(argNamespace):
     return targetAssemblerOverlapSerial
 
 
+def argToTrimmomaticRunner(argNamespace):
+    trimmomaticRunner = paftol.tools.TrimmomaticRunner()
+    trimmomaticRunner.numThreads = argNamespace.trimmomaticNumThreads
+    trimmomaticRunner.leadingQuality = argNamespace.trimmomaticLeadingQuality
+    trimmomaticRunner.trailingQuality = argNamespace.trimmomaticTrailingQuality
+    trimmomaticRunner.minLength = argNamespace.trimmomaticMinLength
+    trimmomaticRunner.slidingWindowSize = argNamespace.trimmomaticSlidingWindowSize
+    trimmomaticRunner.slidingWindowQuality = argNamespace.trimmomaticSlidingWindowQuality
+    trimmomaticRunner.adapterFname = argNamespace.trimmomaticAdapterFname
+
+
+def checkAbsenceOfTrimmomaticOptions(argNamespace, msg):
+    checkAbsenceOfOptions(['trimmomaticNumThreads', 'trimmomaticLeadingQuality', 'trimmomaticTrailingQuality', 'trimmomaticMinLength', 'trimmomaticSlidingWindowSize', 'trimmomaticSlidingWindowQuality', 'trimmomaticAdapterFname'], argNamespace, msg)
+
+
 def argToBwaRunner(argNamespace):
     bwaRunner = paftol.tools.BwaRunner()
     bwaRunner.numThreads = argNamespace.bwaNumThreads
@@ -90,6 +125,10 @@ def argToBwaRunner(argNamespace):
     bwaRunner.scoreThreshold = argNamespace.bwaScoreThreshold
     bwaRunner.reseedTrigger = argNamespace.bwaReseedTrigger
     return bwaRunner
+
+
+def checkAbsenceOfBwaOptions(argNamespace, msg):
+    checkAbsenceOfOptions(['bwaNumThreads', 'bwaMinSeedLength', 'bwaScoreThreshold', 'bwaReseedTrigger'], argNamespace, msg)
 
 
 def argToBlastRunnerParams(argNamespace, blastRunner):
@@ -107,10 +146,18 @@ def argToTblastnRunner(argNamespace):
     return tblastnRunner
 
 
+def checkAbsenceOfTblastnOptions(argNamespace, msg):
+    checkAbsenceOfOptions(['bastNumThreads', 'blastGapOpen', 'blastGapExtend', 'blastEvalue', 'blastWindowSize'], argNamespace, msg)
+
+
 def argToBlastnRunner(argNamespace):
     blastnRunner = paftol.tools.BlastnRunner()
     argToBlastRunnerParams(argNamespace, blastnRunner)
     return blastnRunner
+
+
+def checkAbsenceOfTblastnOptions(argNamespace, msg):
+    checkAbsenceOfOptions(['bastNumThreads', 'blastGapOpen', 'blastGapExtend', 'blastEvalue', 'blastWindowSize'], argNamespace, msg)
 
 
 def argToSpadesRunner(argNamespace):
@@ -118,7 +165,11 @@ def argToSpadesRunner(argNamespace):
     spadesRunner.numThreads = argNamespace.spadesNumThreads
     spadesRunner.covCutoff = argNamespace.spadesCovCutoff
     return spadesRunner
-    
+
+
+def checkAbsenceOfSpadesnOptions(argNamespace, msg):
+    checkAbsenceOfOptions(['spadesNumThreads', 'spadesCovCutoff'], argNamespace, msg)
+
 
 # FIXME: obsolete -- summary stats are now provided by result (so not adding spadesRunner here)
 def runHybseqstats(argNamespace):
@@ -183,12 +234,21 @@ like approach, unsing tblastn for mapping reads to targets.
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
 
-            
+
 def runTargetRecovery(argNamespace):
+    if argNamespace.usePaftolDb:
+        paftol.database.preRecoveryCheck(argNamespace.forwardreads, argNamespace.reversereads)
+    trimmomaticRunner = None
+    if argNamespace.trimmer == 'trimmomatic':
+        trimmomaticRunner = argToTrimmomaticRunner(argNamespace)
+    else:
+        checkAbsenceOfTrimmomaticOptions(argNamespace, 'options illegal without "--trim trimmomatic"')
     if argNamespace.mapper == 'tblastn':
+        checkAbsenceOfBwaOptions(argNamespace, 'options illegal without "--mapper bwa"')
         tblastnRunner = argToTblastnRunner(argNamespace)
         targetMapper = paftol.TargetMapperTblastn(tblastnRunner)
     elif argNamespace.mapper == 'bwa':
+        checkAbsenceOfTblastnOptions(argNamespace, 'options illegal without "--mapper tblastn"')
         bwaRunner = argToBwaRunner(argNamespace)
         targetMapper = paftol.TargetMapperBwa(bwaRunner)
     else:
@@ -197,17 +257,25 @@ def runTargetRecovery(argNamespace):
         raise StandardError, 'spades assembly not yet refactored'
     elif argNamespace.assembler == 'overlapSerial':
         targetAssembler = argToOverlapAssemblerSerial(argNamespace)
-    targetRecoverer = paftol.TargetRecoverer(argNamespace.tgz, 'targetrecover', targetMapper=targetMapper, targetAssembler=targetAssembler)
+    targetRecoverer = paftol.TargetRecoverer(argNamespace.tgz, 'targetrecover', trimmomaticRunner=trimmomaticRunner, targetMapper=targetMapper, targetAssembler=targetAssembler)
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
     result = targetRecoverer.recoverTargets(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
     else:
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+    if argNamespace.contigFname is not None:
+        allContigList = []
+        for contigList in result.contigDict.values():
+            if contigList is not None:
+                allContigList.extend(contigList)
+        Bio.SeqIO.write(allContigList, argNamespace.contigFname, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
+    if argNamespace.usePaftolDb:
+        paftol.database.addRecoveryResult(result)
     
 
 def runOverlapAnalysis(argNamespace):
@@ -365,6 +433,17 @@ def runExonerateStarAlignment(argNamespace):
         with open(argNamespace.outfile, 'w') as f:
             Bio.AlignIO.write(exonerateStarAlignment.xstarAlignment, f, 'fasta')
 
+            
+def runAddTargetsFile(argNamespace):
+    targetsfile = argNamespace.targetsfile
+    description = argNamespace.description
+    # sys.stderr.write('insertGenes: %s, geneType: %s\n' % (str(argNamespace.insertGenes), str(argNamespace.geneType)))
+    paftol.database.addTargetsFile(targetsfile, description, argNamespace.insertGenes, argNamespace.geneType)
+
+    
+def runAddPaftolFastqFiles(argNamespace):
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq)
+
 
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev', help='for testing argparse')
@@ -409,8 +488,12 @@ def addOverlapAnalyserParser(subparsers):
 def addRecoverParser(subparsers):
     p = subparsers.add_parser('recoverSeqs', help='recover target sequences from HybSeq NGS files')
     addHybseqToParser(p)
+    p.add_argument('--trimmer', choices=['trimmomatic'], help='method for trimming reads')
     p.add_argument('--mapper', choices=['tblastn', 'bwa'], help='method to be used for mapping reads to target genes', required=True)
     p.add_argument('--assembler', choices=['spades', 'overlapSerial'], help='method to be used to assemble reads mapped to a gene into contigs', required=True)
+    p.add_argument('--contigFname', help='filename for contigs')
+    p.add_argument('--usePaftolDb', action='store_true', help='store results in PAFTOL database')
+    addTrimmomaticRunnerToParser(p)
     addTblastnRunnerToParser(p)
     addBwaRunnerToParser(p)    
     addOverlapAssemblerToParser(p)
@@ -496,6 +579,21 @@ def addExonerateStarAlignmentParser(subparsers):
     p.set_defaults(func=runExonerateStarAlignment)
     
     
+def addAddTargetsFileParser(subparsers):
+    p = subparsers.add_parser('addTargetsFile', help='add reference targets from a targets file')
+    p.add_argument('--description', help='description of the targets file')
+    p.add_argument('--geneType', help='specify gene type')
+    p.add_argument('--insertGenes', action='store_true', help='insert new genes that are not already in database')
+    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), required')
+    p.set_defaults(func=runAddTargetsFile)
+
+    
+def addAddPaftolFastqFilesParser(subparsers):
+    p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
+    p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
+    p.set_defaults(func=runAddPaftolFastqFiles)
+    
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -522,6 +620,8 @@ def paftoolsMain():
     addNeedleComparisonParser(subparsers)
     addGeneSetStatsParser(subparsers)
     addExonerateStarAlignmentParser(subparsers)
+    addAddTargetsFileParser(subparsers)
+    addAddPaftolFastqFilesParser(subparsers)
     args = p.parse_args()
     if args.loglevel is not None:
         loglevel = getattr(logging, args.loglevel.upper(), None)
