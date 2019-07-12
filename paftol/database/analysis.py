@@ -77,7 +77,7 @@ class FastqFile(object):
 
 class FastqStats(object):
 
-    def __init__(self, id=None, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None):
+    def __init__(self, id=None, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None, meanAdapterContent=None, maxAdapterContent=None):
         self.id = id
         self.numReads = numReads
         self.qual28 = qual28
@@ -91,6 +91,8 @@ class FastqStats(object):
         self.stddevT = stddevT
         self.meanN = meanN
         self.stddevN = stddevN
+        self.meanAdapterContent = meanAdapterContent
+        self.maxAdapterContent = maxAdapterContent
         # one-to-many
         # fk_ContigRecovery_fwdTrimmedFastqStatsId: ContigRecovery.fwdTrimmedFastqStatsId REFERENCES FastqStats(fwdTrimmedFastqStatsId)
         self.contigRecoveryFwdTrimmedFastqStatsList = []
@@ -300,7 +302,7 @@ def loadFastqFileDict(connection, productionDatabase):
 def loadFastqStatsDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN` FROM `FastqStats`'
+    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent` FROM `FastqStats`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastqStats()
@@ -317,6 +319,8 @@ def loadFastqStatsDict(connection, productionDatabase):
         entity.stddevT = paftol.database.floatOrNone(row[10])
         entity.meanN = paftol.database.floatOrNone(row[11])
         entity.stddevN = paftol.database.floatOrNone(row[12])
+        entity.meanAdapterContent = paftol.database.floatOrNone(row[13])
+        entity.maxAdapterContent = paftol.database.floatOrNone(row[14])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
