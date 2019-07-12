@@ -1438,7 +1438,7 @@ class TrimmomaticRunner(object):
             trimmomaticArgv.extend(['-threads', str(self.numThreads)])
         if trimlogFname is not None:
             trimmomaticArgv.extend(['-trimlog', trimlogFname])
-        trimmomaticArgv.extend([forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname])
+        trimmomaticArgv.extend([forwardReadsFname, reverseReadsFname, forwardPairedFname, forwardUnpairedFname, reversePairedFname, reverseUnpairedFname])
         if self.adapterFname is not None:
             trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
         if self.leadingQuality is not None:
