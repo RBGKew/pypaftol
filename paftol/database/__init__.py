@@ -212,8 +212,7 @@ def insertFastaFile(connection, fastaFname, dirname=None):
     return fastaFileId
 
 
-def addFastqStats(connection, fastqFname):
-    fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
+def addFastqStats(connection, fastqcStats):
     fastqcSummaryStats = paftol.tools.FastqcSummaryStats(fastqcStats)
     cursor = connection.cursor(prepared=True)
     fastqStatsId = generateUnusedPrimaryKey(connection, 'FastqStats')
@@ -237,7 +236,8 @@ def addPaftolFastqFiles(fastqFnameList):
             md5sum = paftol.tools.md5HexdigestFromFile(fastqFname)
             fastqFile = findFastqFile(analysisDatabase, fastqFname)
             if fastqFile is None:
-                fastqStatsId = addFastqStats(connection, fastqFname)
+                fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
+                fastqStatsId = addFastqStats(connection, fastqcStats)
                 fastqFileId = generateUnusedPrimaryKey(connection, 'FastqFile')
                 paftolFastqFileId = generateUnusedPrimaryKey(connection, 'PaftolFastqFile')
                 cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, description, fastqStatsId) VALUES (%s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5sum, None, None, fastqStatsId, ))
@@ -388,9 +388,12 @@ def addRecoveryResult(result):
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
     targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
+    numMappedReads = len(result.paftolTargetSet.getMappedReadNameSet())
+    numUnmappedReads = result.paftolTargetSet.numOfftargetReads
+    targetsFastaFileId = None
     if targetsFastaFile is None:
         # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
-        targetsFastaFileId = None
+        pass
     else:
         targetsFastaFileId = targetsFastaFile.id
     fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
@@ -398,6 +401,12 @@ def addRecoveryResult(result):
         raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
     if revFastqFile is None:
         raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
+    trimmedForwardFastqStatsId = None
+    if result.forwardTrimmedPairedFastqcStats is not None:
+        trimmedForwardFastqStatsId = addFastqStats(connection, result.forwardTrimmedPairedFastqcStats)
+    trimmedReverseFastqStatsId = None
+    if result.reverseTrimmedPairedFastqcStats is not None:
+        trimmedReverseFastqStatsId = addFastqStats(connection, result.reverseTrimmedPairedFastqcStats)
     paftolGeneEntityDict = {}
     for paftolGeneEntity in analysisDatabase.paftolGeneDict.values():
         paftolGeneEntityDict[paftolGeneEntity.geneName] = paftolGeneEntity
@@ -409,7 +418,7 @@ def addRecoveryResult(result):
         contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
     contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
     cursor = connection.cursor(prepared=True)
-    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, contigFastaFileId, targetsFastaFileId, numMappedReads, totNumUnmappedReads, softwareVersion, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, contigFastaFileId, targetsFastaFileId, None, None, paftol.__version__, result.cmdLine))
+    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, fwdTrimmedFastqStatsId, revTrimmedFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, softwareVersion, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, trimmedForwardFastqStatsId, trimmedReverseFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, paftol.__version__, result.cmdLine))
     # FIXME: should check result
     for geneName in result.contigDict:
         if result.contigDict is not None and len(result.contigDict[geneName]) > 0:

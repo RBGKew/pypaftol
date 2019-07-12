@@ -820,6 +820,11 @@ class TargetRecoverer(HybseqAnalyser):
                 trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
                 trimlogPath = self.makeWorkdirPath(self.trimlogFname)
                 self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath, trimmedForwardUnpairedFastqPath, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
+                result.forwardFastqTrimmedPaired = trimmedForwardPairedFastqPath
+                result.reverseFastqTrimmedPaired = trimmedReversePairedFastqPath
+                result.forwardFastqTrimmedUnpaired = trimmedForwardUnpairedFastqPath
+                result.reverseFastqTrimmedUnpaired = trimmedReverseUnpairedFastqPath
+                result.generateFastqcStats()
             self.targetMapper.mapReads(paftolTargetSet, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath)
             logger.debug('mapping done')
             self.distribute(result, maxNumReadsPerGene)
@@ -2218,7 +2223,31 @@ class HybpiperResult(HybseqResult):
         self.paftolTargetSet = paftolTargetSet
         self.forwardFastq = forwardFastq
         self.reverseFastq = reverseFastq
+        self.forwardFastqcStats = None
+        self.reverseFastqcStats = None
+        self.forwardFastqTrimmedPaired = None
+        self.reverseFastqTrimmedPaired = None
+        self.forwardFastqTrimmedUnpaired = None
+        self.reverseFastqTrimmedUnpaired = None
+        self.forwardTrimmedPairedFastqcStats = None
+        self.reverseTrimmedPairedFastqcStats = None
+        self.forwardTrimmedUnpairedFastqcStats = None
+        self.reverseTrimmedUnpairedFastqcStats = None
         self.representativePaftolTargetDict = None
+        
+    def generateFastqcStats(self):
+        if self.forwardFastq is not None:
+            self.forwardFastqcStats = paftol.tools.generateFastqcStats(self.forwardFastq)
+        if self.reverseFastq is not None:
+            self.reverseFastqcStats = paftol.tools.generateFastqcStats(self.reverseFastq)
+        if self.forwardFastqTrimmedPaired is not None:
+            self.forwardTrimmedPairedFastqcStats = paftol.tools.generateFastqcStats(self.forwardFastqTrimmedPaired)
+        if self.reverseFastqTrimmedPaired is not None:
+            self.reverseTrimmedPairedFastqcStats = paftol.tools.generateFastqcStats(self.reverseFastqTrimmedPaired)
+        if self.forwardFastqTrimmedUnpaired is not None:
+            self.forwardTrimmedUnpairedFastqcStats = paftol.tools.generateFastqcStats(self.forwardFastqTrimmedUnpaired)
+        if self.reverseFastqTrimmedUnpaired is not None:
+            self.reverseTrimmedUnpairedFastqcStats = paftol.tools.generateFastqcStats(self.reverseFastqTrimmedUnpaired)
 
     def isPaired(self):
         return self.reverseFastq is not None

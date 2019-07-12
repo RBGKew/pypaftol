@@ -11,14 +11,16 @@ import paftol.database
 
 class ContigRecovery(object):
 
-    def __init__(self, id=None, fwdFastq=None, revFastq=None, contigFastaFile=None, targetsFastaFile=None, numMappedReads=None, totNumUnmappedReads=None, softwareVersion=None, cmdLine=None):
+    def __init__(self, id=None, fwdFastq=None, revFastq=None, fwdTrimmedFastqStats=None, revTrimmedFastqStats=None, contigFastaFile=None, targetsFastaFile=None, numMappedReads=None, numUnmappedReads=None, softwareVersion=None, cmdLine=None):
         self.id = id
         self.fwdFastq = fwdFastq
         self.revFastq = revFastq
+        self.fwdTrimmedFastqStats = fwdTrimmedFastqStats
+        self.revTrimmedFastqStats = revTrimmedFastqStats
         self.contigFastaFile = contigFastaFile
         self.targetsFastaFile = targetsFastaFile
         self.numMappedReads = numMappedReads
-        self.totNumUnmappedReads = totNumUnmappedReads
+        self.numUnmappedReads = numUnmappedReads
         self.softwareVersion = softwareVersion
         self.cmdLine = cmdLine
         # one-to-many
@@ -90,6 +92,10 @@ class FastqStats(object):
         self.meanN = meanN
         self.stddevN = stddevN
         # one-to-many
+        # fk_ContigRecovery_fwdTrimmedFastqStatsId: ContigRecovery.fwdTrimmedFastqStatsId REFERENCES FastqStats(fwdTrimmedFastqStatsId)
+        self.contigRecoveryFwdTrimmedFastqStatsList = []
+        # fk_ContigRecovery_revTrimmedFastqStatsId: ContigRecovery.revTrimmedFastqStatsId REFERENCES FastqStats(revTrimmedFastqStatsId)
+        self.contigRecoveryRevTrimmedFastqStatsList = []
         # fk_FastqFile_fastqStatsId: FastqFile.fastqStatsId REFERENCES FastqStats(fastqStatsId)
         self.fastqFileFastqStatsList = []
 
@@ -173,7 +179,7 @@ class Trimming(object):
 def loadContigRecoveryDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `contigFastaFileId`, `targetsFastaFileId`, `numMappedReads`, `totNumUnmappedReads`, `softwareVersion`, `cmdLine` FROM `ContigRecovery`'
+    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileId`, `targetsFastaFileId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine` FROM `ContigRecovery`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ContigRecovery()
@@ -198,8 +204,28 @@ def loadContigRecoveryDict(connection, productionDatabase):
             entity.revFastq = productionDatabase.fastqFileDict[entityId]
             # type: int, name: revFastqId, foreignTable: FastqFile, foreignColumn: id
             entity.revFastq.contigRecoveryRevFastqList.append(entity)
-        # many to one: contigFastaFile
+        # many to one: fwdTrimmedFastqStats
         entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.fwdTrimmedFastqStats = None
+        elif entityId not in productionDatabase.fastqStatsDict:
+            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+        else:
+            entity.fwdTrimmedFastqStats = productionDatabase.fastqStatsDict[entityId]
+            # type: int, name: fwdTrimmedFastqStatsId, foreignTable: FastqStats, foreignColumn: id
+            entity.fwdTrimmedFastqStats.contigRecoveryFwdTrimmedFastqStatsList.append(entity)
+        # many to one: revTrimmedFastqStats
+        entityId = paftol.database.intOrNone(row[4])
+        if entityId is None:
+            entity.revTrimmedFastqStats = None
+        elif entityId not in productionDatabase.fastqStatsDict:
+            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+        else:
+            entity.revTrimmedFastqStats = productionDatabase.fastqStatsDict[entityId]
+            # type: int, name: revTrimmedFastqStatsId, foreignTable: FastqStats, foreignColumn: id
+            entity.revTrimmedFastqStats.contigRecoveryRevTrimmedFastqStatsList.append(entity)
+        # many to one: contigFastaFile
+        entityId = paftol.database.intOrNone(row[5])
         if entityId is None:
             entity.contigFastaFile = None
         elif entityId not in productionDatabase.fastaFileDict:
@@ -209,7 +235,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
             # type: int, name: contigFastaFileId, foreignTable: FastaFile, foreignColumn: id
             entity.contigFastaFile.contigRecoveryContigFastaFileList.append(entity)
         # many to one: targetsFastaFile
-        entityId = paftol.database.intOrNone(row[4])
+        entityId = paftol.database.intOrNone(row[6])
         if entityId is None:
             entity.targetsFastaFile = None
         elif entityId not in productionDatabase.fastaFileDict:
@@ -218,10 +244,10 @@ def loadContigRecoveryDict(connection, productionDatabase):
             entity.targetsFastaFile = productionDatabase.fastaFileDict[entityId]
             # type: int, name: targetsFastaFileId, foreignTable: FastaFile, foreignColumn: id
             entity.targetsFastaFile.contigRecoveryTargetsFastaFileList.append(entity)
-        entity.numMappedReads = paftol.database.intOrNone(row[5])
-        entity.totNumUnmappedReads = paftol.database.intOrNone(row[6])
-        entity.softwareVersion = paftol.database.strOrNone(row[7])
-        entity.cmdLine = paftol.database.strOrNone(row[8])
+        entity.numMappedReads = paftol.database.intOrNone(row[7])
+        entity.numUnmappedReads = paftol.database.intOrNone(row[8])
+        entity.softwareVersion = paftol.database.strOrNone(row[9])
+        entity.cmdLine = paftol.database.strOrNone(row[10])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict

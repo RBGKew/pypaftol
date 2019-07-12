@@ -466,7 +466,6 @@ class FastqcStats(object):
 
 
 def generateFastqcStats(fastqFname):
-    # FIXME: returns fastqcstats, which has several FastqcDataFrame attributes, so function name is misleading
     """Method that runs fastqc and returns C{FastqcStats}.
 
 @param fastqFname: fastq file name
