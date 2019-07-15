@@ -107,7 +107,7 @@ def getAnalysisDatabaseDetails(detailsFname=None):
 def getProductionDatabase(detailsFname=None):
     productionDatabaseDetails = getProductionDatabaseDetails(detailsFname)
     connection = productionDatabaseDetails.makeConnection()
-    productionDatabase = paftol.database.production.AnalysisDatabase(connection)
+    productionDatabase = paftol.database.production.ProductionDatabase(connection)
     return productionDatabase
 
 
@@ -192,10 +192,18 @@ def generateUnusedPrimaryKey(connection, tableName, primaryKeyColumnName='id'):
 
 
 def insertGene(connection, geneName, geneTypeId):
-    cursor = connection.cursor(prepared=True)
-    paftolGeneId = generateUnusedPrimaryKey(connection, 'PaftolGene')
-    cursor.execute('INSERT INTO PaftolGene (id, geneName, geneTypeId) VALUES (%s, %s, %s)', (paftolGeneId, geneName, geneTypeId, ))
-    cursor.close()
+    lockCursor = connection.cursor()
+    lockCursor.execute('LOCK TABLE PaftolGene WRITE')
+    try:
+        cursor = connection.cursor(prepared=True)
+        try:
+            paftolGeneId = generateUnusedPrimaryKey(connection, 'PaftolGene')
+            cursor.execute('INSERT INTO PaftolGene (id, geneName, geneTypeId) VALUES (%s, %s, %s)', (paftolGeneId, geneName, geneTypeId, ))
+        finally:
+            cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
     return paftolGeneId
 
     
@@ -205,19 +213,29 @@ def insertFastaFile(connection, fastaFname, dirname=None):
         fastaPath = os.path.join(dirname, fastaFname)
     md5 = paftol.tools.md5HexdigestFromFile(fastaPath)
     numSequences = len(paftol.tools.fastaSeqRecordList(fastaPath))
-    cursor = connection.cursor(prepared=True)
-    fastaFileId = generateUnusedPrimaryKey(connection, 'PaftolGene')
-    cursor.execute('INSERT INTO FastaFile (id, filename, md5sum, numSequences) VALUES (%s, %s, %s, %s)', (fastaFileId, fastaFname, md5, numSequences, ))
-    cursor.close()
+    lockCursor = connection.cursor()
+    lockCursor.execute('LOCK TABLE FastaFile WRITE')
+    try:
+        cursor = connection.cursor(prepared=True)
+        try:
+            fastaFileId = generateUnusedPrimaryKey(connection, 'FastaFile')
+            cursor.execute('INSERT INTO FastaFile (id, filename, md5sum, numSequences) VALUES (%s, %s, %s, %s)', (fastaFileId, fastaFname, md5, numSequences, ))
+        finally:
+            cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
     return fastaFileId
 
 
 def addFastqStats(connection, fastqcStats):
     fastqcSummaryStats = paftol.tools.FastqcSummaryStats(fastqcStats)
     cursor = connection.cursor(prepared=True)
-    fastqStatsId = generateUnusedPrimaryKey(connection, 'FastqStats')
-    cursor.execute('INSERT INTO FastqStats (id, numReads, qual28, meanA, meanC, meanG, meanT, stddevA, stddevC, stddevG, stddevT, meanN, stddevN, meanAdapterContent, maxAdapterContent) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (fastqStatsId, fastqcSummaryStats.numReads, fastqcSummaryStats.qual28, fastqcSummaryStats.meanA, fastqcSummaryStats.meanC, fastqcSummaryStats.meanG, fastqcSummaryStats.meanT, fastqcSummaryStats.stddevA, fastqcSummaryStats.stddevC, fastqcSummaryStats.stddevG, fastqcSummaryStats.stddevT, fastqcSummaryStats.meanN, fastqcSummaryStats.stddevN, None, None))
-    cursor.close()
+    try:
+        fastqStatsId = generateUnusedPrimaryKey(connection, 'FastqStats')
+        cursor.execute('INSERT INTO FastqStats (id, numReads, qual28, meanA, meanC, meanG, meanT, stddevA, stddevC, stddevG, stddevT, meanN, stddevN, meanAdapterContent, maxAdapterContent) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (fastqStatsId, fastqcSummaryStats.numReads, fastqcSummaryStats.qual28, fastqcSummaryStats.meanA, fastqcSummaryStats.meanC, fastqcSummaryStats.meanG, fastqcSummaryStats.meanT, fastqcSummaryStats.stddevA, fastqcSummaryStats.stddevC, fastqcSummaryStats.stddevG, fastqcSummaryStats.stddevT, fastqcSummaryStats.meanN, fastqcSummaryStats.stddevN, None, None))
+    finally:
+        cursor.close()
     return fastqStatsId
 
 
@@ -229,28 +247,37 @@ def addPaftolFastqFiles(fastqFnameList):
     analysisDatabaseDetails = getAnalysisDatabaseDetails()
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
-    cursor = connection.cursor(prepared=True)
-    for fastqFname in fastqFnameList:
-        idSequencing, orientation = parseCanonicalSymlink(fastqFname)
-        if idSequencing is not None:
-            md5sum = paftol.tools.md5HexdigestFromFile(fastqFname)
-            fastqFile = findFastqFile(analysisDatabase, fastqFname)
-            if fastqFile is None:
-                fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
-                fastqStatsId = addFastqStats(connection, fastqcStats)
-                fastqFileId = generateUnusedPrimaryKey(connection, 'FastqFile')
-                paftolFastqFileId = generateUnusedPrimaryKey(connection, 'PaftolFastqFile')
-                cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, description, fastqStatsId) VALUES (%s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5sum, None, None, fastqStatsId, ))
-                cursor.execute('INSERT INTO PaftolFastqFile (id, idSequencing, fastqFileId) VALUES (%s, %s, %s)', (paftolFastqFileId, idSequencing, fastqFileId, ))
-                logger.info('added new fastq file %s', fastqFname)
-            else:
-                if fastqFile.md5sum == md5sum:
-                    logger.info('fastq file %s already in database, verified md5sum', fastqFname)
+    lockCursor = connection.cursor()
+    lockCursor.execute('LOCK TABLE PaftolFastqFile WRITE, FastqFile WRITE, FastqStats WRITE')
+    try:
+        cursor = connection.cursor(prepared=True)
+        try:
+            for fastqFname in fastqFnameList:
+                idSequencing, orientation = parseCanonicalSymlink(fastqFname)
+                if idSequencing is not None:
+                    md5sum = paftol.tools.md5HexdigestFromFile(fastqFname)
+                    fastqFile = findFastqFile(analysisDatabase, fastqFname)
+                    if fastqFile is None:
+                        fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
+                        fastqStatsId = addFastqStats(connection, fastqcStats)
+                        fastqFileId = generateUnusedPrimaryKey(connection, 'FastqFile')
+                        paftolFastqFileId = generateUnusedPrimaryKey(connection, 'PaftolFastqFile')
+                        cursor.execute('INSERT INTO FastqFile (id, filename, md5sum, enaAccession, description, fastqStatsId) VALUES (%s, %s, %s, %s, %s, %s)', (fastqFileId, fastqFname, md5sum, None, None, fastqStatsId, ))
+                        cursor.execute('INSERT INTO PaftolFastqFile (id, idSequencing, fastqFileId) VALUES (%s, %s, %s)', (paftolFastqFileId, idSequencing, fastqFileId, ))
+                        logger.info('added new fastq file %s', fastqFname)
+                    else:
+                        if fastqFile.md5sum == md5sum:
+                            logger.info('fastq file %s already in database, verified md5sum', fastqFname)
+                        else:
+                            raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, fastqFile.md5sum, md5sum)
                 else:
-                    raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, fastqFile.md5sum, md5sum)
-        else:
-            logger.warning('not a canonical PAFTOL fastq name: %s', fastqFname)
-    connection.commit()
+                    logger.warning('not a canonical PAFTOL fastq name: %s', fastqFname)
+            connection.commit()
+        finally:
+            cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
     connection.close()
 
 
@@ -273,52 +300,56 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
             return
         else:
             raise StandardError, 'targets file %s in database with md5sum = %s, but found md5sum = %s' % (targetsFname, targetsFile.md5sum, md5sum)
-    logger.info('adding new targets file %s', targetsFname)
-    newFastaFileId = generateUnusedPrimaryKey(connection, 'FastaFile')
-    cursor = connection.cursor(prepared=True)
-    geneTypeId = None
-    if geneTypeName is not None:
-        cursor.execute('SELECT id FROM GeneType WHERE geneTypeName = %s', (geneTypeName, ))
-        row = cursor.fetchone()
-        if row is None:
+    lockCursor = connection.cursor()
+    lockCursor.execute('LOCK TABLE FastaFile WRITE, FastqFile WRITE, FastqStats WRITE, GeneType WRITE, PaftolGene WRITE')
+    try:
+        logger.info('adding new targets file %s', targetsFname)
+        newFastaFileId = generateUnusedPrimaryKey(connection, 'FastaFile')
+        cursor = connection.cursor(prepared=True)
+        try:
+            geneTypeId = None
+            if geneTypeName is not None:
+                cursor.execute('SELECT id FROM GeneType WHERE geneTypeName = %s', (geneTypeName, ))
+                row = cursor.fetchone()
+                if row is None:
+                    raise StandardError, 'unknown gene type: %s' % geneTypeName
+                if row[0] is not None:
+                    geneTypeId = int(row[0])
+            geneNameList = paftolTargetSet.paftolGeneDict.keys()
+            missingGeneNameList = []
+            for geneName in geneNameList:
+                cursor.execute('SELECT id, geneName FROM `PaftolGene` WHERE geneName = %s', (geneName, ))
+                row = cursor.fetchone()
+                if row is None:
+                    missingGeneNameList.append(geneName)
+            if not insertGenes and len(missingGeneNameList) > 0:
+                raise StandardError, 'missing genes: %s' % ', '.join(missingGeneNameList)
+            # sys.stderr.write('%s\n' % str(missingGeneNameList))
+            for geneName in missingGeneNameList:
+                insertGene(connection, geneName, geneTypeId)
+            geneIdDict = {}
+            cursor.execute('SELECT id, geneName FROM PaftolGene')
+            for row in cursor:
+                geneId = int(row[0])
+                geneName = str(row[1])
+                if geneName in geneNameList:
+                    geneIdDict[geneName] = geneId
+            valueTuple = (newFastaFileId, targetsFname, md5sum, description, numSequences, )
+            sqlStatement = 'INSERT INTO FastaFile (id, filename, md5sum, description, numSequences) VALUES (%s, %s, %s, %s, %s)'
+            # sys.stderr.write('%s\n' % sqlStatement)
+            # sys.stderr.write('%s\n' % str(valueTuple))
+            cursor.execute(sqlStatement, valueTuple)
+            for paftolGene in paftolTargetSet.paftolGeneDict.values():
+                for paftolTarget in paftolGene.paftolTargetDict.values():
+                    newReferenceTargetId = generateUnusedPrimaryKey(connection, 'ReferenceTarget')
+                    cursor.execute('INSERT INTO ReferenceTarget (id, paftolGeneId, paftolOrganism, paftolTargetLength, targetsFastaFileId) VALUES (%s, %s, %s, %s, %s)', (newReferenceTargetId, geneIdDict[paftolTarget.paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), newFastaFileId, ))
+            connection.commit()
+        finally:
             cursor.close()
-            connection.close()
-            raise StandardError, 'unknown gene type: %s' % geneTypeName
-        if row[0] is not None:
-            geneTypeId = int(row[0])
-    geneNameList = paftolTargetSet.paftolGeneDict.keys()
-    missingGeneNameList = []
-    for geneName in geneNameList:
-        cursor.execute('SELECT id, geneName FROM `PaftolGene` WHERE geneName = %s', (geneName, ))
-        row = cursor.fetchone()
-        if row is None:
-            missingGeneNameList.append(geneName)
-    if not insertGenes and len(missingGeneNameList) > 0:
-        cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
         connection.close()
-        raise StandardError, 'missing genes: %s' % ', '.join(missingGeneNameList)
-    # sys.stderr.write('%s\n' % str(missingGeneNameList))
-    for geneName in missingGeneNameList:
-        insertGene(connection, geneName, geneTypeId)
-    geneIdDict = {}
-    cursor.execute('SELECT id, geneName FROM PaftolGene')
-    for row in cursor:
-        geneId = int(row[0])
-        geneName = str(row[1])
-        if geneName in geneNameList:
-            geneIdDict[geneName] = geneId
-    valueTuple = (newFastaFileId, targetsFname, md5sum, description, numSequences, )
-    sqlStatement = 'INSERT INTO FastaFile (id, filename, md5sum, description, numSequences) VALUES (%s, %s, %s, %s, %s)'
-    # sys.stderr.write('%s\n' % sqlStatement)
-    # sys.stderr.write('%s\n' % str(valueTuple))
-    cursor.execute(sqlStatement, valueTuple)
-    for paftolGene in paftolTargetSet.paftolGeneDict.values():
-        for paftolTarget in paftolGene.paftolTargetDict.values():
-            newReferenceTargetId = generateUnusedPrimaryKey(connection, 'ReferenceTarget')
-            cursor.execute('INSERT INTO ReferenceTarget (id, paftolGeneId, paftolOrganism, paftolTargetLength, targetsFastaFileId) VALUES (%s, %s, %s, %s, %s)', (newReferenceTargetId, geneIdDict[paftolTarget.paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), newFastaFileId, ))
-    cursor.close()
-    connection.commit()
-    connection.close()
 
 
 def findFastqFiles(analysisDatabase, result):
@@ -387,43 +418,52 @@ def addRecoveryResult(result):
     analysisDatabaseDetails = getAnalysisDatabaseDetails()
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
-    targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
-    numMappedReads = len(result.paftolTargetSet.getMappedReadNameSet())
-    numUnmappedReads = result.paftolTargetSet.numOfftargetReads
-    targetsFastaFileId = None
-    if targetsFastaFile is None:
-        # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
-        pass
-    else:
-        targetsFastaFileId = targetsFastaFile.id
-    fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
-    if fwdFastqFile is None:
-        raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
-    if revFastqFile is None:
-        raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
-    trimmedForwardFastqStatsId = None
-    if result.forwardTrimmedPairedFastqcStats is not None:
-        trimmedForwardFastqStatsId = addFastqStats(connection, result.forwardTrimmedPairedFastqcStats)
-    trimmedReverseFastqStatsId = None
-    if result.reverseTrimmedPairedFastqcStats is not None:
-        trimmedReverseFastqStatsId = addFastqStats(connection, result.reverseTrimmedPairedFastqcStats)
-    paftolGeneEntityDict = {}
-    for paftolGeneEntity in analysisDatabase.paftolGeneDict.values():
-        paftolGeneEntityDict[paftolGeneEntity.geneName] = paftolGeneEntity
-    for geneName in result.contigDict:
-        if geneName not in paftolGeneEntityDict:
-            raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
-    contigFastaFileId = None
-    if result.contigFastaFname is not None:
-        contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
-    contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
-    cursor = connection.cursor(prepared=True)
-    cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, fwdTrimmedFastqStatsId, revTrimmedFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, softwareVersion, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, trimmedForwardFastqStatsId, trimmedReverseFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, paftol.__version__, result.cmdLine))
-    # FIXME: should check result
-    for geneName in result.contigDict:
-        if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
-            for contig in result.contigDict[geneName]:
-                recoveredContigId = generateUnusedPrimaryKey(connection, 'RecoveredContig')
-                cursor.execute('INSERT INTO RecoveredContig (id, contigRecoveryId, paftolGeneId, seqLength, fwdPaftolFastqId, revPaftolFastqId, representativeReferenceTargetId) VALUES (%s, %s, %s, %s, %s, %s, %s)', (recoveredContigId, None, paftolGeneEntityDict[geneName].id, len(contig), None, None, None))
-    connection.commit()
+    lockCursor = connection.cursor(prepared=False)
+    lockCursor.execute('LOCK TABLE FastaFile WRITE, FastqFile WRITE, FastqStats WRITE, ContigRecovery WRITE, RecoveredContig WRITE')
+    try:
+        targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
+        numMappedReads = len(result.paftolTargetSet.getMappedReadNameSet())
+        numUnmappedReads = result.paftolTargetSet.numOfftargetReads
+        targetsFastaFileId = None
+        if targetsFastaFile is None:
+            # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+            logger.info('unknown targets file "%s" -- continuing')
+        else:
+            targetsFastaFileId = targetsFastaFile.id
+        fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
+        if fwdFastqFile is None:
+            raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
+        if revFastqFile is None:
+            raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
+        trimmedForwardFastqStatsId = None
+        if result.forwardTrimmedPairedFastqcStats is not None:
+            trimmedForwardFastqStatsId = addFastqStats(connection, result.forwardTrimmedPairedFastqcStats)
+        trimmedReverseFastqStatsId = None
+        if result.reverseTrimmedPairedFastqcStats is not None:
+            trimmedReverseFastqStatsId = addFastqStats(connection, result.reverseTrimmedPairedFastqcStats)
+        paftolGeneEntityDict = {}
+        for paftolGeneEntity in analysisDatabase.paftolGeneDict.values():
+            paftolGeneEntityDict[paftolGeneEntity.geneName] = paftolGeneEntity
+        for geneName in result.contigDict:
+            if geneName not in paftolGeneEntityDict:
+                raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+        contigFastaFileId = None
+        if result.contigFastaFname is not None:
+            contigFastaFileId = insertFastaFile(connection, result.contigFastaFname)
+        contigRecoveryId = generateUnusedPrimaryKey(connection, 'ContigRecovery')
+        cursor = connection.cursor(prepared=True)
+        try:
+            cursor.execute('INSERT INTO ContigRecovery (id, fwdFastqId, revFastqId, fwdTrimmedFastqStatsId, revTrimmedFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, softwareVersion, cmdLine) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (contigRecoveryId, fwdFastqFile.id, revFastqFile.id, trimmedForwardFastqStatsId, trimmedReverseFastqStatsId, contigFastaFileId, targetsFastaFileId, numMappedReads, numUnmappedReads, paftol.__version__, result.cmdLine))
+            # FIXME: should check result
+            for geneName in result.contigDict:
+                if result.contigDict is not None and len(result.contigDict[geneName]) > 0:
+                    for contig in result.contigDict[geneName]:
+                        recoveredContigId = generateUnusedPrimaryKey(connection, 'RecoveredContig')
+                        cursor.execute('INSERT INTO RecoveredContig (id, contigRecoveryId, paftolGeneId, seqLength, fwdPaftolFastqId, revPaftolFastqId, representativeReferenceTargetId) VALUES (%s, %s, %s, %s, %s, %s, %s)', (recoveredContigId, None, paftolGeneEntityDict[geneName].id, len(contig), None, None, None))
+            connection.commit()
+        finally:
+            cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
     connection.close()
