@@ -269,8 +269,12 @@ def insertPaftolFastqFileList(connection, paftolFastqFileList):
             connection.commit()
             transactionSuccessful = True
         finally:
+            if not transactionSuccessful:
+                connection.rollback()
             cursor.close()
     finally:
+        if not transactionSuccessful:
+            connection.rollback()
         lockCursor.execute('UNLOCK TABLES')
         lockCursor.close()
     return transactionSuccessful
@@ -383,11 +387,15 @@ def addTargetsFile(targetsFname, description=None, insertGenes=False, geneTypeNa
             connection.commit()
             transactionSuccessful = True
         finally:
+            if not transactionSuccessful:
+                connection.rollback()
             cursor.close()
     finally:
+        if not transactionSuccessful:
+            connection.rollback()
         lockCursor.execute('UNLOCK TABLES')
         lockCursor.close()
-        connection.close()
+    connection.close()
     return transactionSuccessful
 
 
@@ -525,8 +533,12 @@ def addRecoveryResult(result):
             connection.commit()
             transactionSuccessful = True
         finally:
+            if not transactionSuccessful:
+                connection.rollback()
             cursor.close()
     finally:
+        if not transactionSuccessful:
+            connection.rollback()
         lockCursor.execute('UNLOCK TABLES')
         lockCursor.close()
     connection.close()
