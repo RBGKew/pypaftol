@@ -355,7 +355,7 @@ class FastqcStats(object):
             w = l.strip().split('\t')
             if len(w) != 2:
                 raise StandardError, 'malformed line: %s' % l.strip()
-            fastqcDataFrame.addRow({'gcContent': int(w[0]), 'count': float(w[0])})
+            fastqcDataFrame.addRow({'gcContent': int(w[0]), 'count': float(w[1])})
             l = self.readCompleteLine(f)
         self.perSequenceGCContent = fastqcDataFrame
 
