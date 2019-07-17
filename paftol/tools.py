@@ -399,11 +399,20 @@ class FastqcStats(object):
         self.overrepresentedSequences = None
 
     def parseAdapterContent(self, f):
-        sys.stderr.write('WARNING: FastQC module "Adapter Content" not implemented\n')
+        description, result = self.nextModuleDescription(f)
+        if description != 'Adapter Content':
+            raise StandardError, 'expected "Adapter content" module but found "%s"' %description
+        if self.readTableHeader(f) != ['Position', 'Illumina Universal Adapter', "Illumina Small RNA 3' Adapter", "Illumina Small RNA 5' Adapter", "Nextera Transposase Sequence", "SOLID Small RNA Adapter"]:
+            raise StandardError, 'malformed "Adapter Content" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['position', 'illuminaUniversalAdapter', 'illuminaSmallRNA3PrimeAdapter', 'illuminaSmallRNA5PrimeAdapter', 'nexteraTransposaseSequence', 'solidSmallRNAAdapter'], description, result) 
         l = self.readCompleteLine(f)
-        while l.strip() != '>>END_MODULE':
+        if l.strip() != '>>END MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 6:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'position': float(w[0]), 'illuminaUniversalAdapter': float(w[1]), 'illuminaSmallRNA3PrimeAdapter': float(w[2]), 'illuminaSmallRNA5PrimeAdapter': float(w[3]), 'nexteraTransposaseSequence': float(w[4]), 'solidSmallRNAAdapter': float(w[5])})
             l = self.readCompleteLine(f)
-        self.adapterContent = None
+        self.parseAdapterContent = fastqcDataFrame
 
     def parseKmerContent(self, f):
         sys.stderr.write('WARNING: FastQC module "Kmer Content" not implemented\n')
