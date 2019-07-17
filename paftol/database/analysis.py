@@ -27,6 +27,24 @@ class ContigRecovery(object):
         # fk_RecoveredContig_contigRecoveryId: RecoveredContig.contigRecoveryId REFERENCES ContigRecovery(contigRecoveryId)
         self.recoveredContigContigRecoveryList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert ContigRecovery entity with id None'
+        sqlCmd = 'INSERT INTO `ContigRecovery` (`id`, `fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileId`, `targetsFastaFileId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(None if self.fwdFastq is None else self.fwdFastq.id)
+        l.append(None if self.revFastq is None else self.revFastq.id)
+        l.append(None if self.fwdTrimmedFastqStats is None else self.fwdTrimmedFastqStats.id)
+        l.append(None if self.revTrimmedFastqStats is None else self.revTrimmedFastqStats.id)
+        l.append(None if self.contigFastaFile is None else self.contigFastaFile.id)
+        l.append(None if self.targetsFastaFile is None else self.targetsFastaFile.id)
+        l.append(self.numMappedReads)
+        l.append(self.numUnmappedReads)
+        l.append(self.softwareVersion)
+        l.append(self.cmdLine)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class FastaFile(object):
 
@@ -43,6 +61,18 @@ class FastaFile(object):
         self.contigRecoveryTargetsFastaFileList = []
         # fk_ReferenceTarget_targetsFastaFileId: ReferenceTarget.targetsFastaFileId REFERENCES FastaFile(targetsFastaFileId)
         self.referenceTargetTargetsFastaFileList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert FastaFile entity with id None'
+        sqlCmd = 'INSERT INTO `FastaFile` (`id`, `filename`, `md5sum`, `description`, `numSequences`) VALUES (%s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.filename)
+        l.append(self.md5sum)
+        l.append(self.description)
+        l.append(self.numSequences)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class FastqFile(object):
@@ -74,6 +104,19 @@ class FastqFile(object):
         # fk_Trimming_trimmedRevUnpairedFastqId: Trimming.trimmedRevUnpairedFastqId REFERENCES FastqFile(trimmedRevUnpairedFastqId)
         self.trimmingTrimmedRevUnpairedFastqList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert FastqFile entity with id None'
+        sqlCmd = 'INSERT INTO `FastqFile` (`id`, `filename`, `md5sum`, `enaAccession`, `description`, `fastqStatsId`) VALUES (%s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.filename)
+        l.append(self.md5sum)
+        l.append(self.enaAccession)
+        l.append(self.description)
+        l.append(None if self.fastqStats is None else self.fastqStats.id)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class FastqStats(object):
 
@@ -101,6 +144,28 @@ class FastqStats(object):
         # fk_FastqFile_fastqStatsId: FastqFile.fastqStatsId REFERENCES FastqStats(fastqStatsId)
         self.fastqFileFastqStatsList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert FastqStats entity with id None'
+        sqlCmd = 'INSERT INTO `FastqStats` (`id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.numReads)
+        l.append(self.qual28)
+        l.append(self.meanA)
+        l.append(self.meanC)
+        l.append(self.meanG)
+        l.append(self.meanT)
+        l.append(self.stddevA)
+        l.append(self.stddevC)
+        l.append(self.stddevG)
+        l.append(self.stddevT)
+        l.append(self.meanN)
+        l.append(self.stddevN)
+        l.append(self.meanAdapterContent)
+        l.append(self.maxAdapterContent)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class GeneType(object):
 
@@ -110,6 +175,15 @@ class GeneType(object):
         # one-to-many
         # fk_PaftolGene_geneTypeId: PaftolGene.geneTypeId REFERENCES GeneType(geneTypeId)
         self.paftolGeneGeneTypeList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert GeneType entity with id None'
+        sqlCmd = 'INSERT INTO `GeneType` (`id`, `geneTypeName`) VALUES (%s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.geneTypeName)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class PaftolFastqFile(object):
@@ -124,6 +198,16 @@ class PaftolFastqFile(object):
         # fk_RecoveredContig_revPaftolFastqId: RecoveredContig.revPaftolFastqId REFERENCES PaftolFastqFile(revPaftolFastqId)
         self.recoveredContigRevPaftolFastqList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert PaftolFastqFile entity with id None'
+        sqlCmd = 'INSERT INTO `PaftolFastqFile` (`id`, `idSequencing`, `fastqFileId`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.idSequencing)
+        l.append(None if self.fastqFile is None else self.fastqFile.id)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class PaftolGene(object):
 
@@ -136,6 +220,16 @@ class PaftolGene(object):
         self.recoveredContigPaftolGeneList = []
         # fk_ReferenceTarget_paftolGeneId: ReferenceTarget.paftolGeneId REFERENCES PaftolGene(paftolGeneId)
         self.referenceTargetPaftolGeneList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert PaftolGene entity with id None'
+        sqlCmd = 'INSERT INTO `PaftolGene` (`id`, `geneName`, `geneTypeId`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.geneName)
+        l.append(None if self.geneType is None else self.geneType.id)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class RecoveredContig(object):
@@ -150,6 +244,20 @@ class RecoveredContig(object):
         self.representativeReferenceTarget = representativeReferenceTarget
         # one-to-many
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert RecoveredContig entity with id None'
+        sqlCmd = 'INSERT INTO `RecoveredContig` (`id`, `contigRecoveryId`, `paftolGeneId`, `seqLength`, `fwdPaftolFastqId`, `revPaftolFastqId`, `representativeReferenceTargetId`) VALUES (%s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(None if self.contigRecovery is None else self.contigRecovery.id)
+        l.append(None if self.paftolGene is None else self.paftolGene.id)
+        l.append(self.seqLength)
+        l.append(None if self.fwdPaftolFastq is None else self.fwdPaftolFastq.id)
+        l.append(None if self.revPaftolFastq is None else self.revPaftolFastq.id)
+        l.append(None if self.representativeReferenceTarget is None else self.representativeReferenceTarget.id)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class ReferenceTarget(object):
 
@@ -162,6 +270,18 @@ class ReferenceTarget(object):
         # one-to-many
         # fk_RecoveredContig_representativeReferenceTargetId: RecoveredContig.representativeReferenceTargetId REFERENCES ReferenceTarget(representativeReferenceTargetId)
         self.recoveredContigRepresentativeReferenceTargetList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert ReferenceTarget entity with id None'
+        sqlCmd = 'INSERT INTO `ReferenceTarget` (`id`, `paftolGeneId`, `paftolOrganism`, `paftolTargetLength`, `targetsFastaFileId`) VALUES (%s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(None if self.paftolGene is None else self.paftolGene.id)
+        l.append(self.paftolOrganism)
+        l.append(self.paftolTargetLength)
+        l.append(None if self.targetsFastaFile is None else self.targetsFastaFile.id)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Trimming(object):
@@ -176,6 +296,21 @@ class Trimming(object):
         self.trimmedRevUnpairedFastq = trimmedRevUnpairedFastq
         self.cmdLine = cmdLine
         # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert Trimming entity with id None'
+        sqlCmd = 'INSERT INTO `Trimming` (`id`, `rawFwdFastqId`, `rawRevFastqId`, `trimmedFwdPairedFastqId`, `trimmedRevPairedFastqId`, `trimmedFwdUnpairedFastqId`, `trimmedRevUnpairedFastqId`, `cmdLine`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(None if self.rawFwdFastq is None else self.rawFwdFastq.id)
+        l.append(None if self.rawRevFastq is None else self.rawRevFastq.id)
+        l.append(None if self.trimmedFwdPairedFastq is None else self.trimmedFwdPairedFastq.id)
+        l.append(None if self.trimmedRevPairedFastq is None else self.trimmedRevPairedFastq.id)
+        l.append(None if self.trimmedFwdUnpairedFastq is None else self.trimmedFwdUnpairedFastq.id)
+        l.append(None if self.trimmedRevUnpairedFastq is None else self.trimmedRevUnpairedFastq.id)
+        l.append(self.cmdLine)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 def loadContigRecoveryDict(connection, productionDatabase):

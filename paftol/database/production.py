@@ -18,6 +18,15 @@ class Action(object):
         # ActionLookup: Sample.idAction REFERENCES Action(idAction)
         self.sampleActionList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idAction is None:
+            raise StandardError, 'illegal state: cannot insert Action entity with id None'
+        sqlCmd = 'INSERT INTO `Action` (`idAction`, `Action`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idAction)
+        l.append(self.action)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Coordinates(object):
 
@@ -27,6 +36,15 @@ class Coordinates(object):
         # one-to-many
         # fk_coordinate: Library.Coordinate REFERENCES Coordinates(Coordinate)
         self.libraryCoordinateList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.coordinate is None:
+            raise StandardError, 'illegal state: cannot insert Coordinates entity with id None'
+        sqlCmd = 'INSERT INTO `Coordinates` (`Coordinate`, `SortOrder`) VALUES (%s, %s)'
+        l = []
+        l.append(self.coordinate)
+        l.append(self.sortOrder)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class DBVersion(object):
@@ -38,6 +56,17 @@ class DBVersion(object):
         self.dbVersion = dbVersion
         # one-to-many
 
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert DBVersion entity with id None'
+        sqlCmd = 'INSERT INTO `DBVersion` (`ID`, `DBName`, `DBDescription`, `DBVersion`) VALUES (%s, %s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.dbName)
+        l.append(self.dbDescription)
+        l.append(self.dbVersion)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class DNAVolume(object):
 
@@ -47,6 +76,15 @@ class DNAVolume(object):
         # one-to-many
         # DNALookup: Sample.idDNAVolume REFERENCES DNAVolume(idDNAVolume)
         self.sampleDnaVolumeList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idDnaVolume is None:
+            raise StandardError, 'illegal state: cannot insert DNAVolume entity with id None'
+        sqlCmd = 'INSERT INTO `DNAVolume` (`idDNAVolume`, `DNAVolume`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idDnaVolume)
+        l.append(self.dnaVolume)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class ExtractionType(object):
@@ -58,6 +96,15 @@ class ExtractionType(object):
         # ExtractionLookup: Sample.idExtractionType REFERENCES ExtractionType(idExtractionType)
         self.sampleExtractionTypeList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idExtractionType is None:
+            raise StandardError, 'illegal state: cannot insert ExtractionType entity with id None'
+        sqlCmd = 'INSERT INTO `ExtractionType` (`idExtractionType`, `ExtractionType`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idExtractionType)
+        l.append(self.extractionType)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Family(object):
 
@@ -68,6 +115,16 @@ class Family(object):
         # one-to-many
         # FamilyLink: Genus.idFamily REFERENCES Family(idFamily)
         self.genusFamilyList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idFamily is None:
+            raise StandardError, 'illegal state: cannot insert Family entity with id None'
+        sqlCmd = 'INSERT INTO `Family` (`idFamily`, `Family`, `idOrder`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.idFamily)
+        l.append(self.family)
+        l.append(None if self.order is None else self.order.idOrder)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Genus(object):
@@ -90,6 +147,24 @@ class Genus(object):
         # GenusLink: Specimen.idGenus REFERENCES Genus(idGenus)
         self.specimenGenusList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idGenus is None:
+            raise StandardError, 'illegal state: cannot insert Genus entity with id None'
+        sqlCmd = 'INSERT INTO `Genus` (`idGenus`, `idFamily`, `Genus`, `idSource`, `Status`, `AcceptedId`, `Subfamily`, `Tribe`, `Subtribe`, `Description`, `IPNIid`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idGenus)
+        l.append(None if self.family is None else self.family.idFamily)
+        l.append(self.genus)
+        l.append(None if self.source is None else self.source.idSource)
+        l.append(self.status)
+        l.append(self.acceptedId)
+        l.append(self.subfamily)
+        l.append(self.tribe)
+        l.append(self.subtribe)
+        l.append(self.description)
+        l.append(self.ipniId)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Indexes(object):
 
@@ -103,6 +178,19 @@ class Indexes(object):
         # one-to-many
         # fk_indexes: Library.Indexes REFERENCES Indexes(Indexes)
         self.libraryIndexesList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.indexes is None:
+            raise StandardError, 'illegal state: cannot insert Indexes entity with id None'
+        sqlCmd = 'INSERT INTO `Indexes` (`Indexes`, `IndexNameFwd`, `SeqFwdPlatform1`, `SeqFwdPlatform2`, `IndexNameRv`, `SeqRv`) VALUES (%s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.indexes)
+        l.append(self.indexNameFwd)
+        l.append(self.seqFwdPlatform1)
+        l.append(self.seqFwdPlatform2)
+        l.append(self.indexNameRv)
+        l.append(self.seqRv)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Library(object):
@@ -126,6 +214,27 @@ class Library(object):
         # LibraryLink: Sequence.idLibrary REFERENCES Library(idLibrary)
         self.sequenceLibraryList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idLibrary is None:
+            raise StandardError, 'illegal state: cannot insert Library entity with id None'
+        sqlCmd = 'INSERT INTO `Library` (`idLibrary`, `idSample`, `LibConcentration`, `HybridisationPool`, `LibQuality`, `RemainingVolume`, `LibTapeStation`, `Sonication`, `Plate No`, `Coordinate`, `Description`, `idStatus`, `Indexes`, `GenerateLibrary`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idLibrary)
+        l.append(None if self.sample is None else self.sample.idSample)
+        l.append(self.libConcentration)
+        l.append(self.hybridisationPool)
+        l.append(self.libQuality)
+        l.append(self.remainingVolume)
+        l.append(self.libTapeStation)
+        l.append(self.sonication)
+        l.append(self.plate_No)
+        l.append(None if self.coordinate is None else self.coordinate.coordinate)
+        l.append(self.description)
+        l.append(None if self.status is None else self.status.idStatus)
+        l.append(None if self.indexes is None else self.indexes.indexes)
+        l.append(self.generateLibrary)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Order(object):
 
@@ -135,6 +244,15 @@ class Order(object):
         # one-to-many
         # OrderLink: Family.idOrder REFERENCES Order(idOrder)
         self.familyOrderList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idOrder is None:
+            raise StandardError, 'illegal state: cannot insert Order entity with id None'
+        sqlCmd = 'INSERT INTO `Order` (`idOrder`, `Order`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idOrder)
+        l.append(self.order)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Project(object):
@@ -150,6 +268,15 @@ class Project(object):
         # fk_idProject: Specimen.idProject REFERENCES Project(idProject)
         self.specimenProjectList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idProject is None:
+            raise StandardError, 'illegal state: cannot insert Project entity with id None'
+        sqlCmd = 'INSERT INTO `Project` (`idProject`, `Project`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idProject)
+        l.append(self.project)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class ProjectLink(object):
 
@@ -159,6 +286,17 @@ class ProjectLink(object):
         self.notes = notes
         self.idProjectLink = idProjectLink
         # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        if self.idProjectLink is None:
+            raise StandardError, 'illegal state: cannot insert ProjectLink entity with id None'
+        sqlCmd = 'INSERT INTO `ProjectLink` (`idProject`, `idGenus`, `Notes`, `idProjectLink`) VALUES (%s, %s, %s, %s)'
+        l = []
+        l.append(None if self.project is None else self.project.idProject)
+        l.append(None if self.genus is None else self.genus.idGenus)
+        l.append(self.notes)
+        l.append(self.idProjectLink)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class ProjectUser(object):
@@ -170,6 +308,15 @@ class ProjectUser(object):
         # ProjectUserLink3: ProjectUserLink.idUser REFERENCES ProjectUser(idUser)
         self.projectUserLinkUserList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idUser is None:
+            raise StandardError, 'illegal state: cannot insert ProjectUser entity with id None'
+        sqlCmd = 'INSERT INTO `ProjectUser` (`idUser`, `Name`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idUser)
+        l.append(self.name)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class ProjectUserLink(object):
 
@@ -178,6 +325,16 @@ class ProjectUserLink(object):
         self.project = project
         self.idProjectUserLink = idProjectUserLink
         # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        if self.idProjectUserLink is None:
+            raise StandardError, 'illegal state: cannot insert ProjectUserLink entity with id None'
+        sqlCmd = 'INSERT INTO `ProjectUserLink` (`idUser`, `idProject`, `idProjectUserLink`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(None if self.user is None else self.user.idUser)
+        l.append(None if self.project is None else self.project.idProject)
+        l.append(self.idProjectUserLink)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Quality(object):
@@ -188,6 +345,15 @@ class Quality(object):
         # one-to-many
         # QualityLookup: Sample.idQuality REFERENCES Quality(idQuality)
         self.sampleQualityList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idQuality is None:
+            raise StandardError, 'illegal state: cannot insert Quality entity with id None'
+        sqlCmd = 'INSERT INTO `Quality` (`idQuality`, `Quality`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idQuality)
+        l.append(self.quality)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Sample(object):
@@ -211,6 +377,27 @@ class Sample(object):
         # SampleLink: Library.idSample REFERENCES Sample(idSample)
         self.librarySampleList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idSample is None:
+            raise StandardError, 'illegal state: cannot insert Sample entity with id None'
+        sqlCmd = 'INSERT INTO `Sample` (`idSample`, `idSpecimen`, `Description`, `idAction`, `idExtractionType`, `idQuality`, `SampleConcentration`, `NewSampleConcentration`, `GelImage`, `SampleTapeStation`, `idDNAVolume`, `Compliant`, `MaterialSource`, `AgeOfMaterial`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idSample)
+        l.append(None if self.specimen is None else self.specimen.idSpecimen)
+        l.append(self.description)
+        l.append(None if self.action is None else self.action.idAction)
+        l.append(None if self.extractionType is None else self.extractionType.idExtractionType)
+        l.append(None if self.quality is None else self.quality.idQuality)
+        l.append(self.sampleConcentration)
+        l.append(self.newSampleConcentration)
+        l.append(self.gelImage)
+        l.append(self.sampleTapeStation)
+        l.append(None if self.dnaVolume is None else self.dnaVolume.idDnaVolume)
+        l.append(self.compliant)
+        l.append(self.materialSource)
+        l.append(self.ageOfMaterial)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Sequence(object):
 
@@ -228,6 +415,24 @@ class Sequence(object):
         self.r1FastqFile = r1FastqFile
         # one-to-many
 
+    def insertIntoDatabase(self, cursor):
+        if self.idSequencing is None:
+            raise StandardError, 'illegal state: cannot insert Sequence entity with id None'
+        sqlCmd = 'INSERT INTO `Sequence` (`idSequencing`, `idLibrary`, `Platform`, `Location`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idSequencing)
+        l.append(None if self.library is None else self.library.idLibrary)
+        l.append(self.platform)
+        l.append(self.location)
+        l.append(self.sequencingRun)
+        l.append(self.numInferredCds)
+        l.append(self.medianHybpiperCdsLength)
+        l.append(None if self.status is None else self.status.idStatus)
+        l.append(self.hybridisationPool)
+        l.append(self.r2FastqFile)
+        l.append(self.r1FastqFile)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Source(object):
 
@@ -237,6 +442,15 @@ class Source(object):
         # one-to-many
         # SourceLookup: Genus.idSource REFERENCES Source(idSource)
         self.genusSourceList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idSource is None:
+            raise StandardError, 'illegal state: cannot insert Source entity with id None'
+        sqlCmd = 'INSERT INTO `Source` (`idSource`, `Source`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idSource)
+        l.append(self.source)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class SourceSpecimen(object):
@@ -248,6 +462,15 @@ class SourceSpecimen(object):
         # fk_SourceSpecimen: Specimen.idSourceSpecimen REFERENCES SourceSpecimen(idSourceSpecimen)
         self.specimenSourceSpecimenList = []
 
+    def insertIntoDatabase(self, cursor):
+        if self.idSourceSpecimen is None:
+            raise StandardError, 'illegal state: cannot insert SourceSpecimen entity with id None'
+        sqlCmd = 'INSERT INTO `SourceSpecimen` (`idSourceSpecimen`, `SourceSpecimen`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idSourceSpecimen)
+        l.append(self.sourceSpecimen)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Species(object):
 
@@ -258,6 +481,16 @@ class Species(object):
         # one-to-many
         # SpeciesLookup: Specimen.idSpecies REFERENCES Species(idSpecies)
         self.specimenSpeciesList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idSpecies is None:
+            raise StandardError, 'illegal state: cannot insert Species entity with id None'
+        sqlCmd = 'INSERT INTO `Species` (`idSpecies`, `Species`, `Source`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.idSpecies)
+        l.append(self.species)
+        l.append(self.source)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 class Specimen(object):
@@ -285,6 +518,29 @@ class Specimen(object):
         # no python attribute: SourceSpecimen
         # no python attribute: Project
 
+    def insertIntoDatabase(self, cursor):
+        if self.idSpecimen is None:
+            raise StandardError, 'illegal state: cannot insert Specimen entity with id None'
+        sqlCmd = 'INSERT INTO `Specimen` (`idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `Description`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumID`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idSpecimen)
+        l.append(None if self.genus is None else self.genus.idGenus)
+        l.append(self.idPaftol)
+        l.append(None if self.species is None else self.species.idSpecies)
+        l.append(self.description)
+        l.append(self.bankId)
+        l.append(self.lcd)
+        l.append(self.msb)
+        l.append(self.collector)
+        l.append(self.collectorNo)
+        l.append(self.voucherNo)
+        l.append(self.museumId)
+        l.append(self.museumBarcode)
+        l.append(self.oldSpeciesName)
+        l.append(None if self.sourceSpecimen is None else self.sourceSpecimen.idSourceSpecimen)
+        l.append(None if self.project is None else self.project.idProject)
+        cursor.execute(sqlCmd, tuple(l))
+
 
 class Status(object):
 
@@ -296,6 +552,15 @@ class Status(object):
         self.libraryStatusList = []
         # fk_status: Sequence.idStatus REFERENCES Status(idStatus)
         self.sequenceStatusList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idStatus is None:
+            raise StandardError, 'illegal state: cannot insert Status entity with id None'
+        sqlCmd = 'INSERT INTO `Status` (`idStatus`, `Status`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idStatus)
+        l.append(self.status)
+        cursor.execute(sqlCmd, tuple(l))
 
 
 def loadActionDict(connection, productionDatabase):
