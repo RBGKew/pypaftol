@@ -389,16 +389,25 @@ class FastqcStats(object):
                 raise StandardError, 'malformed line: %s' % l.strip()
             fastqcDataFrame.addRow({'length': str(w[0]), 'count': float(w[1])})
             l = self.readCompleteLine(f)
-        self.perBaseNContent = fastqcDataFrame
+        self.sequenceLengthDistribution = fastqcDataFrame
 
     def parseSequenceDuplicationLevels(self, f):
-        # fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
-        # fastqcDataFrame.annotaions['totalDeduplicatedPercentage'] = float( ... )
-        sys.stderr.write('WARNING: FastQC module "Sequence Duplication Levels" not implemented\n')
+        description, result = self.nextModuleDescription(f)
+        if description != 'Sequence Duplication Levels':
+            raise StandardError, 'expected "Sequence Duplication Levels" module but found "%s"' % description
+        if self.readTableHeader(f) == ['Total', 'Deduplicated', 'Percentage']:
+            pass
+        if self.readTableHeader(f) != ['Duplication Level', 'Percentage of deduplicated', 'Percentage of total']:
+            raise StandardError, 'malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['duplicationLevel', 'percentageOfDeduplicated', 'percentageOfTotal'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 3:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'duplicationLevel': str(w[0]), 'percentageOfDeduplicated': str(w[1]), 'percentageOfTotal': float(w[2])})
             l = self.readCompleteLine(f)
-        self.sequenceDuplicationLevels = None
+        self.sequenceDuplicationLevels = fastqcDataFrame
 
     def parseOverrepresentedSequences(self, f):
         sys.stderr.write('WARNING: FastQC module "Overrepresented sequences" not implemented\n')
@@ -423,7 +432,7 @@ class FastqcStats(object):
                 w[0] = '21'
             fastqcDataFrame.addRow({'position': int(w[0]), 'illuminaUniversalAdapter': float(w[1]), 'illuminaSmallRNA3PrimeAdapter': float(w[2]), 'illuminaSmallRNA5PrimeAdapter': float(w[3]), 'nexteraTransposaseSequence': float(w[4]), 'solidSmallRNAAdapter': float(w[5])})
             l = self.readCompleteLine(f)
-        self.parseAdapterContent = fastqcDataFrame
+        self.adapterContent = fastqcDataFrame
 
     def parseKmerContent(self, f):
         sys.stderr.write('WARNING: FastQC module "Kmer Content" not implemented\n')
