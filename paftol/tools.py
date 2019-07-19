@@ -376,11 +376,20 @@ class FastqcStats(object):
         self.perBaseNContent = fastqcDataFrame
 
     def parseSequenceLengthDistribution(self, f):
-        sys.stderr.write('WARNING: FastQC module "Sequence length Distribution" not implemented\n')
+        description, result = self.nextModuleDescription(f)
+        if description != 'Sequence Length Distribution':
+            raise StandardError, 'expected "Sequence Length Distribution module but found "%s"' % description
+        if self.readTableHeader(f) != ['Length', 'Count']:
+            raise StandardError, 'malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f))
+        fastqcDataFrame = FastqcDataFrame(['length', 'count'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
+            w = l.strip().split('\t')
+            if len(w) != 2:
+                raise StandardError, 'malformed line: %s' % l.strip()
+            fastqcDataFrame.addRow({'length': str(w[0]), 'count': float(w[1])})
             l = self.readCompleteLine(f)
-        self.sequenceLengthDistribution = None
+        self.perBaseNContent = fastqcDataFrame
 
     def parseSequenceDuplicationLevels(self, f):
         # fastqcDataFrame = FastqcDataFrame([ ... ], description, result)
@@ -401,16 +410,18 @@ class FastqcStats(object):
     def parseAdapterContent(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Adapter Content':
-            raise StandardError, 'expected "Adapter content" module but found "%s"' %description
+            raise StandardError, 'expected "Adapter content" module but found "%s"' % description
         if self.readTableHeader(f) != ['Position', 'Illumina Universal Adapter', "Illumina Small RNA 3' Adapter", "Illumina Small RNA 5' Adapter", "Nextera Transposase Sequence", "SOLID Small RNA Adapter"]:
             raise StandardError, 'malformed "Adapter Content" header: %s' % ', '.join(self.readTableHeader(f))
         fastqcDataFrame = FastqcDataFrame(['position', 'illuminaUniversalAdapter', 'illuminaSmallRNA3PrimeAdapter', 'illuminaSmallRNA5PrimeAdapter', 'nexteraTransposaseSequence', 'solidSmallRNAAdapter'], description, result) 
         l = self.readCompleteLine(f)
-        if l.strip() != '>>END MODULE':
+        while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 6:
                 raise StandardError, 'malformed line: %s' % l.strip()
-            fastqcDataFrame.addRow({'position': float(w[0]), 'illuminaUniversalAdapter': float(w[1]), 'illuminaSmallRNA3PrimeAdapter': float(w[2]), 'illuminaSmallRNA5PrimeAdapter': float(w[3]), 'nexteraTransposaseSequence': float(w[4]), 'solidSmallRNAAdapter': float(w[5])})
+            if w[0] == '2.':
+                w[0] = '21'
+            fastqcDataFrame.addRow({'position': int(w[0]), 'illuminaUniversalAdapter': float(w[1]), 'illuminaSmallRNA3PrimeAdapter': float(w[2]), 'illuminaSmallRNA5PrimeAdapter': float(w[3]), 'nexteraTransposaseSequence': float(w[4]), 'solidSmallRNAAdapter': float(w[5])})
             l = self.readCompleteLine(f)
         self.parseAdapterContent = fastqcDataFrame
 
