@@ -378,7 +378,7 @@ class FastqcStats(object):
     def parseSequenceLengthDistribution(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Sequence Length Distribution':
-            raise StandardError, 'expected "Sequence Length Distribution module but found "%s"' % description
+            raise StandardError, 'expected "Sequence Length Distribution" module but found "%s"' % description
         if self.readTableHeader(f) != ['Length', 'Count']:
             raise StandardError, 'malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f))
         fastqcDataFrame = FastqcDataFrame(['length', 'count'], description, result)
