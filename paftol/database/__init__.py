@@ -170,6 +170,18 @@ def parseCanonicalSymlink(symlinkName):
 
 
 def makeSymlink(symlinkDirname, sequence, fastqFname):
+    """Set up a canonical symlink for a sequence in the specified directory.
+    
+If a symlink or other file with the computed canonical name already exists, no
+symlink is created and a warning is issued.
+
+@param symlinkDirname: directory in which to create the symlink
+@type symlinkDirname: C{str}
+@param sequence: the sequence for which to generate the symlink
+@type sequence: C{paftol.database.production.Sequence} instance
+@param fastqFname: name of the fastq file
+@type fastqFname: C{str}
+    """
     orientation = paftol.tools.fastqOrientation(fastqFname)
     gzipped = paftol.tools.isGzipped(fastqFname)
     symlinkName = canonicalSymlinkName(sequence, orientation, gzipped)
