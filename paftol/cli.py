@@ -629,3 +629,4 @@ def paftoolsMain():
             raise ValueError('invalid log level: %s' % args.loglevel)
         logging.getLogger().setLevel(loglevel)
     args.func(args)
+    sys.stderr.write('paftools command completed\n')
