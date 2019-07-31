@@ -433,6 +433,10 @@ def runExonerateStarAlignment(argNamespace):
             Bio.AlignIO.write(exonerateStarAlignment.xstarAlignment, f, 'fasta')
 
             
+def runAddOrganism(argNamespace):
+    sys.stderr.write('not yet doing it: organismName = %s, inFasta = %s, outFasta = %s\n' % (argNamespace.organismName, argNamespace.inFasta, argNamespace.outFasta))
+
+            
 def runAddTargetsFile(argNamespace):
     targetsfile = argNamespace.targetsfile
     description = argNamespace.description
@@ -591,7 +595,15 @@ def addAddPaftolFastqFilesParser(subparsers):
     p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
     p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
     p.set_defaults(func=runAddPaftolFastqFiles)
-    
+
+
+def addAddOrganismParser(subparsers):
+    p = subparsers.add_parser('addorganism', help='add organism name to FASTA sequence identifier (assuming existing FASTA identifier is a gene name)')
+    p.add_argument('organismName', help='organism name')
+    p.add_argument('inFasta', help='input file (FASTA format)')
+    p.add_argument('outFasta', help='output file (FASTA format)')
+    p.set_defaults(func=runAddOrganism)
+
     
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
@@ -621,6 +633,7 @@ def paftoolsMain():
     addExonerateStarAlignmentParser(subparsers)
     addAddTargetsFileParser(subparsers)
     addAddPaftolFastqFilesParser(subparsers)
+    addAddOrganismParser(subparsers)
     args = p.parse_args()
     args.rawCmdLine = ' '.join(['%s' % arg for arg in sys.argv])
     if args.loglevel is not None:
