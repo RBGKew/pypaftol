@@ -435,6 +435,19 @@ def runExonerateStarAlignment(argNamespace):
             
 def runAddOrganism(argNamespace):
     sys.stderr.write('not yet doing it: organismName = %s, inFasta = %s, outFasta = %s\n' % (argNamespace.organismName, argNamespace.inFasta, argNamespace.outFasta))
+    if '-' in argNamespace.organismName:
+        raise StandardError, 'invalid organism name: %s (contains at least one dash)' % argNamespace.organismName
+    if argNamespace.inFasta is None:
+        infile = sys.stdin
+    else:
+        infile = open(argNamespace.inFasta, 'r')
+    if argNamespace.outFasta is None:
+        outfile = sys.stdout
+    else:
+        outfile = open(argNamespace.outFasta, 'w')
+    for seqRecord in Bio.SeqIO.parse(infile, 'fasta'):
+        seqRecord.id = '%s-%s' % (argNamespace.organismName, seqRecord.id)
+        Bio.SeqIO.write([seqRecord], outfile, 'fasta')
 
             
 def runAddTargetsFile(argNamespace):
@@ -599,6 +612,7 @@ def addAddPaftolFastqFilesParser(subparsers):
 
 def addAddOrganismParser(subparsers):
     p = subparsers.add_parser('addorganism', help='add organism name to FASTA sequence identifier (assuming existing FASTA identifier is a gene name)')
+    # FIXME: make organismName mandatory
     p.add_argument('organismName', help='organism name')
     p.add_argument('inFasta', help='input file (FASTA format)')
     p.add_argument('outFasta', help='output file (FASTA format)')
