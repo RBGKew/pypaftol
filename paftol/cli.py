@@ -434,7 +434,7 @@ def runExonerateStarAlignment(argNamespace):
 
             
 def runAddOrganism(argNamespace):
-    sys.stderr.write('not yet doing it: organismName = %s, inFasta = %s, outFasta = %s\n' % (argNamespace.organismName, argNamespace.inFasta, argNamespace.outFasta))
+    logger.info('starting, organismName = %s', argNamespace.organismName)
     if '-' in argNamespace.organismName:
         raise StandardError, 'invalid organism name: %s (contains at least one dash)' % argNamespace.organismName
     if argNamespace.inFasta is None:
@@ -656,4 +656,4 @@ def paftoolsMain():
             raise ValueError('invalid log level: %s' % args.loglevel)
         logging.getLogger().setLevel(loglevel)
     args.func(args)
-    sys.stderr.write('paftools command completed\n')
+    logger.error('paftools command completed')
