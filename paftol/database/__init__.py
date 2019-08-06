@@ -126,7 +126,77 @@ def matchesExpectedFastqFname(fastqFname, sequence):
     return fastqBasename == sequence.r1FastqFile or fastqBasename == sequence.r2FastqFile
 
 
+def findSequenceListByFname(productionDatabase, fastqFname):
+    sequenceList = []
+    for sequence in productionDatabase.sequenceDict.values():
+        if matchesExpectedFastqFname(fastqFname, sequence):
+            sequenceList.append(sequence)
+    return sequenceList
+
+
+class ExistingFastqFile(object):
+    
+    # FIXME: regular expressions used to search along entire path, spurious matches not impossible
+    spNumberRe = re.compile('SP([0-9][0-9][0-9][0-9])(-[A-Z][A-Za-z]+)?$')
+    paftolPrefixedFastqFnameRe = re.compile('PAFTOL-([0-9]+)_R[12]_[0-9]+\\.fastq')
+
+    def __init__(self, rawFastqFname):
+        self.rawFastqFname = rawFastqFname
+
+    def findSequencingPoolNumber(self):
+        dirname, basename = os.path.split(self.rawFastqFname)
+        if dirname != '':
+            d, spDirname = os.path.split(dirname)
+            sys.stderr.write('spDirname: %s\n' % spDirname)
+            m = self.spNumberRe.match(spDirname)
+            if m is not None:
+                return int(m.group(1))
+        return None
+    
+    def findPaftolPrefixedNumber(self):
+        m = self.paftolPrefixedFastqFnameRe.search(self.rawFastqFname)
+        if m is not None:
+            return int(m.group(1))
+        return None
+
+
 def findSequenceForFastqFname(productionDatabase, fastqFname):
+    logList = []
+    existingFastqFile = ExistingFastqFile(fastqFname)
+    paftolPrefixedNumber = existingFastqFile.findPaftolPrefixedNumber()
+    sequencingPoolNumber = existingFastqFile.findSequencingPoolNumber()
+    logList.append('fastqFname: %s' % fastqFname)
+    logList.append('paftolPrefixedNumber: %s' % paftolPrefixedNumber)
+    logList.append('sequencingPoolNumber: %s' % sequencingPoolNumber)
+    # logger.debug('raw: %s, paftolPrefixedNumber: %s, spNumber: %s', existingFastqFile.rawFastqFname, paftolPrefixedNumber, sequencingPoolNumber)
+    paftolPrefixedNumber = existingFastqFile.findPaftolPrefixedNumber()
+    if paftolPrefixedNumber is not None:
+        idSequencing = paftolPrefixedNumber
+        if idSequencing in productionDatabase.sequenceDict:
+            sequence = productionDatabase.sequenceDict[idSequencing]
+            if matchesExpectedFastqFname(fastqFname, sequence):
+                if sequence.sequencingRun is not None:
+                    if sequencingPoolNumber is not None:
+                        if sequence.sequencingRun.upper() == 'SP%04d' % sequencingPoolNumber:
+                            return sequence
+                        else:
+                            logList.append('found sequencingRun %s, not consistent with sequencingPoolNumber %d' % (sequence.sequencingRun, sequencingPoolNumber))
+    else:
+        if sequencingPoolNumber is not None:
+            sequenceList = findSequenceListByFname(productionDatabase, fastqFname)
+            if len(sequenceList) == 0:
+                logList.append('no match by fname found')
+            elif len(sequenceList) == 1:
+                return sequenceList[0]
+            else:
+                logList.append('multiple matches: %s' % ', '.join(['%d' % s.idSequencing for s in sequenceList]))
+        else:
+            logList.append('no sequencingPoolNumber')
+    logger.debug(', '.join(logList))
+    return None
+
+
+def findSequenceForFastqFnameOld(productionDatabase, fastqFname):
     paftolPrefixedFastqFnameRe = re.compile('PAFTOL-([0-9]+)_R[12]_[0-9]+\\.fastq')
     spNumberRe = re.compile('(SP[0-9][0-9][0-9][0-9])([^/]*)/([0-9]+).*\\.fastq')
     m = paftolPrefixedFastqFnameRe.match(fastqFname)

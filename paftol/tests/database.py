@@ -33,5 +33,17 @@ dbname: paftol
         self.assertEqual('paftol', paftolDatabaseDetailsFromFile.dbname)
         # f = open(...)
 
+    def test_ExistingFastqFile(self):
+        paftolPrefixedFname = './miseq/post_pilot_run/SP0052/PAFTOL-006707_R1_001.fastq.gz'
+        invalidPaftolPrefixedFname = './miseq/post_pilot_run/SP00521/PAFTOL-006707_R1_001.fastq.gz'
+        orchidaceaeFname = '../miseq/post_pilot_run/SP0018-Orchidaceae/Myoxanthus-ceratothallis_S59_L001_R1_001.fastq.gz'
+        e = paftol.database.ExistingFastqFile(paftolPrefixedFname)
+        self.assertEqual(52, e.findSequencingPoolNumber())
+        e = paftol.database.ExistingFastqFile(invalidPaftolPrefixedFname)
+        self.assertIsNone(e.findSequencingPoolNumber())
+        e = paftol.database.ExistingFastqFile(orchidaceaeFname)
+        self.assertEqual(18, e.findSequencingPoolNumber())
+        
+
 # paftolDatabaseDetails = paftol.database.PaftolDatabaseDetails(detailsFile=open('~/.paftol/dpdatabase.cfg'))
 # connection = paftolDatabaseDetails.makeConnection()

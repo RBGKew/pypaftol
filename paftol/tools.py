@@ -40,7 +40,7 @@ def isGzipped(fastqFname):
 
 
 def fastqOrientation(fastqFname):
-    miseqOrientationRe = re.compile('L001_R([12])_001\\.fastq')
+    miseqOrientationRe = re.compile('_R([12])_001\\.fastq')
     m = miseqOrientationRe.search(fastqFname)
     if m is not None:
         return int(m.group(1))
