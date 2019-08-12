@@ -126,23 +126,24 @@ def matchesExpectedFastqFname(fastqFname, sequence):
     return fastqBasename == sequence.r1FastqFile or fastqBasename == sequence.r2FastqFile
 
 
-def matchesExpectedSequencingPool(sequencingPoolNumber, sequence):
+def matchesExpectedSequencingRun(sequence, sequencingPoolNumber):
     return sequence.sequencingRun is not None and sequence.sequencingRun.upper() == 'SP%04d' % sequencingPoolNumber
 
-
-def findSequenceListByFname(productionDatabase, fastqFname):
+    
+def findMatchingSequenceList(productionDatabase, fastqFname, sequencingPoolNumber):
     sequenceList = []
     for sequence in productionDatabase.sequenceDict.values():
         if matchesExpectedFastqFname(fastqFname, sequence):
-            sequenceList.append(sequence)
+            if matchesExpectedSequencingRun(sequence, sequencingPoolNumber):
+                sequenceList.append(sequence)
     return sequenceList
 
 
 class ExistingFastqFile(object):
 
     # FIXME: regular expressions used to search along entire path, spurious matches not impossible
-    spNumberRe = re.compile('SP([0-9][0-9][0-9][0-9])((-|_+)[A-Z][A-Za-z0-9_]+)?$')
-    paftolPrefixedFastqFnameRe = re.compile('PAFTOL-([0-9]+)_R[12]_[0-9]+\\.fastq')
+    spNumberRe = re.compile('SP([0-9][0-9][0-9][0-9])((-|_+)[A-Z][A-Za-z0-9_ ()-[\\]]+)?$')
+    paftolPrefixedFastqFnameRe = re.compile('PAFTOL[-_]([0-9]+)_R[12]_[0-9]+\\.fastq')
 
     def __init__(self, rawFastqFname):
         self.rawFastqFname = rawFastqFname
@@ -179,23 +180,23 @@ def findSequenceForFastqFname(productionDatabase, fastqFname):
         if idSequencing in productionDatabase.sequenceDict:
             sequence = productionDatabase.sequenceDict[idSequencing]
             if matchesExpectedFastqFname(fastqFname, sequence):
-                if sequence.sequencingRun is not None:
-                    if sequencingPoolNumber is not None:
-                        if sequence.sequencingRun.upper() == 'SP%04d' % sequencingPoolNumber:
-                            return sequence
-                        else:
-                            logList.append('found sequencingRun %s, not consistent with sequencingPoolNumber %d' % (sequence.sequencingRun, sequencingPoolNumber))
+                if sequencingPoolNumber is not None:
+                    if matchesExpectedSequencingRun(sequence, sequencingPoolNumber):
+                        return sequence
+                    else:
+                        logList.append('found sequencingRun %s, not consistent with sequencingPoolNumber %d' % (sequence.sequencingRun, sequencingPoolNumber))
+            else:
+                logList.append('fastqFname %s does not match expected names %s or %s' % (fastqFname, sequence.r1FastqFile, sequence.r2FastqFile))
+        else:
+            logList.append('no sequence with idSequencing %d' % idSequencing)
     else:
         if sequencingPoolNumber is not None:
-            sequenceList = findSequenceListByFname(productionDatabase, fastqFname)
+            sequenceList = findMatchingSequenceList(productionDatabase, fastqFname, sequencingPoolNumber)
             if len(sequenceList) == 0:
                 logList.append('no match by fname found')
             elif len(sequenceList) == 1:
                 sequence = sequenceList[0]
-                if matchesExpectedSequencingPool(sequencingPoolNumber, sequence):
-                    return sequence
-                else:
-                    logList.append('sequencing pool mismatch: sequencingRun: %s, sequencingPoolNumber: %d' % (sequence.sequencingRun, sequencingPoolNumber))
+                return sequence
             else:
                 logList.append('multiple matches: %s' % ', '.join(['%d' % s.idSequencing for s in sequenceList]))
         else:
