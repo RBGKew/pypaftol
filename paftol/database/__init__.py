@@ -320,11 +320,13 @@ def insertFastaFile(connection, fastaFname, dirname=None):
 
 
 def addFastqStats(connection, fastqcStats):
+    logger.debug('starting')
     fastqcSummaryStats = paftol.tools.FastqcSummaryStats(fastqcStats)
     cursor = connection.cursor(prepared=True)
     try:
         fastqStatsId = generateUnusedPrimaryKey(cursor, 'FastqStats')
-        cursor.execute('INSERT INTO FastqStats (id, numReads, qual28, meanA, meanC, meanG, meanT, stddevA, stddevC, stddevG, stddevT, meanN, stddevN, meanAdapterContent, maxAdapterContent) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (fastqStatsId, fastqcSummaryStats.numReads, fastqcSummaryStats.qual28, fastqcSummaryStats.meanA, fastqcSummaryStats.meanC, fastqcSummaryStats.meanG, fastqcSummaryStats.meanT, fastqcSummaryStats.stddevA, fastqcSummaryStats.stddevC, fastqcSummaryStats.stddevG, fastqcSummaryStats.stddevT, fastqcSummaryStats.meanN, fastqcSummaryStats.stddevN, None, None))
+        logger.debug('meanAdapterContent: %s, maxAdapterContent: %s', fastqcSummaryStats.meanAdapterContent, fastqcSummaryStats.maxAdapterContent)        
+        cursor.execute('INSERT INTO FastqStats (id, numReads, qual28, meanA, meanC, meanG, meanT, stddevA, stddevC, stddevG, stddevT, meanN, stddevN, meanAdapterContent, maxAdapterContent) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', (fastqStatsId, fastqcSummaryStats.numReads, fastqcSummaryStats.qual28, fastqcSummaryStats.meanA, fastqcSummaryStats.meanC, fastqcSummaryStats.meanG, fastqcSummaryStats.meanT, fastqcSummaryStats.stddevA, fastqcSummaryStats.stddevC, fastqcSummaryStats.stddevG, fastqcSummaryStats.stddevT, fastqcSummaryStats.meanN, fastqcSummaryStats.stddevN, fastqcSummaryStats.meanAdapterContent, fastqcSummaryStats.maxAdapterContent))
     finally:
         cursor.close()
     return fastqStatsId
@@ -374,7 +376,7 @@ def insertPaftolFastqFileList(connection, paftolFastqFileList):
 
 def fastqStatsFromFastqcStats(fastqcStats):
     fastqcSummaryStats = paftol.tools.FastqcSummaryStats(fastqcStats)
-    return paftol.database.analysis.FastqStats(None, numReads=fastqcSummaryStats.numReads, qual28=fastqcSummaryStats.qual28, meanA=fastqcSummaryStats.meanA, meanC=fastqcSummaryStats.meanC, meanG=fastqcSummaryStats.meanG, meanT=fastqcSummaryStats.meanT, stddevA=fastqcSummaryStats.stddevA, stddevC=fastqcSummaryStats.stddevC, stddevG=fastqcSummaryStats.stddevG, stddevT=fastqcSummaryStats.stddevT, meanN=fastqcSummaryStats.meanN, stddevN=fastqcSummaryStats.stddevN, meanAdapterContent=None, maxAdapterContent=None)
+    return paftol.database.analysis.FastqStats(None, numReads=fastqcSummaryStats.numReads, qual28=fastqcSummaryStats.qual28, meanA=fastqcSummaryStats.meanA, meanC=fastqcSummaryStats.meanC, meanG=fastqcSummaryStats.meanG, meanT=fastqcSummaryStats.meanT, stddevA=fastqcSummaryStats.stddevA, stddevC=fastqcSummaryStats.stddevC, stddevG=fastqcSummaryStats.stddevG, stddevT=fastqcSummaryStats.stddevT, meanN=fastqcSummaryStats.meanN, stddevN=fastqcSummaryStats.stddevN, meanAdapterContent=fastqcSummaryStats.meanAdapterContent, maxAdapterContent=fastqcSummaryStats.maxAdapterContent)
 
 def addPaftolFastqFiles(fastqFnameList):
     productionDatabaseDetails = getProductionDatabaseDetails()

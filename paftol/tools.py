@@ -538,6 +538,7 @@ class FastqcSummaryStats(object):
     def __init__(self, fastqcStats):
         perBaseSequenceContent = fastqcStats.calculateMeanStd(fastqcStats.perBaseSequenceContent)
         perBaseNContent = fastqcStats.calculateMeanStd(fastqcStats.perBaseNContent)
+        illuminaAdapterStats = fastqcStats.adapterContent.colMeanAndStddev('illuminaUniversalAdapter')
         self.numReads = fastqcStats.getNumReads()
         self.qual28 = getQual28(fastqcStats.perBaseSequenceQuality)
         self.meanA = perBaseSequenceContent['a'].mean
@@ -550,6 +551,9 @@ class FastqcSummaryStats(object):
         self.stddevT = perBaseSequenceContent['t'].std
         self.meanN = perBaseNContent['nCount'].mean
         self.stddevN = perBaseNContent['nCount'].std
+        self.meanAdapterContent = illuminaAdapterStats.mean
+        self.maxAdapterContent = max(fastqcStats.adapterContent.getColumn('illuminaUniversalAdapter'))
+        logger.debug('meanAdapterContent: %s, maxAdapterContent: %s', self.meanAdapterContent, self.maxAdapterContent)
 
 
 class BlastAlignment(object):
