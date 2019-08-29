@@ -20,6 +20,7 @@ Building and installing the `paftol` module requires
 * Python 2.7.x development package (`libpython-all-dev`)
 * BioPython 1.66 (newer versions are likely to work as well)  (`python-biopython`, and also `python-biopython-sql`)
 * setuptools (`python-setuptools`)
+* epydoc (`python-epydoc`)
 * GNU C compiler (`gcc`) and associated tools
 * GNU make
 
