@@ -185,6 +185,41 @@ def ascendingRange(rangeStart, rangeEnd):
         return rangeStart, rangeEnd
 
 
+def plotAlignmentPostscript(alignment, epsFile, width=None, height=None):
+    gapChar = '-'
+    if width is None:
+        width = float(alignment.get_alignment_length())
+    if height is None:
+        height = float(len(alignment))
+    symbolWidth = float(width) / float(alignment.get_alignment_length())
+    lineHeight = height / len(alignment)
+    symbolHeight = lineHeight * 0.8
+    epsFile.write('%!PS-Adobe-3.0 EPSF-3.0\n')
+    epsFile.write('%%%%BoundingBox: 0 0 %f %f\n' % (width, height))
+    epsFile.write('%%Creator: plotAlignmentPostscript\n')
+    epsFile.write('%%Title: alignment sketch\n')
+    epsFile.write('%%EndComments\n')
+    epsFile.write('%s setlinewidth 0 setlinecap\n' % symbolHeight)
+    y = height - lineHeight * 0.5
+    for sr in alignment:
+        lineStart = None
+        s = str(sr.seq)
+        for i in xrange(len(s)):
+            if s[i] == gapChar:
+                if lineStart is not None:
+                    lineEnd = i * symbolWidth
+                    epsFile.write('%f %f moveto %f %f lineto stroke\n' % (lineStart, y, lineEnd, y))
+                    lineStart = None
+            else:
+                if lineStart is None:
+                    lineStart = i * symbolWidth
+        if lineStart is not None:
+            lineEnd = alignment.get_alignment_length() * symbolWidth
+            epsFile.write('%f %f moveto %f %f lineto stroke\n' % (lineStart, y, lineEnd, y))
+        y = y - lineHeight
+    epsFile.write('%%EOF\n')
+
+
 class DataFrame(object):
 
     def __init__(self, columnHeaderList):
