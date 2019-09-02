@@ -480,9 +480,13 @@ def runGeneFasta(argNamespace):
         paftolTargetSet.readFasta(sys.stdin)
     else:
         paftolTargetSet.readFasta(argNamespace.inFasta)
+    fastaFnameList = []
     for geneName in paftolTargetSet.paftolGeneDict:
         srList = paftolTargetSet.getSeqRecordSelection(organismNameList=None, geneNameList=[geneName])
-        Bio.SeqIO.write(srList, argNamespace.outFastaFormat % geneName, 'fasta')
+        fastaFname = argNamespace.outFastaFormat % geneName
+        Bio.SeqIO.write(srList, fastaFname, 'fasta')
+        fastaFnameList.append(fastaFname)
+    sys.stdout.write(' '.join(fastaFnameList))
 
 
 def runDelgeneNewick(argNamespace):
@@ -726,4 +730,4 @@ def paftoolsMain():
             raise ValueError('invalid log level: %s' % args.loglevel)
         logging.getLogger().setLevel(loglevel)
     args.func(args)
-    logger.error('paftools command completed')
+    logger.info('paftools command completed')
