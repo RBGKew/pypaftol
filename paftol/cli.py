@@ -7,6 +7,7 @@ import Bio.SeqIO
 import Bio.Seq
 import Bio.SeqRecord
 import Bio.AlignIO
+import Bio.Phylo
 
 import paftol
 import paftol.database
@@ -461,6 +462,51 @@ def runAddPaftolFastqFiles(argNamespace):
     paftol.database.addPaftolFastqFiles(argNamespace.fastq)
 
 
+def runAlignmentOutline(argNamespace):
+    if argNamespace.inFasta is None:
+        alignment = Bio.AlignIO.read(sys.stdin, 'fasta')
+    else:
+        alignment = Bio.AlignIO.read(argNamespace.inFasta, 'fasta')
+    if argNamespace.outEps is None:
+        epsFile = sys.stdout
+    else:
+        epsFile = open(argNamespace.outEps, 'w')
+    paftol.tools.plotAlignmentPostscript(alignment, epsFile, alignment.get_alignment_length() * 0.01, len(alignment) * 0.01)
+
+
+def runGeneFasta(argNamespace):
+    paftolTargetSet = paftol.PaftolTargetSet()
+    if argNamespace.inFasta is None or argNamespace.inFasta == '-':
+        paftolTargetSet.readFasta(sys.stdin)
+    else:
+        paftolTargetSet.readFasta(argNamespace.inFasta)
+    for geneName in paftolTargetSet.paftolGeneDict:
+        srList = paftolTargetSet.getSeqRecordSelection(organismNameList=None, geneNameList=[geneName])
+        Bio.SeqIO.write(srList, argNamespace.outFastaFormat % geneName, 'fasta')
+
+
+def runDelgeneNewick(argNamespace):
+    if argNamespace.inNewick is None or argNamespace.inNewick == '-':
+        newickInfile = sys.stdin
+    else:
+        newickInfile = open(argNamespace.inNewick, 'r')
+    treeList = []
+    for tree in Bio.Phylo.NewickIO.parse(newickInfile):
+        terminalCladeList = tree.clade.get_terminals()
+        # sys.stderr.write('%s\n' % str(terminalCladeList)))
+        for clade in terminalCladeList:
+            if clade.name is None:
+                raise StandardError, 'clade has no name'
+            organismName, geneName = paftol.extractOrganismAndGeneNames(clade.name)
+            clade.name = organismName
+        treeList.append(tree)
+    if argNamespace.outNewick is None:
+        newickOutfile = sys.stdout
+    else:
+        newickOutfile = open(argNamespace.outNewick, 'w')
+    Bio.Phylo.NewickIO.write(treeList, newickOutfile)
+
+
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev', help='for testing argparse')
     p.add_argument('-s', '--str', help='set a parameter')
@@ -619,6 +665,27 @@ def addAddOrganismParser(subparsers):
     p.set_defaults(func=runAddOrganism)
 
     
+def addAlignmentOutlineParser(subparsers):
+    p = subparsers.add_parser('alignmentOutline', help='write an outline graphics file (EPS format) of an alignment')
+    p.add_argument('inFasta', help='input file (multiple sequence alignment in FASTA format)')
+    p.add_argument('outEps', help='output file (encapsulated PostScript)')
+    p.set_defaults(func=runAlignmentOutline)
+
+
+def addGeneFastaParser(subparsers):
+    p = subparsers.add_parser('geneFasta', help='split target sequence FASTA input into multiple FASTA files by gene name')
+    p.add_argument('inFasta', help='input file (target sequences in FASTA format with canonical organism-gene IDs)')
+    p.add_argument('outFastaFormat', default='%s.fasta', help='format string for output fasta files, should contain one %%s conversion for gene name')
+    p.set_defaults(func=runGeneFasta)
+
+
+def addDelgeneNewickParser(subparsers):
+    p = subparsers.add_parser('delgeneNewick', help='delete gene name part from leaf labels in a Newick file')
+    p.add_argument('inNewick', help='input file (Newick format, leaf labels must be canonical organism-gene IDs)')
+    p.add_argument('outNewick', help='output file (Newick format)')
+    p.set_defaults(func=runDelgeneNewick)
+
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -648,6 +715,9 @@ def paftoolsMain():
     addAddTargetsFileParser(subparsers)
     addAddPaftolFastqFilesParser(subparsers)
     addAddOrganismParser(subparsers)
+    addAlignmentOutlineParser(subparsers)
+    addGeneFastaParser(subparsers)
+    addDelgeneNewickParser(subparsers)
     args = p.parse_args()
     args.rawCmdLine = ' '.join(['%s' % arg for arg in sys.argv])
     if args.loglevel is not None:
