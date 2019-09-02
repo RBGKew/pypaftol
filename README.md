@@ -66,6 +66,12 @@ paftools -h
 This should give you a help message listing the `paftools` subcommands
 currently available.
 
+4. If you like a HTML version of the APIs provided by the `paftol` package
+and its subpackages, run the command
+```
+make doc
+```
+
 At the time of writing this `README`, this installation process works
 on the cluster. Sharing any feedback is very welcome, of course.
 
