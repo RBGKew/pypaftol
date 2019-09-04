@@ -463,23 +463,13 @@ def runAddPaftolFastqFiles(argNamespace):
 
 
 def runAlignmentOutline(argNamespace):
-    if argNamespace.inFasta is None:
-        alignment = Bio.AlignIO.read(sys.stdin, 'fasta')
-    else:
-        alignment = Bio.AlignIO.read(argNamespace.inFasta, 'fasta')
-    if argNamespace.outEps is None:
-        epsFile = sys.stdout
-    else:
-        epsFile = open(argNamespace.outEps, 'w')
-    paftol.tools.plotAlignmentPostscript(alignment, epsFile, alignment.get_alignment_length() * 0.01, len(alignment) * 0.01)
+    alignment = Bio.AlignIO.read(argNamespace.infile, 'fasta')
+    paftol.tools.plotAlignmentPostscript(alignment, argNamespace.outfile, alignment.get_alignment_length() * 0.01, len(alignment) * 0.01)
 
 
 def runGeneFasta(argNamespace):
     paftolTargetSet = paftol.PaftolTargetSet()
-    if argNamespace.inFasta is None or argNamespace.inFasta == '-':
-        paftolTargetSet.readFasta(sys.stdin)
-    else:
-        paftolTargetSet.readFasta(argNamespace.inFasta)
+    paftolTargetSet.readFasta(argNamespace.infile)
     fastaFnameList = []
     for geneName in paftolTargetSet.paftolGeneDict:
         srList = paftolTargetSet.getSeqRecordSelection(organismNameList=None, geneNameList=[geneName])
@@ -490,12 +480,8 @@ def runGeneFasta(argNamespace):
 
 
 def runDelgeneNewick(argNamespace):
-    if argNamespace.inNewick is None or argNamespace.inNewick == '-':
-        newickInfile = sys.stdin
-    else:
-        newickInfile = open(argNamespace.inNewick, 'r')
     treeList = []
-    for tree in Bio.Phylo.NewickIO.parse(newickInfile):
+    for tree in Bio.Phylo.NewickIO.parse(argNamespace.infile):
         terminalCladeList = tree.clade.get_terminals()
         # sys.stderr.write('%s\n' % str(terminalCladeList)))
         for clade in terminalCladeList:
@@ -504,11 +490,7 @@ def runDelgeneNewick(argNamespace):
             organismName, geneName = paftol.extractOrganismAndGeneNames(clade.name)
             clade.name = organismName
         treeList.append(tree)
-    if argNamespace.outNewick is None:
-        newickOutfile = sys.stdout
-    else:
-        newickOutfile = open(argNamespace.outNewick, 'w')
-    Bio.Phylo.NewickIO.write(treeList, newickOutfile)
+    Bio.Phylo.NewickIO.write(treeList, argNamespace.outfile)
 
 
 def addDevParser(subparsers):
@@ -671,22 +653,22 @@ def addAddOrganismParser(subparsers):
     
 def addAlignmentOutlineParser(subparsers):
     p = subparsers.add_parser('alignmentOutline', help='write an outline graphics file (EPS format) of an alignment')
-    p.add_argument('inFasta', help='input file (multiple sequence alignment in FASTA format)')
-    p.add_argument('outEps', help='output file (encapsulated PostScript)')
+    p.add_argument('infile', nargs='?', default=sys.stdin, type=argparse.FileType('r'), help='input file (multiple sequence alignment in FASTA format)')
+    p.add_argument('outfile', nargs='?', default=sys.stdout, type=argparse.FileType('w'), help='output file (encapsulated PostScript)')
     p.set_defaults(func=runAlignmentOutline)
 
 
 def addGeneFastaParser(subparsers):
     p = subparsers.add_parser('geneFasta', help='split target sequence FASTA input into multiple FASTA files by gene name')
-    p.add_argument('inFasta', help='input file (target sequences in FASTA format with canonical organism-gene IDs)')
-    p.add_argument('outFastaFormat', default='%s.fasta', help='format string for output fasta files, should contain one %%s conversion for gene name')
+    p.add_argument('infile', nargs='?', default=sys.stdin, type=argparse.FileType('r'), help='input file (target sequences in FASTA format with canonical organism-gene IDs)')
+    p.add_argument('outFastaFormat', nargs='?', default='%s.fasta', help='format string for output fasta files, should contain one %%s conversion for gene name')
     p.set_defaults(func=runGeneFasta)
 
 
 def addDelgeneNewickParser(subparsers):
     p = subparsers.add_parser('delgeneNewick', help='delete gene name part from leaf labels in a Newick file')
-    p.add_argument('inNewick', help='input file (Newick format, leaf labels must be canonical organism-gene IDs)')
-    p.add_argument('outNewick', help='output file (Newick format)')
+    p.add_argument('infile', nargs='?', default=sys.stdin, type=argparse.FileType('r'), help='input file (Newick format, leaf labels must be canonical organism-gene IDs)')
+    p.add_argument('outfile', nargs='?', default=sys.stdout, type=argparse.FileType('w'), help='output file (Newick format)')
     p.set_defaults(func=runDelgeneNewick)
 
     
