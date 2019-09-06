@@ -476,7 +476,7 @@ def runGeneFasta(argNamespace):
         fastaFname = argNamespace.outFastaFormat % geneName
         Bio.SeqIO.write(srList, fastaFname, 'fasta')
         fastaFnameList.append(fastaFname)
-    sys.stdout.write(' '.join(fastaFnameList))
+    sys.stdout.write('%s\n' % ' '.join(fastaFnameList))
 
 
 def runDelgeneNewick(argNamespace):
