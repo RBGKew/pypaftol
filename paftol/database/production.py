@@ -30,18 +30,20 @@ class Action(object):
 
 class Coordinates(object):
 
-    def __init__(self, coordinate=None, sortOrder=None):
+    def __init__(self, idCoordinate=None, coordinate=None, sortOrder=None):
+        self.idCoordinate = idCoordinate
         self.coordinate = coordinate
         self.sortOrder = sortOrder
         # one-to-many
-        # fk_coordinate: Library.Coordinate REFERENCES Coordinates(Coordinate)
+        # fk_Library_Coordinates: Library.idCoordinate REFERENCES Coordinates(idCoordinate)
         self.libraryCoordinateList = []
 
     def insertIntoDatabase(self, cursor):
-        if self.coordinate is None:
+        if self.idCoordinate is None:
             raise StandardError, 'illegal state: cannot insert Coordinates entity with id None'
-        sqlCmd = 'INSERT INTO `Coordinates` (`Coordinate`, `SortOrder`) VALUES (%s, %s)'
+        sqlCmd = 'INSERT INTO `Coordinates` (`idCoordinate`, `Coordinate`, `SortOrder`) VALUES (%s, %s, %s)'
         l = []
+        l.append(self.idCoordinate)
         l.append(self.coordinate)
         l.append(self.sortOrder)
         cursor.execute(sqlCmd, tuple(l))
@@ -168,7 +170,8 @@ class Genus(object):
 
 class Indexes(object):
 
-    def __init__(self, indexes=None, indexNameFwd=None, seqFwdPlatform1=None, seqFwdPlatform2=None, indexNameRv=None, seqRv=None):
+    def __init__(self, idIndexes=None, indexes=None, indexNameFwd=None, seqFwdPlatform1=None, seqFwdPlatform2=None, indexNameRv=None, seqRv=None):
+        self.idIndexes = idIndexes
         self.indexes = indexes
         self.indexNameFwd = indexNameFwd
         self.seqFwdPlatform1 = seqFwdPlatform1
@@ -176,14 +179,15 @@ class Indexes(object):
         self.indexNameRv = indexNameRv
         self.seqRv = seqRv
         # one-to-many
-        # fk_indexes: Library.Indexes REFERENCES Indexes(Indexes)
+        # fk_Library_Indexes: Library.idIndexes REFERENCES Indexes(idIndexes)
         self.libraryIndexesList = []
 
     def insertIntoDatabase(self, cursor):
-        if self.indexes is None:
+        if self.idIndexes is None:
             raise StandardError, 'illegal state: cannot insert Indexes entity with id None'
-        sqlCmd = 'INSERT INTO `Indexes` (`Indexes`, `IndexNameFwd`, `SeqFwdPlatform1`, `SeqFwdPlatform2`, `IndexNameRv`, `SeqRv`) VALUES (%s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Indexes` (`idIndexes`, `Indexes`, `IndexNameFwd`, `SeqFwdPlatform1`, `SeqFwdPlatform2`, `IndexNameRv`, `SeqRv`) VALUES (%s, %s, %s, %s, %s, %s, %s)'
         l = []
+        l.append(self.idIndexes)
         l.append(self.indexes)
         l.append(self.indexNameFwd)
         l.append(self.seqFwdPlatform1)
@@ -213,11 +217,13 @@ class Library(object):
         # one-to-many
         # LibraryLink: Sequence.idLibrary REFERENCES Library(idLibrary)
         self.sequenceLibraryList = []
+        # no python attribute: Indexes
+        # no python attribute: Coordinate
 
     def insertIntoDatabase(self, cursor):
         if self.idLibrary is None:
             raise StandardError, 'illegal state: cannot insert Library entity with id None'
-        sqlCmd = 'INSERT INTO `Library` (`idLibrary`, `idSample`, `LibConcentration`, `HybridisationPool`, `LibQuality`, `RemainingVolume`, `LibTapeStation`, `Sonication`, `Plate No`, `Coordinate`, `Description`, `idStatus`, `Indexes`, `GenerateLibrary`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Library` (`idLibrary`, `idSample`, `LibConcentration`, `HybridisationPool`, `LibQuality`, `RemainingVolume`, `LibTapeStation`, `Sonication`, `Plate No`, `idCoordinate`, `Description`, `idStatus`, `idIndexes`, `GenerateLibrary`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.idLibrary)
         l.append(None if self.sample is None else self.sample.idSample)
@@ -228,11 +234,72 @@ class Library(object):
         l.append(self.libTapeStation)
         l.append(self.sonication)
         l.append(self.plate_No)
-        l.append(None if self.coordinate is None else self.coordinate.coordinate)
+        l.append(None if self.coordinate is None else self.coordinate.idCoordinate)
         l.append(self.description)
         l.append(None if self.status is None else self.status.idStatus)
-        l.append(None if self.indexes is None else self.indexes.indexes)
+        l.append(None if self.indexes is None else self.indexes.idIndexes)
         l.append(self.generateLibrary)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class Location(object):
+
+    def __init__(self, idLocation=None, location=None):
+        self.idLocation = idLocation
+        self.location = location
+        # one-to-many
+        # fk_Sequence_Location: Sequence.idLocation REFERENCES Location(idLocation)
+        self.sequenceLocationList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idLocation is None:
+            raise StandardError, 'illegal state: cannot insert Location entity with id None'
+        sqlCmd = 'INSERT INTO `Location` (`idLocation`, `Location`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idLocation)
+        l.append(self.location)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class Log(object):
+
+    def __init__(self, idLog=None, transactionDate=None, user=None, file=None, transactionType=None):
+        self.idLog = idLog
+        self.transactionDate = transactionDate
+        self.user = user
+        self.file = file
+        self.transactionType = transactionType
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        if self.idLog is None:
+            raise StandardError, 'illegal state: cannot insert Log entity with id None'
+        sqlCmd = 'INSERT INTO `Log` (`idLog`, `TransactionDate`, `User`, `File`, `TransactionType`) VALUES (%s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idLog)
+        l.append(self.transactionDate)
+        l.append(self.user)
+        l.append(self.file)
+        l.append(self.transactionType)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class MaterialSource(object):
+
+    def __init__(self, idMaterialSource=None, materialSource=None):
+        self.idMaterialSource = idMaterialSource
+        self.materialSource = materialSource
+        # one-to-many
+        # fk_Sample_MaterialSource: Sample.idMaterialSource REFERENCES MaterialSource(idMaterialSource)
+        self.sampleMaterialSourceList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idMaterialSource is None:
+            raise StandardError, 'illegal state: cannot insert MaterialSource entity with id None'
+        sqlCmd = 'INSERT INTO `MaterialSource` (`idMaterialSource`, `MaterialSource`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idMaterialSource)
+        l.append(self.materialSource)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -252,6 +319,25 @@ class Order(object):
         l = []
         l.append(self.idOrder)
         l.append(self.order)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class Platform(object):
+
+    def __init__(self, idPlatform=None, platform=None):
+        self.idPlatform = idPlatform
+        self.platform = platform
+        # one-to-many
+        # fk_Sequence_Platform: Sequence.idPlatform REFERENCES Platform(idPlatform)
+        self.sequencePlatformList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.idPlatform is None:
+            raise StandardError, 'illegal state: cannot insert Platform entity with id None'
+        sqlCmd = 'INSERT INTO `Platform` (`idPlatform`, `Platform`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idPlatform)
+        l.append(self.platform)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -376,11 +462,12 @@ class Sample(object):
         # one-to-many
         # SampleLink: Library.idSample REFERENCES Sample(idSample)
         self.librarySampleList = []
+        # no python attribute: MaterialSource
 
     def insertIntoDatabase(self, cursor):
         if self.idSample is None:
             raise StandardError, 'illegal state: cannot insert Sample entity with id None'
-        sqlCmd = 'INSERT INTO `Sample` (`idSample`, `idSpecimen`, `Description`, `idAction`, `idExtractionType`, `idQuality`, `SampleConcentration`, `NewSampleConcentration`, `GelImage`, `SampleTapeStation`, `idDNAVolume`, `Compliant`, `MaterialSource`, `AgeOfMaterial`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Sample` (`idSample`, `idSpecimen`, `Description`, `idAction`, `idExtractionType`, `idQuality`, `SampleConcentration`, `NewSampleConcentration`, `GelImage`, `SampleTapeStation`, `idDNAVolume`, `Compliant`, `idMaterialSource`, `AgeOfMaterial`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.idSample)
         l.append(None if self.specimen is None else self.specimen.idSpecimen)
@@ -394,7 +481,7 @@ class Sample(object):
         l.append(self.sampleTapeStation)
         l.append(None if self.dnaVolume is None else self.dnaVolume.idDnaVolume)
         l.append(self.compliant)
-        l.append(self.materialSource)
+        l.append(None if self.materialSource is None else self.materialSource.idMaterialSource)
         l.append(self.ageOfMaterial)
         cursor.execute(sqlCmd, tuple(l))
 
@@ -414,16 +501,18 @@ class Sequence(object):
         self.r2FastqFile = r2FastqFile
         self.r1FastqFile = r1FastqFile
         # one-to-many
+        # no python attribute: Platform
+        # no python attribute: Location
 
     def insertIntoDatabase(self, cursor):
         if self.idSequencing is None:
             raise StandardError, 'illegal state: cannot insert Sequence entity with id None'
-        sqlCmd = 'INSERT INTO `Sequence` (`idSequencing`, `idLibrary`, `Platform`, `Location`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Sequence` (`idSequencing`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.idSequencing)
         l.append(None if self.library is None else self.library.idLibrary)
-        l.append(self.platform)
-        l.append(self.location)
+        l.append(None if self.platform is None else self.platform.idPlatform)
+        l.append(None if self.location is None else self.location.idLocation)
         l.append(self.sequencingRun)
         l.append(self.numInferredCds)
         l.append(self.medianHybpiperCdsLength)
@@ -495,7 +584,7 @@ class Species(object):
 
 class Specimen(object):
 
-    def __init__(self, idSpecimen=None, genus=None, idPaftol=None, species=None, description=None, bankId=None, lcd=None, msb=None, collector=None, collectorNo=None, voucherNo=None, museumId=None, museumBarcode=None, oldSpeciesName=None, sourceSpecimen=None, project=None):
+    def __init__(self, idSpecimen=None, genus=None, idPaftol=None, species=None, description=None, bankId=None, lcd=None, msb=None, collector=None, collectorNo=None, voucherNo=None, museumId=None, museumBarcode=None, oldSpeciesName=None, sourceSpecimen=None, project=None, originCountry=None):
         self.idSpecimen = idSpecimen
         self.genus = genus
         self.idPaftol = idPaftol
@@ -512,6 +601,7 @@ class Specimen(object):
         self.oldSpeciesName = oldSpeciesName
         self.sourceSpecimen = sourceSpecimen
         self.project = project
+        self.originCountry = originCountry
         # one-to-many
         # SpecimenLink: Sample.idSpecimen REFERENCES Specimen(idSpecimen)
         self.sampleSpecimenList = []
@@ -521,7 +611,7 @@ class Specimen(object):
     def insertIntoDatabase(self, cursor):
         if self.idSpecimen is None:
             raise StandardError, 'illegal state: cannot insert Specimen entity with id None'
-        sqlCmd = 'INSERT INTO `Specimen` (`idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `Description`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumID`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Specimen` (`idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `Description`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumID`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `OriginCountry`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.idSpecimen)
         l.append(None if self.genus is None else self.genus.idGenus)
@@ -539,6 +629,7 @@ class Specimen(object):
         l.append(self.oldSpeciesName)
         l.append(None if self.sourceSpecimen is None else self.sourceSpecimen.idSourceSpecimen)
         l.append(None if self.project is None else self.project.idProject)
+        l.append(self.originCountry)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -580,13 +671,14 @@ def loadActionDict(connection, productionDatabase):
 def loadCoordinatesDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `Coordinate`, `SortOrder` FROM `Coordinates`'
+    sqlStatement = 'SELECT `idCoordinate`, `Coordinate`, `SortOrder` FROM `Coordinates`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Coordinates()
-        entity.coordinate = paftol.database.strOrNone(row[0])
-        entity.sortOrder = paftol.database.intOrNone(row[1])
-        entityDict[entity.coordinate] = entity
+        entity.idCoordinate = paftol.database.intOrNone(row[0])
+        entity.coordinate = paftol.database.strOrNone(row[1])
+        entity.sortOrder = paftol.database.intOrNone(row[2])
+        entityDict[entity.idCoordinate] = entity
     cursor.close()
     return entityDict
 
@@ -703,17 +795,18 @@ def loadGenusDict(connection, productionDatabase):
 def loadIndexesDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `Indexes`, `IndexNameFwd`, `SeqFwdPlatform1`, `SeqFwdPlatform2`, `IndexNameRv`, `SeqRv` FROM `Indexes`'
+    sqlStatement = 'SELECT `idIndexes`, `Indexes`, `IndexNameFwd`, `SeqFwdPlatform1`, `SeqFwdPlatform2`, `IndexNameRv`, `SeqRv` FROM `Indexes`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Indexes()
-        entity.indexes = paftol.database.strOrNone(row[0])
-        entity.indexNameFwd = paftol.database.strOrNone(row[1])
-        entity.seqFwdPlatform1 = paftol.database.strOrNone(row[2])
-        entity.seqFwdPlatform2 = paftol.database.strOrNone(row[3])
-        entity.indexNameRv = paftol.database.strOrNone(row[4])
-        entity.seqRv = paftol.database.strOrNone(row[5])
-        entityDict[entity.indexes] = entity
+        entity.idIndexes = paftol.database.intOrNone(row[0])
+        entity.indexes = paftol.database.strOrNone(row[1])
+        entity.indexNameFwd = paftol.database.strOrNone(row[2])
+        entity.seqFwdPlatform1 = paftol.database.strOrNone(row[3])
+        entity.seqFwdPlatform2 = paftol.database.strOrNone(row[4])
+        entity.indexNameRv = paftol.database.strOrNone(row[5])
+        entity.seqRv = paftol.database.strOrNone(row[6])
+        entityDict[entity.idIndexes] = entity
     cursor.close()
     return entityDict
 
@@ -721,7 +814,7 @@ def loadIndexesDict(connection, productionDatabase):
 def loadLibraryDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idLibrary`, `idSample`, `LibConcentration`, `HybridisationPool`, `LibQuality`, `RemainingVolume`, `LibTapeStation`, `Sonication`, `Plate No`, `Coordinate`, `Description`, `idStatus`, `Indexes`, `GenerateLibrary` FROM `Library`'
+    sqlStatement = 'SELECT `idLibrary`, `idSample`, `LibConcentration`, `HybridisationPool`, `LibQuality`, `RemainingVolume`, `LibTapeStation`, `Sonication`, `Plate No`, `idCoordinate`, `Description`, `idStatus`, `idIndexes`, `GenerateLibrary` FROM `Library`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Library()
@@ -744,14 +837,14 @@ def loadLibraryDict(connection, productionDatabase):
         entity.sonication = paftol.database.intOrNone(row[7])
         entity.plate_No = paftol.database.strOrNone(row[8])
         # many to one: coordinate
-        entityId = paftol.database.strOrNone(row[9])
+        entityId = paftol.database.intOrNone(row[9])
         if entityId is None:
             entity.coordinate = None
         elif entityId not in productionDatabase.coordinatesDict:
-            raise StandardError, 'no Coordinates entity with coordinate = %d' % entityId
+            raise StandardError, 'no Coordinates entity with idCoordinate = %d' % entityId
         else:
             entity.coordinate = productionDatabase.coordinatesDict[entityId]
-            # type: varchar, name: Coordinate, foreignTable: Coordinates, foreignColumn: Coordinate
+            # type: int, name: idCoordinate, foreignTable: Coordinates, foreignColumn: idCoordinate
             entity.coordinate.libraryCoordinateList.append(entity)
         entity.description = paftol.database.strOrNone(row[10])
         # many to one: status
@@ -765,17 +858,62 @@ def loadLibraryDict(connection, productionDatabase):
             # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
             entity.status.libraryStatusList.append(entity)
         # many to one: indexes
-        entityId = paftol.database.strOrNone(row[12])
+        entityId = paftol.database.intOrNone(row[12])
         if entityId is None:
             entity.indexes = None
         elif entityId not in productionDatabase.indexesDict:
-            raise StandardError, 'no Indexes entity with indexes = %d' % entityId
+            raise StandardError, 'no Indexes entity with idIndexes = %d' % entityId
         else:
             entity.indexes = productionDatabase.indexesDict[entityId]
-            # type: char, name: Indexes, foreignTable: Indexes, foreignColumn: Indexes
+            # type: int, name: idIndexes, foreignTable: Indexes, foreignColumn: idIndexes
             entity.indexes.libraryIndexesList.append(entity)
         entity.generateLibrary = paftol.database.intOrNone(row[13])
         entityDict[entity.idLibrary] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadLocationDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idLocation`, `Location` FROM `Location`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = Location()
+        entity.idLocation = paftol.database.intOrNone(row[0])
+        entity.location = paftol.database.strOrNone(row[1])
+        entityDict[entity.idLocation] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadLogDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idLog`, `TransactionDate`, `User`, `File`, `TransactionType` FROM `Log`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = Log()
+        entity.idLog = paftol.database.intOrNone(row[0])
+        entity.transactionDate = paftol.database.strOrNone(row[1])
+        entity.user = paftol.database.strOrNone(row[2])
+        entity.file = paftol.database.strOrNone(row[3])
+        entity.transactionType = paftol.database.strOrNone(row[4])
+        entityDict[entity.idLog] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadMaterialSourceDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idMaterialSource`, `MaterialSource` FROM `MaterialSource`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = MaterialSource()
+        entity.idMaterialSource = paftol.database.intOrNone(row[0])
+        entity.materialSource = paftol.database.strOrNone(row[1])
+        entityDict[entity.idMaterialSource] = entity
     cursor.close()
     return entityDict
 
@@ -790,6 +928,20 @@ def loadOrderDict(connection, productionDatabase):
         entity.idOrder = paftol.database.intOrNone(row[0])
         entity.order = paftol.database.strOrNone(row[1])
         entityDict[entity.idOrder] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadPlatformDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idPlatform`, `Platform` FROM `Platform`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = Platform()
+        entity.idPlatform = paftol.database.intOrNone(row[0])
+        entity.platform = paftol.database.strOrNone(row[1])
+        entityDict[entity.idPlatform] = entity
     cursor.close()
     return entityDict
 
@@ -906,7 +1058,7 @@ def loadQualityDict(connection, productionDatabase):
 def loadSampleDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSample`, `idSpecimen`, `Description`, `idAction`, `idExtractionType`, `idQuality`, `SampleConcentration`, `NewSampleConcentration`, `GelImage`, `SampleTapeStation`, `idDNAVolume`, `Compliant`, `MaterialSource`, `AgeOfMaterial` FROM `Sample`'
+    sqlStatement = 'SELECT `idSample`, `idSpecimen`, `Description`, `idAction`, `idExtractionType`, `idQuality`, `SampleConcentration`, `NewSampleConcentration`, `GelImage`, `SampleTapeStation`, `idDNAVolume`, `Compliant`, `idMaterialSource`, `AgeOfMaterial` FROM `Sample`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sample()
@@ -967,7 +1119,16 @@ def loadSampleDict(connection, productionDatabase):
             # type: int, name: idDNAVolume, foreignTable: DNAVolume, foreignColumn: idDNAVolume
             entity.dnaVolume.sampleDnaVolumeList.append(entity)
         entity.compliant = paftol.database.strOrNone(row[11])
-        entity.materialSource = paftol.database.strOrNone(row[12])
+        # many to one: materialSource
+        entityId = paftol.database.intOrNone(row[12])
+        if entityId is None:
+            entity.materialSource = None
+        elif entityId not in productionDatabase.materialSourceDict:
+            raise StandardError, 'no MaterialSource entity with idMaterialSource = %d' % entityId
+        else:
+            entity.materialSource = productionDatabase.materialSourceDict[entityId]
+            # type: int, name: idMaterialSource, foreignTable: MaterialSource, foreignColumn: idMaterialSource
+            entity.materialSource.sampleMaterialSourceList.append(entity)
         entity.ageOfMaterial = paftol.database.intOrNone(row[13])
         entityDict[entity.idSample] = entity
     cursor.close()
@@ -977,7 +1138,7 @@ def loadSampleDict(connection, productionDatabase):
 def loadSequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSequencing`, `idLibrary`, `Platform`, `Location`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile` FROM `Sequence`'
+    sqlStatement = 'SELECT `idSequencing`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile` FROM `Sequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sequence()
@@ -992,8 +1153,26 @@ def loadSequenceDict(connection, productionDatabase):
             entity.library = productionDatabase.libraryDict[entityId]
             # type: int, name: idLibrary, foreignTable: Library, foreignColumn: idLibrary
             entity.library.sequenceLibraryList.append(entity)
-        entity.platform = paftol.database.strOrNone(row[2])
-        entity.location = paftol.database.strOrNone(row[3])
+        # many to one: platform
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.platform = None
+        elif entityId not in productionDatabase.platformDict:
+            raise StandardError, 'no Platform entity with idPlatform = %d' % entityId
+        else:
+            entity.platform = productionDatabase.platformDict[entityId]
+            # type: int, name: idPlatform, foreignTable: Platform, foreignColumn: idPlatform
+            entity.platform.sequencePlatformList.append(entity)
+        # many to one: location
+        entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.location = None
+        elif entityId not in productionDatabase.locationDict:
+            raise StandardError, 'no Location entity with idLocation = %d' % entityId
+        else:
+            entity.location = productionDatabase.locationDict[entityId]
+            # type: int, name: idLocation, foreignTable: Location, foreignColumn: idLocation
+            entity.location.sequenceLocationList.append(entity)
         entity.sequencingRun = paftol.database.strOrNone(row[4])
         entity.numInferredCds = paftol.database.intOrNone(row[5])
         entity.medianHybpiperCdsLength = paftol.database.floatOrNone(row[6])
@@ -1061,7 +1240,7 @@ def loadSpeciesDict(connection, productionDatabase):
 def loadSpecimenDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `Description`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumID`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject` FROM `Specimen`'
+    sqlStatement = 'SELECT `idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `Description`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumID`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `OriginCountry` FROM `Specimen`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Specimen()
@@ -1117,6 +1296,7 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.project = productionDatabase.projectDict[entityId]
             # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
             entity.project.specimenProjectList.append(entity)
+        entity.originCountry = paftol.database.strOrNone(row[16])
         entityDict[entity.idSpecimen] = entity
     cursor.close()
     return entityDict
@@ -1148,7 +1328,11 @@ class ProductionDatabase(object):
         self.genusDict = {}
         self.indexesDict = {}
         self.libraryDict = {}
+        self.locationDict = {}
+        self.logDict = {}
+        self.materialSourceDict = {}
         self.orderDict = {}
+        self.platformDict = {}
         self.projectDict = {}
         self.projectLinkDict = {}
         self.projectUserDict = {}
@@ -1176,9 +1360,13 @@ class ProductionDatabase(object):
         self.projectDict = loadProjectDict(connection, self)
         self.specimenDict = loadSpecimenDict(connection, self)
         self.qualityDict = loadQualityDict(connection, self)
+        self.materialSourceDict = loadMaterialSourceDict(connection, self)
         self.sampleDict = loadSampleDict(connection, self)
         self.statusDict = loadStatusDict(connection, self)
         self.libraryDict = loadLibraryDict(connection, self)
+        self.locationDict = loadLocationDict(connection, self)
+        self.logDict = loadLogDict(connection, self)
+        self.platformDict = loadPlatformDict(connection, self)
         self.projectLinkDict = loadProjectLinkDict(connection, self)
         self.projectUserDict = loadProjectUserDict(connection, self)
         self.projectUserLinkDict = loadProjectUserLinkDict(connection, self)
@@ -1201,9 +1389,13 @@ class ProductionDatabase(object):
         s = s + 'project: %d\n' % len(self.projectDict)
         s = s + 'specimen: %d\n' % len(self.specimenDict)
         s = s + 'quality: %d\n' % len(self.qualityDict)
+        s = s + 'materialSource: %d\n' % len(self.materialSourceDict)
         s = s + 'sample: %d\n' % len(self.sampleDict)
         s = s + 'status: %d\n' % len(self.statusDict)
         s = s + 'library: %d\n' % len(self.libraryDict)
+        s = s + 'location: %d\n' % len(self.locationDict)
+        s = s + 'log: %d\n' % len(self.logDict)
+        s = s + 'platform: %d\n' % len(self.platformDict)
         s = s + 'projectLink: %d\n' % len(self.projectLinkDict)
         s = s + 'projectUser: %d\n' % len(self.projectUserDict)
         s = s + 'projectUserLink: %d\n' % len(self.projectUserLinkDict)
