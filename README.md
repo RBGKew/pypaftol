@@ -11,6 +11,8 @@ The documentation provided here is intended to help beta-testers with
 getting started. It is not complete and any feedback is welcome (and
 will be rewarded with biscuits).
 
+Please also check out the [tutorial](paftools_tutorial.md) here.
+
 
 ## Prerequisites
 
