@@ -16,7 +16,16 @@ specifies the tool to be used.
 
 Throughout paftools, the `-h` option provides help. Specifically,
 * `paftools -h` shows help about using the `paftools` command, including a list of all tools (i.e. subcommands),
-* `paftools /cmd/ -h` shows help about the tool `/cmd/`.
+* `paftools <cmd> -h` shows help about the tool `<cmd>`.
+
+Try running
+```
+paftools -h
+```
+and then use `-h` on a specific command you have found. Share one
+question you have about what you've found (e.g. by sending an email
+to the PAFTOL data analysis team, or by discussing with your neighbour
+in a training session).
 
 
 ## Recover Target Sequences from Fastq Files
