@@ -188,9 +188,10 @@ class GeneType(object):
 
 class PaftolFastqFile(object):
 
-    def __init__(self, id=None, idSequencing=None, fastqFile=None):
+    def __init__(self, id=None, idSequencing=None, legacyPathname=None, fastqFile=None):
         self.id = id
         self.idSequencing = idSequencing
+        self.legacyPathname = legacyPathname
         self.fastqFile = fastqFile
         # one-to-many
         # fk_RecoveredContig_fwdPaftolFastqId: RecoveredContig.fwdPaftolFastqId REFERENCES PaftolFastqFile(fwdPaftolFastqId)
@@ -201,10 +202,11 @@ class PaftolFastqFile(object):
     def insertIntoDatabase(self, cursor):
         if self.id is None:
             raise StandardError, 'illegal state: cannot insert PaftolFastqFile entity with id None'
-        sqlCmd = 'INSERT INTO `PaftolFastqFile` (`id`, `idSequencing`, `fastqFileId`) VALUES (%s, %s, %s)'
+        sqlCmd = 'INSERT INTO `PaftolFastqFile` (`id`, `idSequencing`, `legacyPathname`, `fastqFileId`) VALUES (%s, %s, %s, %s)'
         l = []
         l.append(self.id)
         l.append(self.idSequencing)
+        l.append(self.legacyPathname)
         l.append(None if self.fastqFile is None else self.fastqFile.id)
         cursor.execute(sqlCmd, tuple(l))
 
@@ -478,14 +480,15 @@ def loadGeneTypeDict(connection, productionDatabase):
 def loadPaftolFastqFileDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `idSequencing`, `fastqFileId` FROM `PaftolFastqFile`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `legacyPathname`, `fastqFileId` FROM `PaftolFastqFile`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = PaftolFastqFile()
         entity.id = paftol.database.intOrNone(row[0])
         entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.legacyPathname = paftol.database.strOrNone(row[2])
         # many to one: fastqFile
-        entityId = paftol.database.intOrNone(row[2])
+        entityId = paftol.database.intOrNone(row[3])
         if entityId is None:
             entity.fastqFile = None
         elif entityId not in productionDatabase.fastqFileDict:
