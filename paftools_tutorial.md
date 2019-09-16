@@ -39,13 +39,47 @@ yourself with
 
 ## Recover Target Sequences from Fastq Files
 
-The 
+The `recoverSeqs` tool is designed to recover target sequences,
+provided via a /targets file/. It provides a complex process comprised
+of the following stages:
+* **Trimming** of reads, currently only trimmomatic is supported  (`--trimmer`)
+* **Mapping** of reads, using either BWA or tblastn (`--mapper`)
+* **Assembly** of reads into contigs, using spades or the built-in overlap based assembler,
+* **Recovery** of coding sequences of the target genes.
+
 
 ## Extract Coding Sequences from Genomes
 
+* `xcds` tool
+
+
 ## Retrieve Target Sequences from Transcriptomes
 
+* `retrievetargets` tool
+
+
+## Database Related Tools
+
+* `addTargetsFile`
+* `addPaftolFastq`
+
+
 ## Housekeeping Tools
+
+* `geneFasta`
+* `selectgenes`
+* `delgeneNewick`
+
+
+## Miscellaneous Tools
+
+* `alignmentOutline`
+
+
+## Experimental Tools
+
+* `xstar`
+
 
 ## Architecture and Design
 
@@ -57,8 +91,33 @@ around recovery of target sequences. Additionally, there is support
 for phylogeny inference, which however is not as complete at this
 time.
 
-**Orthogonality** is a key principle underpinning and guiding the
-design `paftol` API and of `paftools`. This means tha
+Many of the `paftools` is designed to do one thing only, and to do
+that well. In other words, they are self contained and carry out their
+function regardless of the context. This way, while each tool serves a
+purpose that is strictly (and thus perhaps narrowly) defined, the
+tools can be combined in a very large number of combinations.
+
+As a result of this principle, it's unlikely that for any task you may
+have at hand there is already a tool that will specifically carry out
+exactly that task. However, the chances are very good that there is a
+set of tools you can combine to exactly meet your requirements.
+
+The design of the `paftol` Python module aims to follow the same
+orthogonality principle. This means that if a tool you need is not
+(yet) available, there is a good chance it can be built on the basis
+of the `paftol` module relatively straightforwardly. And also, if a
+specialised, highly integrated and complex tool is required, it can be
+purpose-built as well.
+
+As an example, the `recoverSeqs` tool is very specialised and
+integrates a complex set of stages. On the other hand, the tools
+summarised as "Housekeeping Tools" above are simple and amenable to
+being combined in a multitude of ways.
+
+Finally, **you**, the PAFTOL community, are key to shaping the
+development of `paftools`. So, if there is any task or requirement
+that you'd like to be met, or any experience you'd like to share,
+please get in touch anytime.
 
 
 ## Configuration
@@ -68,4 +127,7 @@ design `paftol` API and of `paftools`. This means tha
 
 ## Obsolete Tools
 
-Some 
+`hybpiperBwa`
+`hybpiperTblastn`
+`overlapRecover`
+`hybseqstats`
