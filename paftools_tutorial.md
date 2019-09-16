@@ -28,7 +28,18 @@ to the PAFTOL data analysis team, or by discussing with your neighbour
 in a training session).
 
 
+## Practical Preparation
+
+Please install [Docker](https://www.docker.com), and familiarise
+yourself with
+* running a container using the `docker run -t -i` command,
+* downloading a container image using the `docker pull` command,
+* bind-mounting a directory on your host system using the `--mount type=bind,src=...,dst=...` option to the `docker run` command.
+
+
 ## Recover Target Sequences from Fastq Files
+
+The 
 
 ## Extract Coding Sequences from Genomes
 
@@ -36,4 +47,25 @@ in a training session).
 
 ## Housekeeping Tools
 
+## Architecture and Design
+
+`paftools` is essentially a command line interface (CLI) to the Python
+module `paftol`. This module provides an Application Programming
+Interface (API) of classes designed to formally model concepts
+relevant to PAFTOL data analysis. Currently, these are mainly centred
+around recovery of target sequences. Additionally, there is support
+for phylogeny inference, which however is not as complete at this
+time.
+
+**Orthogonality** is a key principle underpinning and guiding the
+design `paftol` API and of `paftools`. This means tha
+
+
+## Configuration
+
+### The `~/.paftol` directory
+
+
 ## Obsolete Tools
+
+Some 
