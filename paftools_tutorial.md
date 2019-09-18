@@ -29,14 +29,26 @@ general) include:
 * Standard input and standard output can be **redirected**, using the `<` and `>` operators.
 * The standard output of one process can be connected to the standard input of another process with a **pipe**.
 
+Using `paftools` and participating in this tutorial does not require
+full knowledge of all these shell features and concepts. It is,
+however, useful to be aware of these concepts, and to notice that the
+terms shown **in boldface** in the bullet list above have rigorous
+technical definitions. They are likely to come up in this tutorial or
+training sessions.
+
 
 ### Docker
 
 Please install [Docker](https://www.docker.com), and familiarise
 yourself with
-* running a container using the `docker run -t -i` command,
+* running a container interactively using the `docker run -t -i` command,
 * downloading a container image using the `docker pull` command,
 * bind-mounting a directory on your host system using the `--mount type=bind,src=...,dst=...` option to the `docker run` command.
+
+On this basis, run an interactive session of the image
+`jttkim/paftol-demo:latest`. If you have data you want to try
+processing with `paftools`, put them into a directory on your host
+system and bind-mount that directory.
 
 
 ## Introduction
@@ -55,7 +67,7 @@ Throughout paftools, the `-h` option provides help. Specifically,
 * `paftools -h` shows help about using the `paftools` command, including a list of all tools (i.e. subcommands),
 * `paftools <cmd> -h` shows help about the tool `<cmd>`.
 
-Try running
+Try running (e.g. in a docker container running the `paftol-demo` image)
 ```
 paftools -h
 ```
