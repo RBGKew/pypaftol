@@ -24,7 +24,11 @@ general) include:
   * Special characters can be parts of words if they are appropriately **quoted** or **escaped**.
 * The shell **expands** file name **globbing** expressions to lists of all files matching the expression. E.g. the globbing expression `*.txt` is expanded to all files ending with `.txt`.
 * Running a command usually starts a **process**. There can be multiple processes executing the same command (i.e. program).
-* Multiple processes can be managed in one shell.
+* Multiple processes can be managed in one shell, using the **job control** commands:
+  * Ctrl-Z stops the foreground process and brings up a shell prompt.
+  * `fg %3` makes job number 3 run in the foreground.
+  * `bg %4` makes job number 4 run in the background
+  Running a command starts a job that initially runs in the foreground, but appending `&` to a command results in the command starting to run in the background.
 * Each process has a **standard input**, a **standard output** and a **standard error** (also an output).
 * Standard input and standard output can be **redirected**, using the `<` and `>` operators.
 * The standard output of one process can be connected to the standard input of another process with a **pipe**.
@@ -34,7 +38,10 @@ full knowledge of all these shell features and concepts. It is,
 however, useful to be aware of these concepts, and to notice that the
 terms shown **in boldface** in the bullet list above have rigorous
 technical definitions. They are likely to come up in this tutorial or
-training sessions.
+training sessions. Questions on these concepts are welcome ahead of
+the tutorial as well as during the tutorial. The [Software Carpentry
+Shell Lesson](http://swcarpentry.github.io/shell-novice/) is a useful
+resource to get started with the shell, or to refresh your knowledge.
 
 
 ### Docker
@@ -86,6 +93,35 @@ of the following stages:
 * **Mapping** of reads, using either BWA or tblastn (`--mapper`)
 * **Assembly** of reads into contigs, using spades or the built-in overlap based assembler,
 * **Recovery** of coding sequences of the target genes.
+
+
+### Run Basic Recovery
+
+Start a Docker container running the `jttkim/paftol-demo:latest` image
+and navigate to the data/hybpiper directory after logging into the
+`paftol` account (using the `su -` command).
+
+Compose a command line to recover sequences based on this method specification:
+* no trimming is necessary
+* use `tblastn` for mapping
+* use the serial overlap assembly method with these parameters:
+  * reference alignment: minimum 70% sequence identity within a window of 30 bases
+  * overlaps: minimum 90% sequence identity within an overlap window of 20 bases
+
+This will be a lengthy command line, due to the complexity / high
+level of integration of the recovery process. Decide on a pair of
+fastq files to work with, and then build your command line one option
+at a time.
+
+Once you have a command that successfully generates a fasta file of
+recovered sequences, extend this to additionally output
+* a comma separated values (csv) file containing statistics of the recovery process,
+* a `tar.gz` archive of the temporary directory used during the recovery process.
+
+Furthermore, consider the effects of the sequence identity thresholds
+and window sizes. How do you expect them to affect the recovery
+results? Develop one or more formal and specific predictions, then run
+recovery with altered parameters to test these.
 
 
 ## Extract Coding Sequences from Genomes
