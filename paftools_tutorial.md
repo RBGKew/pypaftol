@@ -13,15 +13,15 @@ some familiarity with the shell. Shell concepts that are useful for
 working with `paftools` (and for HPC based scientific computing in
 general) include:
 * Basic processing of command lines by the shell: A **command line** is broken up into **words** at whitespace characters.
-** The first word is the **command**.
-** Subsequent words are **arguments** to the command.
-** Arguments starting with a minus (aka dash) are typically **options**.
-** Arguments that are not options are called **parameters**.
-** Parameters can be associated with an option, if they are not, they are **positional parameters**.
+  * The first word is the **command**.
+  * Subsequent words are **arguments** to the command.
+  * Arguments starting with a minus (aka dash) are typically **options**.
+  * Arguments that are not options are called **parameters**.
+  * Parameters can be associated with an option, if they are not, they are **positional parameters**.
 * There are characters that are special to the shell.
-** Special characters include `*`, `?`, `[`, `]`, `"`, `'`, `\`, `&`, `<`, `>` and several more. Whitespace characters are also special (see above).
-** The letters, digits, and the characters `/`, `-`, `_` are not special.
-** Special characters can be parts of words if they are appropriately **quoted** or **escaped**.
+  * Special characters include `*`, `?`, `[`, `]`, `"`, `'`, `\`, `&`, `<`, `>` and several more. Whitespace characters are also special (see above).
+  * The letters, digits, and the characters `/`, `-`, `_` are not special.
+  * Special characters can be parts of words if they are appropriately **quoted** or **escaped**.
 * The shell **expands** file name **globbing** expressions to lists of all files matching the expression. E.g. the globbing expression `*.txt` is expanded to all files ending with `.txt`.
 * Running a command usually starts a **process**. There can be multiple processes executing the same command (i.e. program).
 * Multiple processes can be managed in one shell.
