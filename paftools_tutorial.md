@@ -2,6 +2,43 @@
 
 **This tutorial is in initial stages of construction**
 
+
+## Practical Preparation
+
+### Shell
+
+`paftools` uses a command line interface (CLI) and it is therefore
+used from a shell (i.e. "the command line"). This tutorial assumes
+some familiarity with the shell. Shell concepts that are useful for
+working with `paftools` (and for HPC based scientific computing in
+general) include:
+* Basic processing of command lines by the shell: A **command line** is broken up into **words** at whitespace characters.
+** The first word is the **command**.
+** Subsequent words are **arguments** to the command.
+** Arguments starting with a minus (aka dash) are typically **options**.
+** Arguments that are not options are called **parameters**.
+** Parameters can be associated with an option, if they are not, they are **positional parameters**.
+* There are characters that are special to the shell.
+** Special characters include `*`, `?`, `[`, `]`, `"`, `'`, `\`, `&`, `<`, `>` and several more. Whitespace characters are also special (see above).
+** The letters, digits, and the characters `/`, `-`, `_` are not special.
+** Special characters can be parts of words if they are appropriately **quoted** or **escaped**.
+* The shell **expands** file name **globbing** expressions to lists of all files matching the expression. E.g. the globbing expression `*.txt` is expanded to all files ending with `.txt`.
+* Running a command usually starts a **process**. There can be multiple processes executing the same command (i.e. program).
+* Multiple processes can be managed in one shell.
+* Each process has a **standard input**, a **standard output** and a **standard error** (also an output).
+* Standard input and standard output can be **redirected**, using the `<` and `>` operators.
+* The standard output of one process can be connected to the standard input of another process with a **pipe**.
+
+
+### Docker
+
+Please install [Docker](https://www.docker.com), and familiarise
+yourself with
+* running a container using the `docker run -t -i` command,
+* downloading a container image using the `docker pull` command,
+* bind-mounting a directory on your host system using the `--mount type=bind,src=...,dst=...` option to the `docker run` command.
+
+
 ## Introduction
 
 `paftools` is a command line application providing tools for
@@ -26,15 +63,6 @@ and then use `-h` on a specific command you have found. Share one
 question you have about what you've found (e.g. by sending an email
 to the PAFTOL data analysis team, or by discussing with your neighbour
 in a training session).
-
-
-## Practical Preparation
-
-Please install [Docker](https://www.docker.com), and familiarise
-yourself with
-* running a container using the `docker run -t -i` command,
-* downloading a container image using the `docker pull` command,
-* bind-mounting a directory on your host system using the `--mount type=bind,src=...,dst=...` option to the `docker run` command.
 
 
 ## Recover Target Sequences from Fastq Files
@@ -95,17 +123,25 @@ Many of the `paftools` is designed to do one thing only, and to do
 that well. In other words, they are self contained and carry out their
 function regardless of the context. This way, while each tool serves a
 purpose that is strictly (and thus perhaps narrowly) defined, the
-tools can be combined in a very large number of combinations.
+tools can be combined in a very large number of combinations. Thus,
+the design of `paftools` is **orthogonal**. Orthogonality is an
+important general design principle that also underpins the design e.g.
+of Unix shells, see e.g. the [part
+2](http://swcarpentry.github.io/shell-novice/02-filedir/index.html)
+and [part
+3](http://swcarpentry.github.io/shell-novice/03-create/index.html) of
+[Software Carpentry](https://software-carpentry.org/)'s [shell
+lesson](http://swcarpentry.github.io/shell-novice/).
 
 As a result of this principle, it's unlikely that for any task you may
 have at hand there is already a tool that will specifically carry out
 exactly that task. However, the chances are very good that there is a
 set of tools you can combine to exactly meet your requirements.
 
-The design of the `paftol` Python module aims to follow the same
-orthogonality principle. This means that if a tool you need is not
-(yet) available, there is a good chance it can be built on the basis
-of the `paftol` module relatively straightforwardly. And also, if a
+The design of the `paftol` Python module aims to follow the
+orthogonality as well. This means that if a tool you need is not (yet)
+available, there is a good chance it can be built on the basis of the
+`paftol` module relatively straightforwardly. And also, if a
 specialised, highly integrated and complex tool is required, it can be
 purpose-built as well.
 
