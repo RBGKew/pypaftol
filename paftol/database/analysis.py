@@ -46,14 +46,59 @@ class ContigRecovery(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class DataOrigin(object):
+
+    def __init__(self, id=None, dataOriginName=None, acronym=None):
+        self.id = id
+        self.dataOriginName = dataOriginName
+        self.acronym = acronym
+        # one-to-many
+        # fk_ExternalFastqIdentifier_dataOriginId: ExternalAccession.dataOriginId REFERENCES DataOrigin(dataOriginId)
+        self.externalAccessionDataOriginList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert DataOrigin entity with id None'
+        sqlCmd = 'INSERT INTO `DataOrigin` (`id`, `dataOriginName`, `acronym`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(self.dataOriginName)
+        l.append(self.acronym)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class ExternalAccession(object):
+
+    def __init__(self, id=None, dataOrigin=None, externalOriginAccession=None):
+        self.id = id
+        self.dataOrigin = dataOrigin
+        self.externalOriginAccession = externalOriginAccession
+        # one-to-many
+        # fk_FastqFile_externalAccessionId: FastaFile.externalAccessionId REFERENCES ExternalAccession(externalAccessionId)
+        self.fastaFileExternalAccessionList = []
+        # fk1_FastqFile_externalAccessionId: FastqFile.externalAccessionId REFERENCES ExternalAccession(externalAccessionId)
+        self.fastqFileExternalAccessionList = []
+
+    def insertIntoDatabase(self, cursor):
+        if self.id is None:
+            raise StandardError, 'illegal state: cannot insert ExternalAccession entity with id None'
+        sqlCmd = 'INSERT INTO `ExternalAccession` (`id`, `dataOriginId`, `externalOriginAccession`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.id)
+        l.append(None if self.dataOrigin is None else self.dataOrigin.id)
+        l.append(self.externalOriginAccession)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class FastaFile(object):
 
-    def __init__(self, id=None, filename=None, md5sum=None, description=None, numSequences=None):
+    def __init__(self, id=None, filename=None, md5sum=None, description=None, numSequences=None, externalAccession=None):
         self.id = id
         self.filename = filename
         self.md5sum = md5sum
         self.description = description
         self.numSequences = numSequences
+        self.externalAccession = externalAccession
         # one-to-many
         # fk_ContigRecovery_contigFastaFileId: ContigRecovery.contigFastaFileId REFERENCES FastaFile(contigFastaFileId)
         self.contigRecoveryContigFastaFileList = []
@@ -65,23 +110,24 @@ class FastaFile(object):
     def insertIntoDatabase(self, cursor):
         if self.id is None:
             raise StandardError, 'illegal state: cannot insert FastaFile entity with id None'
-        sqlCmd = 'INSERT INTO `FastaFile` (`id`, `filename`, `md5sum`, `description`, `numSequences`) VALUES (%s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `FastaFile` (`id`, `filename`, `md5sum`, `description`, `numSequences`, `externalAccessionId`) VALUES (%s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.id)
         l.append(self.filename)
         l.append(self.md5sum)
         l.append(self.description)
         l.append(self.numSequences)
+        l.append(None if self.externalAccession is None else self.externalAccession.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
 class FastqFile(object):
 
-    def __init__(self, id=None, filename=None, md5sum=None, enaAccession=None, description=None, fastqStats=None):
+    def __init__(self, id=None, filename=None, md5sum=None, externalAccession=None, description=None, fastqStats=None):
         self.id = id
         self.filename = filename
         self.md5sum = md5sum
-        self.enaAccession = enaAccession
+        self.externalAccession = externalAccession
         self.description = description
         self.fastqStats = fastqStats
         # one-to-many
@@ -107,12 +153,12 @@ class FastqFile(object):
     def insertIntoDatabase(self, cursor):
         if self.id is None:
             raise StandardError, 'illegal state: cannot insert FastqFile entity with id None'
-        sqlCmd = 'INSERT INTO `FastqFile` (`id`, `filename`, `md5sum`, `enaAccession`, `description`, `fastqStatsId`) VALUES (%s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `FastqFile` (`id`, `filename`, `md5sum`, `externalAccessionId`, `description`, `fastqStatsId`) VALUES (%s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.id)
         l.append(self.filename)
         l.append(self.md5sum)
-        l.append(self.enaAccession)
+        l.append(None if self.externalAccession is None else self.externalAccession.id)
         l.append(self.description)
         l.append(None if self.fastqStats is None else self.fastqStats.id)
         cursor.execute(sqlCmd, tuple(l))
@@ -392,10 +438,49 @@ def loadContigRecoveryDict(connection, productionDatabase):
     return entityDict
 
 
+def loadDataOriginDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `dataOriginName`, `acronym` FROM `DataOrigin`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = DataOrigin()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.dataOriginName = paftol.database.strOrNone(row[1])
+        entity.acronym = paftol.database.strOrNone(row[2])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadExternalAccessionDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `dataOriginId`, `externalOriginAccession` FROM `ExternalAccession`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = ExternalAccession()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: dataOrigin
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.dataOrigin = None
+        elif entityId not in productionDatabase.dataOriginDict:
+            raise StandardError, 'no DataOrigin entity with id = %d' % entityId
+        else:
+            entity.dataOrigin = productionDatabase.dataOriginDict[entityId]
+            # type: int, name: dataOriginId, foreignTable: DataOrigin, foreignColumn: id
+            entity.dataOrigin.externalAccessionDataOriginList.append(entity)
+        entity.externalOriginAccession = paftol.database.strOrNone(row[2])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadFastaFileDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `description`, `numSequences` FROM `FastaFile`'
+    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `description`, `numSequences`, `externalAccessionId` FROM `FastaFile`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastaFile()
@@ -404,6 +489,16 @@ def loadFastaFileDict(connection, productionDatabase):
         entity.md5sum = paftol.database.strOrNone(row[2])
         entity.description = paftol.database.strOrNone(row[3])
         entity.numSequences = paftol.database.intOrNone(row[4])
+        # many to one: externalAccession
+        entityId = paftol.database.intOrNone(row[5])
+        if entityId is None:
+            entity.externalAccession = None
+        elif entityId not in productionDatabase.externalAccessionDict:
+            raise StandardError, 'no ExternalAccession entity with id = %d' % entityId
+        else:
+            entity.externalAccession = productionDatabase.externalAccessionDict[entityId]
+            # type: int, name: externalAccessionId, foreignTable: ExternalAccession, foreignColumn: id
+            entity.externalAccession.fastaFileExternalAccessionList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -412,14 +507,23 @@ def loadFastaFileDict(connection, productionDatabase):
 def loadFastqFileDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `enaAccession`, `description`, `fastqStatsId` FROM `FastqFile`'
+    sqlStatement = 'SELECT `id`, `filename`, `md5sum`, `externalAccessionId`, `description`, `fastqStatsId` FROM `FastqFile`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastqFile()
         entity.id = paftol.database.intOrNone(row[0])
         entity.filename = paftol.database.strOrNone(row[1])
         entity.md5sum = paftol.database.strOrNone(row[2])
-        entity.enaAccession = paftol.database.strOrNone(row[3])
+        # many to one: externalAccession
+        entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.externalAccession = None
+        elif entityId not in productionDatabase.externalAccessionDict:
+            raise StandardError, 'no ExternalAccession entity with id = %d' % entityId
+        else:
+            entity.externalAccession = productionDatabase.externalAccessionDict[entityId]
+            # type: int, name: externalAccessionId, foreignTable: ExternalAccession, foreignColumn: id
+            entity.externalAccession.fastqFileExternalAccessionList.append(entity)
         entity.description = paftol.database.strOrNone(row[4])
         # many to one: fastqStats
         entityId = paftol.database.intOrNone(row[5])
@@ -703,6 +807,8 @@ class AnalysisDatabase(object):
 
     def __init__(self, connection):
         self.contigRecoveryDict = {}
+        self.dataOriginDict = {}
+        self.externalAccessionDict = {}
         self.fastaFileDict = {}
         self.fastqFileDict = {}
         self.fastqStatsDict = {}
@@ -712,6 +818,8 @@ class AnalysisDatabase(object):
         self.recoveredContigDict = {}
         self.referenceTargetDict = {}
         self.trimmingDict = {}
+        self.dataOriginDict = loadDataOriginDict(connection, self)
+        self.externalAccessionDict = loadExternalAccessionDict(connection, self)
         self.fastqStatsDict = loadFastqStatsDict(connection, self)
         self.fastqFileDict = loadFastqFileDict(connection, self)
         self.fastaFileDict = loadFastaFileDict(connection, self)
@@ -725,6 +833,8 @@ class AnalysisDatabase(object):
 
     def __str__(self):
         s = ''
+        s = s + 'dataOrigin: %d\n' % len(self.dataOriginDict)
+        s = s + 'externalAccession: %d\n' % len(self.externalAccessionDict)
         s = s + 'fastqStats: %d\n' % len(self.fastqStatsDict)
         s = s + 'fastqFile: %d\n' % len(self.fastqFileDict)
         s = s + 'fastaFile: %d\n' % len(self.fastaFileDict)
