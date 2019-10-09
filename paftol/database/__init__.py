@@ -242,7 +242,8 @@ def canonicalSymlinkName(sequence, orientation, gzipped):
 
 
 def parseCanonicalSymlink(symlinkName):
-    symlinkRe = re.compile('PAFTOL_([0-9]+)_R([12])\\.fastq')
+    print 'symlinkName: ', symlinkName
+    symlinkRe = re.compile('PAFTOL_([0-9]+)_R([12]).fastq')
     m = symlinkRe.match(symlinkName)
     if m is not None:
         return int(m.group(1)), int(m.group(2))
@@ -404,15 +405,21 @@ def addPaftolFastqFiles(fastqFnameList):
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
     newPaftolFastqFileList = []
     for fastqFname in fastqFnameList:
+        print 'fastqFname: ', fastqFname
         idSequencing, orientation = parseCanonicalSymlink(fastqFname)
+        print 'idSequencing: ', idSequencing , 'orientation: ', orientation
         if idSequencing is not None:
             md5sum = paftol.tools.md5HexdigestFromFile(fastqFname)
             fastqFile = findFastqFile(analysisDatabase, fastqFname)
             if fastqFile is None:
                 fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
                 newFastqStats = fastqStatsFromFastqcStats(fastqcStats)
+                ### 1.10.2019 - I think script got up to here
                 newFastqFile = paftol.database.analysis.FastqFile(None, filename=fastqFname, md5sum=md5sum, fastqStats=newFastqStats)
-                newPaftolFastqFile = paftol.database.analysis.PaftolFastqFile(None, idSequencing, newFastqFile)
+                
+                ### Paul B. corrected from: newPaftolFastqFile = paftol.database.analysis.PaftolFastqFile(None, idSequencing, newFastqFile)
+                newPaftolFastqFile = paftol.database.analysis.PaftolFastqFile(None, idSequencing=idSequencing, fastqFile=newFastqFile)
+                ###print 'Filename in newPaftolFastqFile: ', newPaftolFastqFile.newFastqFile.filename  - NB - why does this not work?
                 newPaftolFastqFileList.append(newPaftolFastqFile)
             else:
                 if fastqFile.md5sum == md5sum:
