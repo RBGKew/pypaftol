@@ -79,6 +79,39 @@ At the time of writing this `README`, this installation process works
 on the cluster. Sharing any feedback is very welcome, of course.
 
 
+## Tools Using the PAFTOL Databases
+
+There are two PAFTOL databases:
+
+* The **production** database is used to keep track of the data
+  production process, from sourcing specimens to the generation of
+  `fastq` files. It is developed and operated by the PAFTOL Data
+  Production Team, in collaboration with IT's Science Application
+  Development Team.
+
+* The **analysis** database is designed to record data analysis,
+  currently focusing on recording recovery of target coding sequences.
+  Additional uses also include recording of external accession
+  numbers, e.g. from the ENA / SRA, both upon submitting PAFTOL data
+  to external archives and in the context of adding data (including
+  NGS data, assembled transcriptomes, and others), to PAFTOL's
+  phylogeny computations.
+
+There are `paftools` subcommands to interact with these databases
+programmatically, which requires database access details. All
+`paftool` tools expect these details in the `~/.paftol` directory. The
+details for accessing the production database and the analysis
+database are expected in the files `productiondb.cfg` and
+`analysisdb.cfg`, respectively. These files must have the following
+structure: ``` username: <username> password: <password> host:
+<hostname> dbname: <databasename> ``` The elements in angled braces
+must be replaced with the actual details which can be obtained from
+the Data Production and Data Analysis Teams, respectively.
+
+**N.B.:** As these files contain database passwords they should
+/never/ be attached to emails or included in git repositories.
+
+
 ## Docker Image
 
 The `paftol-base` Docker image has pypaftol and prerequisites
@@ -86,8 +119,8 @@ installed, with `paftools` ready to be used. If you have Docker
 installed on your computer, you should be able to pull this image and
 then use it to run a container using the commands:
 ```
-docker pull jttkim/paftol-base
-docker run -t -i jttkim/paftol-base
+docker pull jttkim/paftol-base:latest
+docker run -t -i jttkim/paftol-base:latest
 ```
 
 This image is primarily for use by the PAFTOL Data Analysis team.
