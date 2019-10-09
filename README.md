@@ -103,10 +103,17 @@ programmatically, which requires database access details. All
 details for accessing the production database and the analysis
 database are expected in the files `productiondb.cfg` and
 `analysisdb.cfg`, respectively. These files must have the following
-structure: ``` username: <username> password: <password> host:
-<hostname> dbname: <databasename> ``` The elements in angled braces
-must be replaced with the actual details which can be obtained from
-the Data Production and Data Analysis Teams, respectively.
+structure:
+
+``` username: <username>
+password: <password>
+host: <hostname>
+dbname: <databasename>
+```
+
+The elements in angled braces must be replaced with the actual details
+which can be obtained from the Data Production and Data Analysis
+Teams, respectively.
 
 **N.B.:** As these files contain database passwords they should
 /never/ be attached to emails or included in git repositories.
