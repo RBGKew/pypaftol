@@ -297,7 +297,7 @@ def insertGene(connection, geneName, geneTypeId):
         lockCursor.close()
     return paftolGeneId
 
-    
+
 def insertFastaFile(connection, fastaFname, dirname=None):
     fastaPath = fastaFname
     if dirname is not None:
@@ -306,6 +306,22 @@ def insertFastaFile(connection, fastaFname, dirname=None):
     numSequences = len(paftol.tools.fastaSeqRecordList(fastaPath))
     lockCursor = connection.cursor()
     lockCursor.execute('LOCK TABLE FastaFile WRITE')
+    try:
+        cursor = connection.cursor(prepared=True)
+        try:
+            fastaFileId = generateUnusedPrimaryKey(cursor, 'FastaFile')
+            cursor.execute('INSERT INTO FastaFile (id, filename, md5sum, numSequences) VALUES (%s, %s, %s, %s)', (fastaFileId, fastaFname, md5, numSequences, ))
+        finally:
+            cursor.close()
+    finally:
+        lockCursor.execute('UNLOCK TABLES')
+        lockCursor.close()
+    return fastaFileId
+
+
+def insertFastaExternalAccession(connection, fastaFilename, dataOriginAcronym, accession):
+    lockCursor = connection.cursor()
+    lockCursor.execute('LOCK TABLE ExternalAccesion WRITE')
     try:
         cursor = connection.cursor(prepared=True)
         try:

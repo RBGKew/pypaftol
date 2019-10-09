@@ -493,6 +493,15 @@ def runDelgeneNewick(argNamespace):
     Bio.Phylo.NewickIO.write(treeList, argNamespace.outfile)
 
 
+def runAddExternalAccession(argNamespace):
+    if argNamespace.filetype == 'fasta':
+        paftol.database.insertFastaExternalAccession(argNamespace.filename, argNamespace.dataOriginAcronym, argNamespace.accession)
+    elif argNamespace.fastq is not None:
+        paftol.database.insertFastaExternalAccession(argNamespace.filename, argNamespace.dataOriginAcronym, argNamespace.accession)
+    else:
+        raise StandardError, 'unknown file type "%s"' % str(argNamespace.filetype)
+
+
 def addDevParser(subparsers):
     p = subparsers.add_parser('dev', help='for testing argparse')
     p.add_argument('-s', '--str', help='set a parameter')
@@ -672,6 +681,15 @@ def addDelgeneNewickParser(subparsers):
     p.set_defaults(func=runDelgeneNewick)
 
     
+def addAddExternalAccessionParser(subparsers):
+    p = subparsers.add_parser('addExternalAccession', help='add an external accession for a fasta or fastq file')
+    p.add_argument('filetype', help='specify file type', choices=['fasta', 'fastq'])
+    p.add_argument('filename', help='specify file name')
+    p.add_argument('dataOriginAcronym', help='acronym of data origin')
+    p.add_argument('accession', help='accession')
+    p.set_defaults(func=runAddExternalAccession)
+
+    
 def showArgs(args):
     sys.stderr.write('%s\n' % str(args))
 
@@ -704,6 +722,7 @@ def paftoolsMain():
     addAlignmentOutlineParser(subparsers)
     addGeneFastaParser(subparsers)
     addDelgeneNewickParser(subparsers)
+    addAddExternalAccessionParser(subparsers)
     args = p.parse_args()
     args.rawCmdLine = ' '.join(['%s' % arg for arg in sys.argv])
     if args.loglevel is not None:
