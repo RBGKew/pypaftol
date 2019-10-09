@@ -5,6 +5,7 @@ import os
 import os.path
 import logging
 import unicodedata
+import datetime
 
 import mysql.connector
 
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 def strOrNone(x):
     if x is None:
         return None
+    # FIXME: coercing datetime to strings, ORM generator should really handle these separately
+    elif isinstance(x, datetime.datetime):
+        return str(x)
     else:
         return unicodedata.normalize('NFKD', x).encode('ascii', 'ignore').strip()
 
