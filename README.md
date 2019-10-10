@@ -105,7 +105,8 @@ database are expected in the files `productiondb.cfg` and
 `analysisdb.cfg`, respectively. These files must have the following
 structure:
 
-``` username: <username>
+```
+username: <username>
 password: <password>
 host: <hostname>
 dbname: <databasename>

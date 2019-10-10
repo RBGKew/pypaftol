@@ -24,13 +24,16 @@ general) include:
   * Special characters can be parts of words if they are appropriately **quoted** or **escaped**.
 * The shell **expands** file name **globbing** expressions to lists of all files matching the expression. E.g. the globbing expression `*.txt` is expanded to all files ending with `.txt`.
 * Running a command usually starts a **process**. There can be multiple processes executing the same command (i.e. program).
+* The command running in the foreground can be terminated by pressing Ctrl-C.
 * Multiple processes can be managed in one shell, using the **job control** commands:
   * Ctrl-Z stops the foreground process and brings up a shell prompt.
   * `fg %3` makes job number 3 run in the foreground.
   * `bg %4` makes job number 4 run in the background
   Running a command starts a job that initially runs in the foreground, but appending `&` to a command results in the command starting to run in the background.
 * Each process has a **standard input**, a **standard output** and a **standard error** (also an output).
-* Standard input and standard output can be **redirected**, using the `<` and `>` operators.
+  * Standard input and standard output can be **redirected**, using the `<` and `>` operators.
+  * The standard input is read from the keyboard (unless redirection is used). Pressing Ctrl-D at the start of a line indicates the **end of file** (i.e. end of input) from the keyboard.
+  * The standard output and the standard error appear on the terminal (unless redirection is used).
 * The standard output of one process can be connected to the standard input of another process with a **pipe**.
 
 Using `paftools` and participating in this tutorial does not require
@@ -157,6 +160,27 @@ recovery with altered parameters to test these.
 * `xstar`
 
 
+# Additional Notes
+
+## Outline of the `recoverySeqs` process
+
+The process is comprised of four major stages:
+
+* **Trimming**, which is optional and is requested by the `--trimmer`
+  option. The only trimmer currently supported is `trimmomatic`.
+* **Read mapping**, which associates ("maps") reads to target genes.
+  Mapping is based on sequence similarity and uses an external aligner
+  to find similar sequences. Currently, `tblastn` and `bwa` are supported.
+* **Assembly** of reads into contigs. Currently, support for `spades`
+  and a built-in overlap based assembler are provided.
+* **Coding sequence recovery**. This final stage attempts to select a
+  subset of contigs that minimises redundancy (i.e. contigs pertaining
+  to the same part of a target gene), and pieces a coding sequence together
+  from these. This stage heavily relies on the external `exonerate` program.
+
+
+## Outline of the `overlapSerial` assembly process
+
 ## Architecture and Design
 
 `paftools` is essentially a command line interface (CLI) to the Python
@@ -204,14 +228,28 @@ that you'd like to be met, or any experience you'd like to share,
 please get in touch anytime.
 
 
-## Configuration
+## Future Directions
 
-### The `~/.paftol` directory
+* The stage of CDS recovery from contigs should be separated further
+  from the computing of contigs, and options to tailor the process to
+  recover "splash zones" should be developed.
+* Additional overlap based assembly methods / variants:
+  * use reads that don't map to reference to extend contigs
+  * full all-vs-all overlap, entirely independent of reference CDS
+  * build contigs with high tolerance for divergence, and identify
+    alleles / paralogs using read alignments underlying contigs
 
 
 ## Obsolete Tools
 
-`hybpiperBwa`
-`hybpiperTblastn`
-`overlapRecover`
-`hybseqstats`
+As the `paftools` have evolved over the years, some of the tools have
+become obsolete. These include:
+
+* `hybpiperBwa`, `hybpiperTblastn`, `overlapRecover`: These have been
+  replaced by the more comprehensive and flexible `recoverSeqs` tool.
+  Essentially,
+  * `hybpiperBwa` is equivalent to `recoverSeqs` --mapper bwa --assembler spades
+  * `hybpiperTblastn` is equivalent to `recoverSeqs` --mapper tblastn --assembler spades
+  * `overlapRecover` is equivalent to `recoverSeqs` --mapper tblastn --assembler overlapSerial
+
+* `hybseqstats`
