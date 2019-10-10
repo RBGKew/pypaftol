@@ -38,6 +38,7 @@ full functionality of the module and the `paftools` script:
 * embassy-phylip
 * spades
 * fastqc (currently exactly version 0.11.5 is required)
+* trimmomatic
 
 Additional prerequisites for PAFTOL internal use include:
 
