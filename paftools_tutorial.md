@@ -179,7 +179,28 @@ The process is comprised of four major stages:
   from these. This stage heavily relies on the external `exonerate` program.
 
 
-## Outline of the `overlapSerial` assembly process
+## Outline of the `overlapSerial` Assembly Process
+
+This process is comprised of the following stages:
+
+* The target to which the largest number of reads were mapped is
+  selected as the **reference target sequence**.
+
+* Reads are **ordered** by aligning them to the reference sequence.
+  Reads are pairwisely aligned to the reference sequence, and if there
+  is a window in the alignment in which relative sequence identity
+  meets a given threshold, the alignment start position is used as
+  the ordering criterion. This is parameterised by the
+  `--windowSizeReference` and `--relIdentityThresholdReference`
+  options.
+
+* Consecutive reads within this order are aligned, and if there is a
+  window in this alignment in which relative identity meets a given
+  threshold, the aligned reads are added to the same contig. This is
+  parameterised by the `--windowSizeReadOverlap` and
+  `--relIdentityThresholdReadOverlap` parameters.
+
+
 
 ## Architecture and Design
 
