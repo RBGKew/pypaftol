@@ -135,7 +135,12 @@ is available, and which is searchable by BLAST tools, specifically
 `blastn`. Therefore, GenBank and FASTA formatted files of the same
 sequence are needed; the GenBank file provides the annotation and the
 FASTA file provides the BLAST search functionality. For this reason,
-the FASTA file needs to be indexed using `makeblastdb`.
+the FASTA file needs to be indexed using `makeblastdb`. These two
+files are specified using the `--refGenbank` and `--refFasta` options,
+respectively.
+
+In addition to these two sequence files, a name for the reference
+genome, specified using the `--genomeName` option, is also required.
 
 
 ### Extract Coding Sequences from Genomes
