@@ -194,11 +194,12 @@ This process is comprised of the following stages:
   `--windowSizeReference` and `--relIdentityThresholdReference`
   options.
 
-* Consecutive reads within this order are aligned, and if there is a
-  window in this alignment in which relative identity meets a given
-  threshold, the aligned reads are added to the same contig. This is
-  parameterised by the `--windowSizeReadOverlap` and
-  `--relIdentityThresholdReadOverlap` parameters.
+* Consecutive reads within this order are aligned to find **read
+  overlaps**. If there is a window in this alignment in which
+  relative identity meets a given threshold, the aligned reads are
+  added to the same contig. This is parameterised by the
+  `--windowSizeReadOverlap` and `--relIdentityThresholdReadOverlap`
+  parameters.
 
 
 
