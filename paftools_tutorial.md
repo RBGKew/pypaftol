@@ -127,12 +127,23 @@ results? Develop one or more formal and specific predictions, then run
 recovery with altered parameters to test these.
 
 
-## Extract Coding Sequences from Genomes
+## Extracting Target Genes from Genomes and from Transcriptomes
+
+The tools for processing genomes and transcriptomes internally use a
+concept of a reference genome. This is a genome for which annotation
+is available, and which is searchable by BLAST tools, specifically
+`blastn`. Therefore, GenBank and FASTA formatted files of the same
+sequence are needed; the GenBank file provides the annotation and the
+FASTA file provides the BLAST search functionality. For this reason,
+the FASTA file needs to be indexed using `makeblastdb`.
+
+
+### Extract Coding Sequences from Genomes
 
 * `xcds` tool
 
 
-## Retrieve Target Sequences from Transcriptomes
+### Retrieve Target Sequences from Transcriptomes
 
 * `retrievetargets` tool
 
