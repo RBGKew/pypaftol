@@ -147,7 +147,8 @@ class ExistingFastqFile(object):
 
     # FIXME: regular expressions used to search along entire path, spurious matches not impossible
     spNumberRe = re.compile('SP([0-9][0-9][0-9][0-9])((-|_+)[A-Z][A-Za-z0-9_ ()-[\\]]+)?$')
-    paftolPrefixedFastqFnameRe = re.compile('PAFTOL[-_]([0-9]+)_R[12]_[0-9]+\\.fastq')
+    #paftolPrefixedFastqFnameRe = re.compile('PAFTOL[-_]([0-9]+)_R[12]_[0-9]+\\.fastq')    # Paul B. changed to also match e.g. PAFTOL_007767_1.fastq.gz
+    paftolPrefixedFastqFnameRe = re.compile('PAFTOL[-_]([0-9]+)_R?[12](_[0-9]+)?\\.fastq')  
 
     def __init__(self, rawFastqFname):
         self.rawFastqFname = rawFastqFname

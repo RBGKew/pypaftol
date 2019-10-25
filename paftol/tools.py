@@ -40,7 +40,8 @@ def isGzipped(fastqFname):
 
 
 def fastqOrientation(fastqFname):
-    miseqOrientationRe = re.compile('_R([12])_001\\.fastq')
+    #miseqOrientationRe = re.compile('_R([12])_001\\.fastq')  # Paul B. changed to also match e.g. PAFTOL_007767_1.fastq.gz
+    miseqOrientationRe = re.compile('_R?([12])(_[0-9]+)?\\.fastq')
     m = miseqOrientationRe.search(fastqFname)
     if m is not None:
         return int(m.group(1))
