@@ -2202,6 +2202,8 @@ class HybseqResult(object):
         self.contigDict = None
         self.reconstructedCdsDict = None
         self.contigFastaFname = None
+        self.reconstructedCdsFastaFname = None  # Paul B. - added this file name so it can be used in the database upload.
+        self.reconstructedCdsFastaFnamePath = None  # Paul B. - added this path so it can recorded in the database.
         self.cmdLine = None
 
     def summaryStats(self):

@@ -1509,7 +1509,9 @@ class TrimmomaticRunner(object):
             trimmomaticArgv.extend(['-trimlog', trimlogFname])
         trimmomaticArgv.extend([forwardReadsFname, reverseReadsFname, forwardPairedFname, forwardUnpairedFname, reversePairedFname, reverseUnpairedFname])
         if self.adapterFname is not None:
-            trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
+            # Paul B. - altered to incorporate palindromic trimming:
+            #trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
+            trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10:2:true' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
         if self.leadingQuality is not None:
             trimmomaticArgv.append('LEADING:%d' % self.leadingQuality)
         if self.trailingQuality is not None:

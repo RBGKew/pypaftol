@@ -1,4 +1,6 @@
 import sys
+import os           # Paul B. for os.getcwd()
+import re           # Paul B. added
 import argparse
 import logging
 
@@ -270,11 +272,22 @@ def runTargetRecovery(argNamespace):
         Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
     if argNamespace.contigFname is not None:
         result.writeContigFastaFile(argNamespace.contigFname)
+    # Paul B. - assigning the cds output filename to the result object so it can be used in the database upload:
+    if argNamespace.outfile is not None:
+        result.reconstructedCdsFastaFname = argNamespace.outfile
     if argNamespace.summaryCsv is not None:
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
             summaryStats.writeCsv(f)
     if argNamespace.usePaftolDb:
+        # Paul B. - getting the path to the result.reconstructedCdsFastaFname file for upload into the database:
+        pwd = os.getcwd()
+        # NB - Much easier/safer/cleaner to just use the full path, then remove with a MySQL function whatever 
+        # part of the path prefix in front of the /paftol/ directory that is not required for a downstream process.
+        # Add the path to the fasta filename:
+        fastaFilePath = pwd + '/' + result.reconstructedCdsFastaFname
+        print 'fastaFilePath: ', fastaFilePath
+        result.reconstructedCdsFastaFnamePath = fastaFilePath
         paftol.database.addRecoveryResult(result)
     
 
@@ -455,11 +468,14 @@ def runAddTargetsFile(argNamespace):
     targetsfile = argNamespace.targetsfile
     description = argNamespace.description
     # sys.stderr.write('insertGenes: %s, geneType: %s\n' % (str(argNamespace.insertGenes), str(argNamespace.geneType)))
-    paftol.database.addTargetsFile(targetsfile, description, argNamespace.insertGenes, argNamespace.geneType)
+    paftol.database.addTargetsFile(targetsfile, argNamespace.fastaPath, description, argNamespace.insertGenes, argNamespace.geneType)
 
     
 def runAddPaftolFastqFiles(argNamespace):
-    paftol.database.addPaftolFastqFiles(argNamespace.fastq)
+    # Paul B. - changed to include the data origin and path to the fastq file(s)
+    #paftol.database.addPaftolFastqFiles(argNamespace.fastq)
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath)
+    # NB - fastq is a list of fastq files under argNameSpace, fastqPath is a single value
 
 
 def runAlignmentOutline(argNamespace):
@@ -642,12 +658,16 @@ def addAddTargetsFileParser(subparsers):
     p.add_argument('--geneType', help='specify gene type')
     p.add_argument('--insertGenes', action='store_true', help='insert new genes that are not already in database')
     p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), required')
+    p.add_argument('--fastaPath', help='path to targets fasta file (just path to filename, not including filename)')
     p.set_defaults(func=runAddTargetsFile)
 
     
 def addAddPaftolFastqFilesParser(subparsers):
     p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
     p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
+    # Paul B. added flag to upload DataOrigin and fastq file path:
+    p.add_argument('--dataOrigin', help='specify data origin: PAFTOL, OneKP, SRA or AnnotatedGenome')
+    p.add_argument('--fastqPath', help='path to fastq files (just path to filename, not including filename; assumes files are unzipped)')
     p.set_defaults(func=runAddPaftolFastqFiles)
 
 
