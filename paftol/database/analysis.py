@@ -53,6 +53,8 @@ class ContigRecovery(object):
         self.cmdLine = cmdLine
         self.numRecoveredContigsCheck = numRecoveredContigsCheck
         # one-to-many
+        # fk_ContigRecoveryDataRelease_contigRecoveryId: ContigRecoveryDataRelease.contigRecoveryId REFERENCES ContigRecovery(contigRecoveryId)
+        self.contigRecoveryDataReleaseContigRecoveryList = []
         # fk_RecoveredContig_contigRecoveryId: RecoveredContig.contigRecoveryId REFERENCES ContigRecovery(contigRecoveryId)
         self.recoveredContigContigRecoveryList = []
 
@@ -75,6 +77,22 @@ class ContigRecovery(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class ContigRecoveryDataRelease(object):
+
+    def __init__(self, contigRecovery=None, dataRelease=None):
+        self.id = None
+        self.contigRecovery = contigRecovery
+        self.dataRelease = dataRelease
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `ContigRecoveryDataRelease` (`contigRecoveryId`, `dataReleaseId`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.contigRecovery is None else self.contigRecovery.id)
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class DataOrigin(object):
 
     def __init__(self, dataOriginName=None, acronym=None):
@@ -93,6 +111,30 @@ class DataOrigin(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class DataRelease(object):
+
+    def __init__(self, releaseNumber=None, dataRelease=None):
+        self.idDataRelease = None
+        self.releaseNumber = releaseNumber
+        self.dataRelease = dataRelease
+        # one-to-many
+        # fk_ContigRecoveryDataRelease_dataReleaseId: ContigRecoveryDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.contigRecoveryDataReleaseDataReleaseList = []
+        # fk_GeneTreeDataRelease_dataReleaseId: GeneTreeDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.geneTreeDataReleaseDataReleaseList = []
+        # fk_OneKP_SequenceDataRelease_dataReleaseId: OneKP_SequenceDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.oneKP_SequenceDataReleaseDataReleaseList = []
+        # fk_SRA_RunSequenceDataRelease_dataReleaseId: SRA_RunSequenceDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.srA_RunSequenceDataReleaseDataReleaseList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `DataRelease` (`ReleaseNumber`, `DataRelease`) VALUES (%s, %s)'
+        l = []
+        l.append(self.releaseNumber)
+        l.append(self.dataRelease)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class ENA_Accession(object):
 
     def __init__(self, accessionId=None):
@@ -106,6 +148,30 @@ class ENA_Accession(object):
         sqlCmd = 'INSERT INTO `ENA_Accession` (`accessionId`) VALUES (%s)'
         l = []
         l.append(self.accessionId)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class ExemplarGene(object):
+
+    def __init__(self, ac=None, gn=None, de=None, os=None, url=None):
+        self.id = None
+        self.ac = ac
+        self.gn = gn
+        self.de = de
+        self.os = os
+        self.url = url
+        # one-to-many
+        # fk_PaftolGene_exemplarGeneId: PaftolGene.exemplarGeneId REFERENCES ExemplarGene(exemplarGeneId)
+        self.paftolGeneExemplarGeneList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `ExemplarGene` (`AC`, `GN`, `DE`, `OS`, `URL`) VALUES (%s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.ac)
+        l.append(self.gn)
+        l.append(self.de)
+        l.append(self.os)
+        l.append(self.url)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -157,9 +223,11 @@ class FastqStats(object):
 
 class GeneTree(object):
 
-    def __init__(self, paftolGene=None, alnFastaFile=None, alnFastaFilePathName=None, newickFile=None, newickFilePathName=None, speciesTree=None, cmdLine=None, softwareVersion=None):
+    def __init__(self, paftolGene=None, unAlnFastaFile=None, unAlnFastaFilePathName=None, alnFastaFile=None, alnFastaFilePathName=None, newickFile=None, newickFilePathName=None, speciesTree=None, cmdLine=None, softwareVersion=None):
         self.id = None
         self.paftolGene = paftolGene
+        self.unAlnFastaFile = unAlnFastaFile
+        self.unAlnFastaFilePathName = unAlnFastaFilePathName
         self.alnFastaFile = alnFastaFile
         self.alnFastaFilePathName = alnFastaFilePathName
         self.newickFile = newickFile
@@ -168,13 +236,15 @@ class GeneTree(object):
         self.cmdLine = cmdLine
         self.softwareVersion = softwareVersion
         # one-to-many
-        # fk_RecoveredContig_geneTreeId: RecoveredContig.geneTreeId REFERENCES GeneTree(geneTreeId)
-        self.recoveredContigGeneTreeList = []
+        # fk_GeneTreeDataRelease_geneTreeId: GeneTreeDataRelease.geneTreeId REFERENCES GeneTree(geneTreeId)
+        self.geneTreeDataReleaseGeneTreeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `GeneTree` (`paftolGeneId`, `alnFastaFile`, `alnFastaFilePathName`, `newickFile`, `newickFilePathName`, `speciesTreeId`, `cmdLine`, `softwareVersion`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `GeneTree` (`paftolGeneId`, `unAlnFastaFile`, `unAlnFastaFilePathName`, `alnFastaFile`, `alnFastaFilePathName`, `newickFile`, `newickFilePathName`, `speciesTreeId`, `cmdLine`, `softwareVersion`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.paftolGene is None else self.paftolGene.id)
+        l.append(self.unAlnFastaFile)
+        l.append(self.unAlnFastaFilePathName)
         l.append(self.alnFastaFile)
         l.append(self.alnFastaFilePathName)
         l.append(self.newickFile)
@@ -182,6 +252,22 @@ class GeneTree(object):
         l.append(None if self.speciesTree is None else self.speciesTree.id)
         l.append(self.cmdLine)
         l.append(self.softwareVersion)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class GeneTreeDataRelease(object):
+
+    def __init__(self, geneTree=None, dataRelease=None):
+        self.id = None
+        self.geneTree = geneTree
+        self.dataRelease = dataRelease
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `GeneTreeDataRelease` (`geneTreeId`, `dataReleaseId`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.geneTree is None else self.geneTree.id)
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -247,6 +333,8 @@ class OneKP_Sequence(object):
         # one-to-many
         # fk_InputSequence_OneKP_SequenceId: InputSequence.OneKP_SequenceId REFERENCES OneKP_Sequence(OneKP_SequenceId)
         self.inputSequenceOneKP_SequenceList = []
+        # fk_OneKP_SequenceDataRelease_OneKP_SequenceId: OneKP_SequenceDataRelease.OneKP_SequenceId REFERENCES OneKP_Sequence(OneKP_SequenceId)
+        self.oneKP_SequenceDataReleaseOneKP_SequenceList = []
 
     def insertIntoDatabase(self, cursor):
         sqlCmd = 'INSERT INTO `OneKP_Sequence` (`sampleId`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s)'
@@ -257,12 +345,29 @@ class OneKP_Sequence(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class OneKP_SequenceDataRelease(object):
+
+    def __init__(self, OneKP_Sequence=None, dataRelease=None):
+        self.id = None
+        self.OneKP_Sequence = OneKP_Sequence
+        self.dataRelease = dataRelease
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `OneKP_SequenceDataRelease` (`OneKP_SequenceId`, `dataReleaseId`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.OneKP_Sequence is None else self.OneKP_Sequence.id)
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class PaftolGene(object):
 
-    def __init__(self, geneName=None, geneType=None):
+    def __init__(self, geneName=None, geneType=None, exemplarGene=None):
         self.id = None
         self.geneName = geneName
         self.geneType = geneType
+        self.exemplarGene = exemplarGene
         # one-to-many
         # fk_GeneTree_paftolGeneId: GeneTree.paftolGeneId REFERENCES PaftolGene(paftolGeneId)
         self.geneTreePaftolGeneList = []
@@ -272,10 +377,11 @@ class PaftolGene(object):
         self.referenceTargetPaftolGeneList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `PaftolGene` (`geneName`, `geneTypeId`) VALUES (%s, %s)'
+        sqlCmd = 'INSERT INTO `PaftolGene` (`geneName`, `geneTypeId`, `exemplarGeneId`) VALUES (%s, %s, %s)'
         l = []
         l.append(self.geneName)
         l.append(None if self.geneType is None else self.geneType.id)
+        l.append(None if self.exemplarGene is None else self.exemplarGene.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -299,29 +405,27 @@ class PaftolSequence(object):
 
 class RecoveredContig(object):
 
-    def __init__(self, contigRecovery=None, paftolGene=None, seqLength=None, representativeReferenceTarget=None, geneTree=None):
+    def __init__(self, contigRecovery=None, paftolGene=None, seqLength=None, representativeReferenceTarget=None):
         self.id = None
         self.contigRecovery = contigRecovery
         self.paftolGene = paftolGene
         self.seqLength = seqLength
         self.representativeReferenceTarget = representativeReferenceTarget
-        self.geneTree = geneTree
         # one-to-many
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `RecoveredContig` (`contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId`, `geneTreeId`) VALUES (%s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `RecoveredContig` (`contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId`) VALUES (%s, %s, %s, %s)'
         l = []
         l.append(None if self.contigRecovery is None else self.contigRecovery.id)
         l.append(None if self.paftolGene is None else self.paftolGene.id)
         l.append(self.seqLength)
         l.append(None if self.representativeReferenceTarget is None else self.representativeReferenceTarget.id)
-        l.append(None if self.geneTree is None else self.geneTree.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
 class ReferenceTarget(object):
 
-    def __init__(self, paftolGene=None, paftolOrganism=None, paftolTargetLength=None, targetsFastaFile=None, targetsFastaFilePathName=None, numTargetSequences=None, md5sum=None, UniProtExemplarGene=None):
+    def __init__(self, paftolGene=None, paftolOrganism=None, paftolTargetLength=None, targetsFastaFile=None, targetsFastaFilePathName=None, numTargetSequences=None, md5sum=None):
         self.id = None
         self.paftolGene = paftolGene
         self.paftolOrganism = paftolOrganism
@@ -330,7 +434,6 @@ class ReferenceTarget(object):
         self.targetsFastaFilePathName = targetsFastaFilePathName
         self.numTargetSequences = numTargetSequences
         self.md5sum = md5sum
-        self.UniProtExemplarGene = UniProtExemplarGene
         # one-to-many
         # fk_ContigRecovery_referenceTargetId: ContigRecovery.referenceTargetId REFERENCES ReferenceTarget(referenceTargetId)
         self.contigRecoveryReferenceTargetList = []
@@ -338,7 +441,7 @@ class ReferenceTarget(object):
         self.recoveredContigRepresentativeReferenceTargetList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `ReferenceTarget` (`paftolGeneId`, `paftolOrganism`, `paftolTargetLength`, `targetsFastaFile`, `targetsFastaFilePathName`, `numTargetSequences`, `md5sum`, `UniProtExemplarGeneId`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `ReferenceTarget` (`paftolGeneId`, `paftolOrganism`, `paftolTargetLength`, `targetsFastaFile`, `targetsFastaFilePathName`, `numTargetSequences`, `md5sum`) VALUES (%s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.paftolGene is None else self.paftolGene.id)
         l.append(self.paftolOrganism)
@@ -347,7 +450,6 @@ class ReferenceTarget(object):
         l.append(self.targetsFastaFilePathName)
         l.append(self.numTargetSequences)
         l.append(self.md5sum)
-        l.append(None if self.UniProtExemplarGene is None else self.UniProtExemplarGene.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -379,6 +481,8 @@ class SRA_RunSequence(object):
         # one-to-many
         # fk_InputSequence_sraRunSequenceId: InputSequence.sraRunSequenceId REFERENCES SRA_RunSequence(sraRunSequenceId)
         self.inputSequenceSraRunSequenceList = []
+        # fk_SRA_RunSequenceDataRelease_sraRunSequenceId: SRA_RunSequenceDataRelease.sraRunSequenceId REFERENCES SRA_RunSequence(sraRunSequenceId)
+        self.srA_RunSequenceDataReleaseSraRunSequenceList = []
 
     def insertIntoDatabase(self, cursor):
         sqlCmd = 'INSERT INTO `SRA_RunSequence` (`accessionId`, `replicateId`, `enaAccessionId`) VALUES (%s, %s, %s)'
@@ -386,6 +490,22 @@ class SRA_RunSequence(object):
         l.append(self.accessionId)
         l.append(None if self.replicate is None else self.replicate.id)
         l.append(None if self.enaAccession is None else self.enaAccession.id)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class SRA_RunSequenceDataRelease(object):
+
+    def __init__(self, sraRunSequence=None, dataRelease=None):
+        self.id = None
+        self.sraRunSequence = sraRunSequence
+        self.dataRelease = dataRelease
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `SRA_RunSequenceDataRelease` (`sraRunSequenceId`, `dataReleaseId`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.sraRunSequence is None else self.sraRunSequence.id)
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -407,47 +527,23 @@ class SequenceType(object):
 
 class SpeciesTree(object):
 
-    def __init__(self, version=None, cmdLine=None, softwareVersion=None, newickFile=None, pathName=None):
+    def __init__(self, cmdLine=None, softwareVersion=None, newickFile=None, newickFilePathName=None):
         self.id = None
-        self.version = version
         self.cmdLine = cmdLine
         self.softwareVersion = softwareVersion
         self.newickFile = newickFile
-        self.pathName = pathName
+        self.newickFilePathName = newickFilePathName
         # one-to-many
         # fk_GeneTree_speciesTreeId: GeneTree.speciesTreeId REFERENCES SpeciesTree(speciesTreeId)
         self.geneTreeSpeciesTreeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `SpeciesTree` (`version`, `cmdLine`, `softwareVersion`, `newickFile`, `pathName`) VALUES (%s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `SpeciesTree` (`cmdLine`, `softwareVersion`, `newickFile`, `newickFilePathName`) VALUES (%s, %s, %s, %s)'
         l = []
-        l.append(self.version)
         l.append(self.cmdLine)
         l.append(self.softwareVersion)
         l.append(self.newickFile)
-        l.append(self.pathName)
-        cursor.execute(sqlCmd, tuple(l))
-
-
-class UniProtExemplarGene(object):
-
-    def __init__(self, entryId=None, geneName=None, proteinName=None, hyperlink=None):
-        self.id = None
-        self.entryId = entryId
-        self.geneName = geneName
-        self.proteinName = proteinName
-        self.hyperlink = hyperlink
-        # one-to-many
-        # fk_ReferenceTarget_UniProtExemplarGeneId: ReferenceTarget.UniProtExemplarGeneId REFERENCES UniProtExemplarGene(UniProtExemplarGeneId)
-        self.referenceTargetUniProtExemplarGeneList = []
-
-    def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `UniProtExemplarGene` (`entryId`, `geneName`, `proteinName`, `hyperlink`) VALUES (%s, %s, %s, %s)'
-        l = []
-        l.append(self.entryId)
-        l.append(self.geneName)
-        l.append(self.proteinName)
-        l.append(self.hyperlink)
+        l.append(self.newickFilePathName)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -541,6 +637,39 @@ def loadContigRecoveryDict(connection, productionDatabase):
     return entityDict
 
 
+def loadContigRecoveryDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `contigRecoveryId`, `dataReleaseId` FROM `ContigRecoveryDataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = ContigRecoveryDataRelease()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: contigRecovery
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.contigRecovery = None
+        elif entityId not in productionDatabase.contigRecoveryDict:
+            raise StandardError, 'no ContigRecovery entity with id = %d' % entityId
+        else:
+            entity.contigRecovery = productionDatabase.contigRecoveryDict[entityId]
+            # type: int, name: contigRecoveryId, foreignTable: ContigRecovery, foreignColumn: id
+            entity.contigRecovery.contigRecoveryDataReleaseContigRecoveryList.append(entity)
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.contigRecoveryDataReleaseDataReleaseList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadDataOriginDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -556,6 +685,21 @@ def loadDataOriginDict(connection, productionDatabase):
     return entityDict
 
 
+def loadDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idDataRelease`, `ReleaseNumber`, `DataRelease` FROM `DataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = DataRelease()
+        entity.idDataRelease = paftol.database.intOrNone(row[0])
+        entity.releaseNumber = paftol.database.floatOrNone(row[1])
+        entity.dataRelease = paftol.database.strOrNone(row[2])
+        entityDict[entity.idDataRelease] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadENA_AccessionDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -565,6 +709,24 @@ def loadENA_AccessionDict(connection, productionDatabase):
         entity = ENA_Accession()
         entity.id = paftol.database.intOrNone(row[0])
         entity.accessionId = paftol.database.strOrNone(row[1])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadExemplarGeneDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `AC`, `GN`, `DE`, `OS`, `URL` FROM `ExemplarGene`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = ExemplarGene()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.ac = paftol.database.strOrNone(row[1])
+        entity.gn = paftol.database.strOrNone(row[2])
+        entity.de = paftol.database.strOrNone(row[3])
+        entity.os = paftol.database.strOrNone(row[4])
+        entity.url = paftol.database.strOrNone(row[5])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -600,7 +762,7 @@ def loadFastqStatsDict(connection, productionDatabase):
 def loadGeneTreeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `paftolGeneId`, `alnFastaFile`, `alnFastaFilePathName`, `newickFile`, `newickFilePathName`, `speciesTreeId`, `cmdLine`, `softwareVersion` FROM `GeneTree`'
+    sqlStatement = 'SELECT `id`, `paftolGeneId`, `unAlnFastaFile`, `unAlnFastaFilePathName`, `alnFastaFile`, `alnFastaFilePathName`, `newickFile`, `newickFilePathName`, `speciesTreeId`, `cmdLine`, `softwareVersion` FROM `GeneTree`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = GeneTree()
@@ -615,12 +777,14 @@ def loadGeneTreeDict(connection, productionDatabase):
             entity.paftolGene = productionDatabase.paftolGeneDict[entityId]
             # type: int, name: paftolGeneId, foreignTable: PaftolGene, foreignColumn: id
             entity.paftolGene.geneTreePaftolGeneList.append(entity)
-        entity.alnFastaFile = paftol.database.strOrNone(row[2])
-        entity.alnFastaFilePathName = paftol.database.strOrNone(row[3])
-        entity.newickFile = paftol.database.strOrNone(row[4])
-        entity.newickFilePathName = paftol.database.strOrNone(row[5])
+        entity.unAlnFastaFile = paftol.database.strOrNone(row[2])
+        entity.unAlnFastaFilePathName = paftol.database.strOrNone(row[3])
+        entity.alnFastaFile = paftol.database.strOrNone(row[4])
+        entity.alnFastaFilePathName = paftol.database.strOrNone(row[5])
+        entity.newickFile = paftol.database.strOrNone(row[6])
+        entity.newickFilePathName = paftol.database.strOrNone(row[7])
         # many to one: speciesTree
-        entityId = paftol.database.intOrNone(row[6])
+        entityId = paftol.database.intOrNone(row[8])
         if entityId is None:
             entity.speciesTree = None
         elif entityId not in productionDatabase.speciesTreeDict:
@@ -629,8 +793,41 @@ def loadGeneTreeDict(connection, productionDatabase):
             entity.speciesTree = productionDatabase.speciesTreeDict[entityId]
             # type: int, name: speciesTreeId, foreignTable: SpeciesTree, foreignColumn: id
             entity.speciesTree.geneTreeSpeciesTreeList.append(entity)
-        entity.cmdLine = paftol.database.strOrNone(row[7])
-        entity.softwareVersion = paftol.database.strOrNone(row[8])
+        entity.cmdLine = paftol.database.strOrNone(row[9])
+        entity.softwareVersion = paftol.database.strOrNone(row[10])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadGeneTreeDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `geneTreeId`, `dataReleaseId` FROM `GeneTreeDataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = GeneTreeDataRelease()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: geneTree
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.geneTree = None
+        elif entityId not in productionDatabase.geneTreeDict:
+            raise StandardError, 'no GeneTree entity with id = %d' % entityId
+        else:
+            entity.geneTree = productionDatabase.geneTreeDict[entityId]
+            # type: int, name: geneTreeId, foreignTable: GeneTree, foreignColumn: id
+            entity.geneTree.geneTreeDataReleaseGeneTreeList.append(entity)
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.geneTreeDataReleaseDataReleaseList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -752,10 +949,43 @@ def loadOneKP_SequenceDict(connection, productionDatabase):
     return entityDict
 
 
+def loadOneKP_SequenceDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `OneKP_SequenceId`, `dataReleaseId` FROM `OneKP_SequenceDataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = OneKP_SequenceDataRelease()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: OneKP_Sequence
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.OneKP_Sequence = None
+        elif entityId not in productionDatabase.oneKP_SequenceDict:
+            raise StandardError, 'no OneKP_Sequence entity with id = %d' % entityId
+        else:
+            entity.OneKP_Sequence = productionDatabase.oneKP_SequenceDict[entityId]
+            # type: int, name: OneKP_SequenceId, foreignTable: OneKP_Sequence, foreignColumn: id
+            entity.OneKP_Sequence.oneKP_SequenceDataReleaseOneKP_SequenceList.append(entity)
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.oneKP_SequenceDataReleaseDataReleaseList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadPaftolGeneDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `geneName`, `geneTypeId` FROM `PaftolGene`'
+    sqlStatement = 'SELECT `id`, `geneName`, `geneTypeId`, `exemplarGeneId` FROM `PaftolGene`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = PaftolGene()
@@ -771,6 +1001,16 @@ def loadPaftolGeneDict(connection, productionDatabase):
             entity.geneType = productionDatabase.geneTypeDict[entityId]
             # type: int, name: geneTypeId, foreignTable: GeneType, foreignColumn: id
             entity.geneType.paftolGeneGeneTypeList.append(entity)
+        # many to one: exemplarGene
+        entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.exemplarGene = None
+        elif entityId not in productionDatabase.exemplarGeneDict:
+            raise StandardError, 'no ExemplarGene entity with id = %d' % entityId
+        else:
+            entity.exemplarGene = productionDatabase.exemplarGeneDict[entityId]
+            # type: int, name: exemplarGeneId, foreignTable: ExemplarGene, foreignColumn: id
+            entity.exemplarGene.paftolGeneExemplarGeneList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -803,7 +1043,7 @@ def loadPaftolSequenceDict(connection, productionDatabase):
 def loadRecoveredContigDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId`, `geneTreeId` FROM `RecoveredContig`'
+    sqlStatement = 'SELECT `id`, `contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId` FROM `RecoveredContig`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = RecoveredContig()
@@ -839,16 +1079,6 @@ def loadRecoveredContigDict(connection, productionDatabase):
             entity.representativeReferenceTarget = productionDatabase.referenceTargetDict[entityId]
             # type: int, name: representativeReferenceTargetId, foreignTable: ReferenceTarget, foreignColumn: id
             entity.representativeReferenceTarget.recoveredContigRepresentativeReferenceTargetList.append(entity)
-        # many to one: geneTree
-        entityId = paftol.database.intOrNone(row[5])
-        if entityId is None:
-            entity.geneTree = None
-        elif entityId not in productionDatabase.geneTreeDict:
-            raise StandardError, 'no GeneTree entity with id = %d' % entityId
-        else:
-            entity.geneTree = productionDatabase.geneTreeDict[entityId]
-            # type: int, name: geneTreeId, foreignTable: GeneTree, foreignColumn: id
-            entity.geneTree.recoveredContigGeneTreeList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -857,7 +1087,7 @@ def loadRecoveredContigDict(connection, productionDatabase):
 def loadReferenceTargetDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `paftolGeneId`, `paftolOrganism`, `paftolTargetLength`, `targetsFastaFile`, `targetsFastaFilePathName`, `numTargetSequences`, `md5sum`, `UniProtExemplarGeneId` FROM `ReferenceTarget`'
+    sqlStatement = 'SELECT `id`, `paftolGeneId`, `paftolOrganism`, `paftolTargetLength`, `targetsFastaFile`, `targetsFastaFilePathName`, `numTargetSequences`, `md5sum` FROM `ReferenceTarget`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ReferenceTarget()
@@ -878,16 +1108,6 @@ def loadReferenceTargetDict(connection, productionDatabase):
         entity.targetsFastaFilePathName = paftol.database.strOrNone(row[5])
         entity.numTargetSequences = paftol.database.intOrNone(row[6])
         entity.md5sum = paftol.database.strOrNone(row[7])
-        # many to one: UniProtExemplarGene
-        entityId = paftol.database.intOrNone(row[8])
-        if entityId is None:
-            entity.UniProtExemplarGene = None
-        elif entityId not in productionDatabase.uniProtExemplarGeneDict:
-            raise StandardError, 'no UniProtExemplarGene entity with id = %d' % entityId
-        else:
-            entity.UniProtExemplarGene = productionDatabase.uniProtExemplarGeneDict[entityId]
-            # type: int, name: UniProtExemplarGeneId, foreignTable: UniProtExemplarGene, foreignColumn: id
-            entity.UniProtExemplarGene.referenceTargetUniProtExemplarGeneList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -941,6 +1161,39 @@ def loadSRA_RunSequenceDict(connection, productionDatabase):
     return entityDict
 
 
+def loadSRA_RunSequenceDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `sraRunSequenceId`, `dataReleaseId` FROM `SRA_RunSequenceDataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = SRA_RunSequenceDataRelease()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: sraRunSequence
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.sraRunSequence = None
+        elif entityId not in productionDatabase.sRA_RunSequenceDict:
+            raise StandardError, 'no SRA_RunSequence entity with id = %d' % entityId
+        else:
+            entity.sraRunSequence = productionDatabase.sRA_RunSequenceDict[entityId]
+            # type: int, name: sraRunSequenceId, foreignTable: SRA_RunSequence, foreignColumn: id
+            entity.sraRunSequence.srA_RunSequenceDataReleaseSraRunSequenceList.append(entity)
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.srA_RunSequenceDataReleaseDataReleaseList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadSequenceTypeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -958,33 +1211,15 @@ def loadSequenceTypeDict(connection, productionDatabase):
 def loadSpeciesTreeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `version`, `cmdLine`, `softwareVersion`, `newickFile`, `pathName` FROM `SpeciesTree`'
+    sqlStatement = 'SELECT `id`, `cmdLine`, `softwareVersion`, `newickFile`, `newickFilePathName` FROM `SpeciesTree`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SpeciesTree()
         entity.id = paftol.database.intOrNone(row[0])
-        entity.version = paftol.database.intOrNone(row[1])
-        entity.cmdLine = paftol.database.strOrNone(row[2])
-        entity.softwareVersion = paftol.database.strOrNone(row[3])
-        entity.newickFile = paftol.database.strOrNone(row[4])
-        entity.pathName = paftol.database.strOrNone(row[5])
-        entityDict[entity.id] = entity
-    cursor.close()
-    return entityDict
-
-
-def loadUniProtExemplarGeneDict(connection, productionDatabase):
-    cursor = connection.cursor()
-    entityDict = {}
-    sqlStatement = 'SELECT `id`, `entryId`, `geneName`, `proteinName`, `hyperlink` FROM `UniProtExemplarGene`'
-    cursor.execute(sqlStatement)
-    for row in cursor:
-        entity = UniProtExemplarGene()
-        entity.id = paftol.database.intOrNone(row[0])
-        entity.entryId = paftol.database.strOrNone(row[1])
-        entity.geneName = paftol.database.strOrNone(row[2])
-        entity.proteinName = paftol.database.strOrNone(row[3])
-        entity.hyperlink = paftol.database.strOrNone(row[4])
+        entity.cmdLine = paftol.database.strOrNone(row[1])
+        entity.softwareVersion = paftol.database.strOrNone(row[2])
+        entity.newickFile = paftol.database.strOrNone(row[3])
+        entity.newickFilePathName = paftol.database.strOrNone(row[4])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -995,22 +1230,27 @@ class AnalysisDatabase(object):
     def __init__(self, connection):
         self.annotatedGenomeDict = {}
         self.contigRecoveryDict = {}
+        self.contigRecoveryDataReleaseDict = {}
         self.dataOriginDict = {}
+        self.dataReleaseDict = {}
         self.eNA_AccessionDict = {}
+        self.exemplarGeneDict = {}
         self.fastqStatsDict = {}
         self.geneTreeDict = {}
+        self.geneTreeDataReleaseDict = {}
         self.geneTypeDict = {}
         self.inputSequenceDict = {}
         self.oneKP_SequenceDict = {}
+        self.oneKP_SequenceDataReleaseDict = {}
         self.paftolGeneDict = {}
         self.paftolSequenceDict = {}
         self.recoveredContigDict = {}
         self.referenceTargetDict = {}
         self.replicateSequenceDict = {}
         self.sRA_RunSequenceDict = {}
+        self.sRA_RunSequenceDataReleaseDict = {}
         self.sequenceTypeDict = {}
         self.speciesTreeDict = {}
-        self.uniProtExemplarGeneDict = {}
         self.annotatedGenomeDict = loadAnnotatedGenomeDict(connection, self)
         self.dataOriginDict = loadDataOriginDict(connection, self)
         self.sequenceTypeDict = loadSequenceTypeDict(connection, self)
@@ -1022,13 +1262,18 @@ class AnalysisDatabase(object):
         self.oneKP_SequenceDict = loadOneKP_SequenceDict(connection, self)
         self.inputSequenceDict = loadInputSequenceDict(connection, self)
         self.geneTypeDict = loadGeneTypeDict(connection, self)
+        self.exemplarGeneDict = loadExemplarGeneDict(connection, self)
         self.paftolGeneDict = loadPaftolGeneDict(connection, self)
-        self.uniProtExemplarGeneDict = loadUniProtExemplarGeneDict(connection, self)
         self.referenceTargetDict = loadReferenceTargetDict(connection, self)
         self.contigRecoveryDict = loadContigRecoveryDict(connection, self)
+        self.dataReleaseDict = loadDataReleaseDict(connection, self)
+        self.contigRecoveryDataReleaseDict = loadContigRecoveryDataReleaseDict(connection, self)
         self.speciesTreeDict = loadSpeciesTreeDict(connection, self)
         self.geneTreeDict = loadGeneTreeDict(connection, self)
+        self.geneTreeDataReleaseDict = loadGeneTreeDataReleaseDict(connection, self)
+        self.oneKP_SequenceDataReleaseDict = loadOneKP_SequenceDataReleaseDict(connection, self)
         self.recoveredContigDict = loadRecoveredContigDict(connection, self)
+        self.sRA_RunSequenceDataReleaseDict = loadSRA_RunSequenceDataReleaseDict(connection, self)
 
     def __str__(self):
         s = ''
@@ -1043,12 +1288,17 @@ class AnalysisDatabase(object):
         s = s + 'oneKP_Sequence: %d\n' % len(self.oneKP_SequenceDict)
         s = s + 'inputSequence: %d\n' % len(self.inputSequenceDict)
         s = s + 'geneType: %d\n' % len(self.geneTypeDict)
+        s = s + 'exemplarGene: %d\n' % len(self.exemplarGeneDict)
         s = s + 'paftolGene: %d\n' % len(self.paftolGeneDict)
-        s = s + 'uniProtExemplarGene: %d\n' % len(self.uniProtExemplarGeneDict)
         s = s + 'referenceTarget: %d\n' % len(self.referenceTargetDict)
         s = s + 'contigRecovery: %d\n' % len(self.contigRecoveryDict)
+        s = s + 'dataRelease: %d\n' % len(self.dataReleaseDict)
+        s = s + 'contigRecoveryDataRelease: %d\n' % len(self.contigRecoveryDataReleaseDict)
         s = s + 'speciesTree: %d\n' % len(self.speciesTreeDict)
         s = s + 'geneTree: %d\n' % len(self.geneTreeDict)
+        s = s + 'geneTreeDataRelease: %d\n' % len(self.geneTreeDataReleaseDict)
+        s = s + 'oneKP_SequenceDataRelease: %d\n' % len(self.oneKP_SequenceDataReleaseDict)
         s = s + 'recoveredContig: %d\n' % len(self.recoveredContigDict)
+        s = s + 'sRA_RunSequenceDataRelease: %d\n' % len(self.sRA_RunSequenceDataReleaseDict)
         return s
 

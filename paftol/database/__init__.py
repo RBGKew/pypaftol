@@ -72,10 +72,10 @@ def findFastqFile(analysisDatabase, fastqFname):
 
 class PaftolDatabaseDetails(object):
 
-    reDbusername = re.compile('username: *([^ ]+)')
-    reDbpassword = re.compile('password: *([^ ]+)')
+    reDbusername = re.compile('user: *([^ ]+)')     # Paul B - Renamed to 'user' to fit with the actual keyword required
+    reDbpassword = re.compile('password: *([^ ]+)') 
     reDbhost = re.compile('host: *([^ ]+)')
-    reDbname = re.compile('dbname: *([^ ]+)')
+    reDbname = re.compile('database: *([^ ]+)')     # Paul B - Renamed to 'database' to fit with the actual keyword required
 
     def __init__(self, detailsFile=None):
         if detailsFile is None:
@@ -314,6 +314,9 @@ def generateUnusedPrimaryKey(cursor, tableName, primaryKeyColumnName='id'):
 
 
 def insertGene(connection, geneName, geneTypeId):
+    ''' Paul B. - 25.5.2020
+        Doesn't look like this method is used any more - insert to db done via the analysis.py API
+    '''
     lockCursor = connection.cursor()
     lockCursor.execute('LOCK TABLE PaftolGene WRITE')
     try:
@@ -330,6 +333,10 @@ def insertGene(connection, geneName, geneTypeId):
 
 
 def insertFastaFile(connection, fastaFname, dirname=None):
+    ''' Paul B. added:
+        The FastaFile table doesn't exist anymore.
+    '''
+
     fastaPath = fastaFname
     if dirname is not None:
         fastaPath = os.path.join(dirname, fastaFname)
@@ -677,9 +684,9 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
         raise StandardError, 'missing genes: %s' % ', '.join(missingGeneNameList)
     newPaftolGeneList = []
     for missingGeneName in missingGeneNameList:
-        # Paul B. - changed to fit with the auto_increment:
+        # Paul B. - changed to fit with the auto_increment - 25.5.2020 - also added the exemplarGeneId:
         #newPaftolGene = paftol.database.analysis.PaftolGene(None, missingGeneName, geneType)
-        newPaftolGene = paftol.database.analysis.PaftolGene(missingGeneName, geneType)
+        newPaftolGene = paftol.database.analysis.PaftolGene(missingGeneName, geneType, None)
         newPaftolGeneList.append(newPaftolGene)
     paftolGeneDict = {}
     for newPaftolGene in newPaftolGeneList:
@@ -881,7 +888,7 @@ def addRecoveryResult(result):
             if representativeReferenceTarget is None:
                 raise StandardError, 'unknown reference target for geneName = %s, organismName = %s' % (geneName, result.representativePaftolTargetDict[geneName].organism.name)
             ### Paul B - removed 'None' first parameter to fit with the auto_increment change; changed from len(contig) to len(result.reconstructedCdsDict[geneName])
-            recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery, paftolGeneDict[geneName], len(result.reconstructedCdsDict[geneName]), representativeReferenceTarget, None)
+            recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery, paftolGeneDict[geneName], len(result.reconstructedCdsDict[geneName]), representativeReferenceTarget)
             recoveredContigList.append(recoveredContig)
             RC_Countr += 1
     contigRecovery.numRecoveredContigsCheck = RC_Countr

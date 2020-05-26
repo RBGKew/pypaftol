@@ -21,10 +21,10 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertIsNone(None, paftolDatabaseDetails.dbpassword)
         self.assertIsNone(None, paftolDatabaseDetails.dbhost)
         self.assertIsNone(None, paftolDatabaseDetails.dbname)
-        f = cStringIO.StringIO("""username: paftol
+        f = cStringIO.StringIO("""user: paftol
 password: topsecret
 host: localhost
-dbname: paftol
+database: paftol
 """)
         paftolDatabaseDetailsFromFile = paftol.database.PaftolDatabaseDetails(detailsFile=f)
         self.assertEqual('paftol', paftolDatabaseDetailsFromFile.dbusername)
