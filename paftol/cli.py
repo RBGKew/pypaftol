@@ -472,9 +472,9 @@ def runAddTargetsFile(argNamespace):
 
     
 def runAddPaftolFastqFiles(argNamespace):
-    # Paul B. - changed to include the data origin and path to the fastq file(s)
+    # Paul B. - changed to include the data origin, path to the fastq file(s) and sample identifier for non-paftol data
     #paftol.database.addPaftolFastqFiles(argNamespace.fastq)
-    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath)
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath, argNamespace.sampleId)
     # NB - fastq is a list of fastq files under argNameSpace, fastqPath is a single value
 
 
@@ -666,8 +666,9 @@ def addAddPaftolFastqFilesParser(subparsers):
     p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
     p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
     # Paul B. added flag to upload DataOrigin and fastq file path:
-    p.add_argument('--dataOrigin', help='specify data origin: PAFTOL, OneKP, SRA or AnnotatedGenome')
-    p.add_argument('--fastqPath', help='path to fastq files (just path to filename, not including filename; assumes files are unzipped)')
+    p.add_argument('--dataOrigin', help='specify acronym for data origin: PAFTOL, OneKP_Transcripts, OneKP_Reads, SRA or AG (annotated genome)', required=True)
+    p.add_argument('--fastqPath', help='path to fastq files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
+    p.add_argument('--sampleId', help='specify the sample identifier', required=True)
     p.set_defaults(func=runAddPaftolFastqFiles)
 
 

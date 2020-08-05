@@ -11,8 +11,10 @@ import paftol.database
 
 class AnnotatedGenome(object):
 
-    def __init__(self, speciesLatinName=None, commonName=None, source=None, genomeVersion=None, numSequences=None, sumLengthOfContigs=None):
+    def __init__(self, idSequencing=None, accessionId=None, speciesLatinName=None, commonName=None, source=None, genomeVersion=None, numSequences=None, sumLengthOfContigs=None):
         self.id = None
+        self.idSequencing = idSequencing
+        self.accessionId = accessionId
         self.speciesLatinName = speciesLatinName
         self.commonName = commonName
         self.source = source
@@ -24,8 +26,10 @@ class AnnotatedGenome(object):
         self.inputSequenceAnnotatedGenomeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `AnnotatedGenome` (`speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `AnnotatedGenome` (`idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
+        l.append(self.idSequencing)
+        l.append(self.accessionId)
         l.append(self.speciesLatinName)
         l.append(self.commonName)
         l.append(self.source)
@@ -325,8 +329,9 @@ class InputSequence(object):
 
 class OneKP_Sequence(object):
 
-    def __init__(self, sampleId=None, numSequences=None, sumLengthOfContigs=None):
+    def __init__(self, idSequencing=None, sampleId=None, numSequences=None, sumLengthOfContigs=None):
         self.id = None
+        self.idSequencing = idSequencing
         self.sampleId = sampleId
         self.numSequences = numSequences
         self.sumLengthOfContigs = sumLengthOfContigs
@@ -337,8 +342,9 @@ class OneKP_Sequence(object):
         self.oneKP_SequenceDataReleaseOneKP_SequenceList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `OneKP_Sequence` (`sampleId`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s)'
+        sqlCmd = 'INSERT INTO `OneKP_Sequence` (`idSequencing`, `sampleId`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s, %s)'
         l = []
+        l.append(self.idSequencing)
         l.append(self.sampleId)
         l.append(self.numSequences)
         l.append(self.sumLengthOfContigs)
@@ -511,17 +517,19 @@ class SRA_RunSequenceDataRelease(object):
 
 class SequenceType(object):
 
-    def __init__(self, sequenceType=None):
+    def __init__(self, sequenceType=None, acronym=None):
         self.id = None
         self.sequenceType = sequenceType
+        self.acronym = acronym
         # one-to-many
         # fk_InputSequence_sequenceTypeId: InputSequence.sequenceTypeId REFERENCES SequenceType(sequenceTypeId)
         self.inputSequenceSequenceTypeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `SequenceType` (`sequenceType`) VALUES (%s)'
+        sqlCmd = 'INSERT INTO `SequenceType` (`sequenceType`, `acronym`) VALUES (%s, %s)'
         l = []
         l.append(self.sequenceType)
+        l.append(self.acronym)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -550,17 +558,19 @@ class SpeciesTree(object):
 def loadAnnotatedGenomeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs` FROM `AnnotatedGenome`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs` FROM `AnnotatedGenome`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = AnnotatedGenome()
         entity.id = paftol.database.intOrNone(row[0])
-        entity.speciesLatinName = paftol.database.strOrNone(row[1])
-        entity.commonName = paftol.database.strOrNone(row[2])
-        entity.source = paftol.database.strOrNone(row[3])
-        entity.genomeVersion = paftol.database.strOrNone(row[4])
-        entity.numSequences = paftol.database.intOrNone(row[5])
-        entity.sumLengthOfContigs = paftol.database.intOrNone(row[6])
+        entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.accessionId = paftol.database.strOrNone(row[2])
+        entity.speciesLatinName = paftol.database.strOrNone(row[3])
+        entity.commonName = paftol.database.strOrNone(row[4])
+        entity.source = paftol.database.strOrNone(row[5])
+        entity.genomeVersion = paftol.database.strOrNone(row[6])
+        entity.numSequences = paftol.database.intOrNone(row[7])
+        entity.sumLengthOfContigs = paftol.database.intOrNone(row[8])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -936,14 +946,15 @@ def loadInputSequenceDict(connection, productionDatabase):
 def loadOneKP_SequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `sampleId`, `numSequences`, `sumLengthOfContigs` FROM `OneKP_Sequence`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `sampleId`, `numSequences`, `sumLengthOfContigs` FROM `OneKP_Sequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = OneKP_Sequence()
         entity.id = paftol.database.intOrNone(row[0])
-        entity.sampleId = paftol.database.strOrNone(row[1])
-        entity.numSequences = paftol.database.intOrNone(row[2])
-        entity.sumLengthOfContigs = paftol.database.intOrNone(row[3])
+        entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.sampleId = paftol.database.strOrNone(row[2])
+        entity.numSequences = paftol.database.intOrNone(row[3])
+        entity.sumLengthOfContigs = paftol.database.intOrNone(row[4])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -1197,12 +1208,13 @@ def loadSRA_RunSequenceDataReleaseDict(connection, productionDatabase):
 def loadSequenceTypeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `sequenceType` FROM `SequenceType`'
+    sqlStatement = 'SELECT `id`, `sequenceType`, `acronym` FROM `SequenceType`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SequenceType()
         entity.id = paftol.database.intOrNone(row[0])
         entity.sequenceType = paftol.database.strOrNone(row[1])
+        entity.acronym = paftol.database.strOrNone(row[2])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
