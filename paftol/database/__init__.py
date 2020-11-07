@@ -562,7 +562,7 @@ def rawFilenameStats(filename=None):
         sumLengthOfContigs = sumLengthOfContigs + len(record)
         numbrSequences += 1
         seqRecords[record.id] = record
-        logger.info('Raw data file stats  numbrSequences: %s; sumLengthOfContigs: %s ', numbrSequences, sumLengthOfContigs)
+    logger.info('Raw data file stats  numbrSequences: %s; sumLengthOfContigs: %s ', numbrSequences, sumLengthOfContigs)
     return  numbrSequences, sumLengthOfContigs 
 
 
