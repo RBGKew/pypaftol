@@ -11,7 +11,7 @@ import paftol.database
 
 class AnnotatedGenome(object):
 
-    def __init__(self, idSequencing=None, accessionId=None, speciesLatinName=None, commonName=None, source=None, genomeVersion=None, numSequences=None, sumLengthOfContigs=None):
+    def __init__(self, idSequencing=None, accessionId=None, speciesLatinName=None, commonName=None, source=None, genomeVersion=None):
         self.id = None
         self.idSequencing = idSequencing
         self.accessionId = accessionId
@@ -19,14 +19,12 @@ class AnnotatedGenome(object):
         self.commonName = commonName
         self.source = source
         self.genomeVersion = genomeVersion
-        self.numSequences = numSequences
-        self.sumLengthOfContigs = sumLengthOfContigs
         # one-to-many
         # fk_InputSequence_AnnotatedGenomeId: InputSequence.annotatedGenomeId REFERENCES AnnotatedGenome(annotatedGenomeId)
         self.inputSequenceAnnotatedGenomeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `AnnotatedGenome` (`idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `AnnotatedGenome` (`idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`) VALUES (%s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.idSequencing)
         l.append(self.accessionId)
@@ -34,8 +32,6 @@ class AnnotatedGenome(object):
         l.append(self.commonName)
         l.append(self.source)
         l.append(self.genomeVersion)
-        l.append(self.numSequences)
-        l.append(self.sumLengthOfContigs)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -181,7 +177,7 @@ class ExemplarGene(object):
 
 class FastqStats(object):
 
-    def __init__(self, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None, meanAdapterContent=None, maxAdapterContent=None):
+    def __init__(self, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None, meanAdapterContent=None, maxAdapterContent=None, sumLengthOfSeqs=None):
         self.id = None
         self.numReads = numReads
         self.qual28 = qual28
@@ -197,6 +193,7 @@ class FastqStats(object):
         self.stddevN = stddevN
         self.meanAdapterContent = meanAdapterContent
         self.maxAdapterContent = maxAdapterContent
+        self.sumLengthOfSeqs = sumLengthOfSeqs
         # one-to-many
         # fk_ContigRecovery_fwdTrimmedFastqStatsId: ContigRecovery.fwdTrimmedFastqStatsId REFERENCES FastqStats(fwdTrimmedFastqStatsId)
         self.contigRecoveryFwdTrimmedFastqStatsList = []
@@ -206,7 +203,7 @@ class FastqStats(object):
         self.inputSequenceFastqStatsList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `FastqStats` (`numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `FastqStats` (`numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.numReads)
         l.append(self.qual28)
@@ -222,6 +219,7 @@ class FastqStats(object):
         l.append(self.stddevN)
         l.append(self.meanAdapterContent)
         l.append(self.maxAdapterContent)
+        l.append(self.sumLengthOfSeqs)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -329,12 +327,10 @@ class InputSequence(object):
 
 class OneKP_Sequence(object):
 
-    def __init__(self, idSequencing=None, sampleId=None, numSequences=None, sumLengthOfContigs=None):
+    def __init__(self, idSequencing=None, sampleId=None):
         self.id = None
         self.idSequencing = idSequencing
         self.sampleId = sampleId
-        self.numSequences = numSequences
-        self.sumLengthOfContigs = sumLengthOfContigs
         # one-to-many
         # fk_InputSequence_OneKP_SequenceId: InputSequence.OneKP_SequenceId REFERENCES OneKP_Sequence(OneKP_SequenceId)
         self.inputSequenceOneKP_SequenceList = []
@@ -342,12 +338,10 @@ class OneKP_Sequence(object):
         self.oneKP_SequenceDataReleaseOneKP_SequenceList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `OneKP_Sequence` (`idSequencing`, `sampleId`, `numSequences`, `sumLengthOfContigs`) VALUES (%s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `OneKP_Sequence` (`idSequencing`, `sampleId`) VALUES (%s, %s)'
         l = []
         l.append(self.idSequencing)
         l.append(self.sampleId)
-        l.append(self.numSequences)
-        l.append(self.sumLengthOfContigs)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -411,20 +405,22 @@ class PaftolSequence(object):
 
 class RecoveredContig(object):
 
-    def __init__(self, contigRecovery=None, paftolGene=None, seqLength=None, representativeReferenceTarget=None):
+    def __init__(self, contigRecovery=None, paftolGene=None, seqLength=None, md5sum=None, representativeReferenceTarget=None):
         self.id = None
         self.contigRecovery = contigRecovery
         self.paftolGene = paftolGene
         self.seqLength = seqLength
+        self.md5sum = md5sum
         self.representativeReferenceTarget = representativeReferenceTarget
         # one-to-many
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `RecoveredContig` (`contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId`) VALUES (%s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `RecoveredContig` (`contigRecoveryId`, `paftolGeneId`, `seqLength`, `md5sum`, `representativeReferenceTargetId`) VALUES (%s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.contigRecovery is None else self.contigRecovery.id)
         l.append(None if self.paftolGene is None else self.paftolGene.id)
         l.append(self.seqLength)
+        l.append(self.md5sum)
         l.append(None if self.representativeReferenceTarget is None else self.representativeReferenceTarget.id)
         cursor.execute(sqlCmd, tuple(l))
 
@@ -558,7 +554,7 @@ class SpeciesTree(object):
 def loadAnnotatedGenomeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`, `numSequences`, `sumLengthOfContigs` FROM `AnnotatedGenome`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion` FROM `AnnotatedGenome`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = AnnotatedGenome()
@@ -569,8 +565,6 @@ def loadAnnotatedGenomeDict(connection, productionDatabase):
         entity.commonName = paftol.database.strOrNone(row[4])
         entity.source = paftol.database.strOrNone(row[5])
         entity.genomeVersion = paftol.database.strOrNone(row[6])
-        entity.numSequences = paftol.database.intOrNone(row[7])
-        entity.sumLengthOfContigs = paftol.database.intOrNone(row[8])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -745,7 +739,7 @@ def loadExemplarGeneDict(connection, productionDatabase):
 def loadFastqStatsDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent` FROM `FastqStats`'
+    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs` FROM `FastqStats`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastqStats()
@@ -764,6 +758,7 @@ def loadFastqStatsDict(connection, productionDatabase):
         entity.stddevN = paftol.database.floatOrNone(row[12])
         entity.meanAdapterContent = paftol.database.floatOrNone(row[13])
         entity.maxAdapterContent = paftol.database.floatOrNone(row[14])
+        entity.sumLengthOfSeqs = paftol.database.intOrNone(row[15])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -946,15 +941,13 @@ def loadInputSequenceDict(connection, productionDatabase):
 def loadOneKP_SequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `idSequencing`, `sampleId`, `numSequences`, `sumLengthOfContigs` FROM `OneKP_Sequence`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `sampleId` FROM `OneKP_Sequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = OneKP_Sequence()
         entity.id = paftol.database.intOrNone(row[0])
         entity.idSequencing = paftol.database.intOrNone(row[1])
         entity.sampleId = paftol.database.strOrNone(row[2])
-        entity.numSequences = paftol.database.intOrNone(row[3])
-        entity.sumLengthOfContigs = paftol.database.intOrNone(row[4])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -1054,7 +1047,7 @@ def loadPaftolSequenceDict(connection, productionDatabase):
 def loadRecoveredContigDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `contigRecoveryId`, `paftolGeneId`, `seqLength`, `representativeReferenceTargetId` FROM `RecoveredContig`'
+    sqlStatement = 'SELECT `id`, `contigRecoveryId`, `paftolGeneId`, `seqLength`, `md5sum`, `representativeReferenceTargetId` FROM `RecoveredContig`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = RecoveredContig()
@@ -1080,8 +1073,9 @@ def loadRecoveredContigDict(connection, productionDatabase):
             # type: int, name: paftolGeneId, foreignTable: PaftolGene, foreignColumn: id
             entity.paftolGene.recoveredContigPaftolGeneList.append(entity)
         entity.seqLength = paftol.database.intOrNone(row[3])
+        entity.md5sum = paftol.database.strOrNone(row[4])
         # many to one: representativeReferenceTarget
-        entityId = paftol.database.intOrNone(row[4])
+        entityId = paftol.database.intOrNone(row[5])
         if entityId is None:
             entity.representativeReferenceTarget = None
         elif entityId not in productionDatabase.referenceTargetDict:

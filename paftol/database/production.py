@@ -493,7 +493,7 @@ class Sample(object):
 
 class Sequence(object):
 
-    def __init__(self, sequenceId=None, library=None, platform=None, location=None, sequencingRun=None, numInferredCds=None, medianHybpiperCdsLength=None, status=None, hybridisationPool=None, r2FastqFile=None, r1FastqFile=None, blacklisted=None, blacklistedReason=None, sequencingStrategy=None, enaExpNumber=None, enaRunNumber=None):
+    def __init__(self, sequenceId=None, library=None, platform=None, location=None, sequencingRun=None, numInferredCds=None, medianHybpiperCdsLength=None, status=None, hybridisationPool=None, r2FastqFile=None, r1FastqFile=None, blacklisted=None, blacklistedReason=None, sequencingStrategy=None, enaExpNumber=None, enaRunNumber=None, externalSequenceId=None):
         self.idSequencing = None
         self.sequenceId = sequenceId
         self.library = library
@@ -511,12 +511,13 @@ class Sequence(object):
         self.sequencingStrategy = sequencingStrategy
         self.enaExpNumber = enaExpNumber
         self.enaRunNumber = enaRunNumber
+        self.externalSequenceId = externalSequenceId
         # one-to-many
         # fk_SequenceDataRelease_Sequence: SequenceDataRelease.idSequencing REFERENCES Sequence(idSequencing)
         self.sequenceDataReleaseSequencingList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `Sequence` (`SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Sequence` (`SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `ExternalSequenceID`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.sequenceId)
         l.append(None if self.library is None else self.library.idLibrary)
@@ -534,6 +535,7 @@ class Sequence(object):
         l.append(None if self.sequencingStrategy is None else self.sequencingStrategy.idSequencingStrategy)
         l.append(self.enaExpNumber)
         l.append(self.enaRunNumber)
+        l.append(self.externalSequenceId)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -1285,7 +1287,7 @@ def loadSampleDict(connection, productionDatabase):
 def loadSequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSequencing`, `SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber` FROM `Sequence`'
+    sqlStatement = 'SELECT `idSequencing`, `SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `ExternalSequenceID` FROM `Sequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sequence()
@@ -1360,6 +1362,7 @@ def loadSequenceDict(connection, productionDatabase):
             entity.sequencingStrategy.sequenceSequencingStrategyList.append(entity)
         entity.enaExpNumber = paftol.database.strOrNone(row[15])
         entity.enaRunNumber = paftol.database.strOrNone(row[16])
+        entity.externalSequenceId = paftol.database.strOrNone(row[17])
         entityDict[entity.idSequencing] = entity
     cursor.close()
     return entityDict

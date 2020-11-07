@@ -472,9 +472,9 @@ def runAddTargetsFile(argNamespace):
 
     
 def runAddPaftolFastqFiles(argNamespace):
-    # Paul B. - changed to include the data origin, path to the fastq file(s) and sample identifier for non-paftol data
+    # Paul B. - changed to include the data origin, path to the fastq file(s), sample identifier for non-paftol data and genes from an external gene recovery
     #paftol.database.addPaftolFastqFiles(argNamespace.fastq)
-    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath, argNamespace.sampleId)
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath, argNamespace.sampleId, argNamespace.addExternalGenes)
     # NB - fastq is a list of fastq files under argNameSpace, fastqPath is a single value
 
 
@@ -663,12 +663,13 @@ def addAddTargetsFileParser(subparsers):
 
     
 def addAddPaftolFastqFilesParser(subparsers):
-    p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files')
-    p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one)')
+    p = subparsers.add_parser('addPaftolFastq', help='add PAFTOL fastq files or raw files from other data set types for one sample')
+    p.add_argument('fastq', nargs='+', help='fastq files (any number, at least one) or a single fasta file')
     # Paul B. added flag to upload DataOrigin and fastq file path:
     p.add_argument('--dataOrigin', help='specify acronym for data origin: PAFTOL, OneKP_Transcripts, OneKP_Reads, SRA or AG (annotated genome)', required=True)
-    p.add_argument('--fastqPath', help='path to fastq files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
+    p.add_argument('--fastqPath', help='path to fastq or raw fasta files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
     p.add_argument('--sampleId', help='specify the sample identifier', required=True)
+    p.add_argument('--addExternalGenes', help='add info on externally recovered genes from a fasta file - please specify the full path, including the filename (NB - option only relevant to OneKP_Transcripts or AG data sets)')
     p.set_defaults(func=runAddPaftolFastqFiles)
 
 
