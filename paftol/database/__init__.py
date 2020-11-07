@@ -558,11 +558,11 @@ def rawFilenameStats(filename=None):
         raise StandardError, 'Raw data fasta file is zipped, needs to be unzipped: %s' % filename
 
     for record in Bio.SeqIO.parse(filename, "fasta"):     # returns a SeqRecord object, includes a Seq object called seq
-        print record.id, "\n", record.seq, len(record)
+        #print record.id, "\n", record.seq, len(record)
         sumLengthOfContigs = sumLengthOfContigs + len(record)
         numbrSequences += 1
         seqRecords[record.id] = record
-    #print 'record.id: numbrSequences: ', numbrSequences, '; sumLengthOfContigs: ', sumLengthOfContigs
+        logger.info('Raw data file stats  numbrSequences: %s; sumLengthOfContigs: %s ', numbrSequences, sumLengthOfContigs)
     return  numbrSequences, sumLengthOfContigs 
 
 
@@ -677,12 +677,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                 elif dataOriginAcronym == 'OneKP_Transcripts' or dataOriginAcronym == 'AG':
                     newSeqStats =paftol.database.analysis.FastqStats()
 
-             ###   newObj paftol.database.analysis.FastqStats(numReads=numbrSeqs, sumLenghContigs=sumlenghtContigs)
-             ###   return paftol.database.analysis.FastqStats(numReads=fastqcSummaryStats.numReads, qual28=fastqcSummaryStats.qual28, meanA=fastqcSummaryStats.meanA, meanC=fastqcSummaryStats.meanC, meanG=fastqcSummaryStats.meanG, meanT=fastqcSummaryStats.meanT, stddevA=fastqcSummaryStats.stddevA, stddevC=fastqcSummaryStats.stddevC, stddevG=fastqcSummaryStats.stddevG, stddevT=fastqcSummaryStats.stddevT, meanN=fastqcSummaryStats.meanN, stddevN=fastqcSummaryStats.stddevN, meanAdapterContent=fastqcSummaryStats.meanAdapterContent, maxAdapterContent=fastqcSummaryStats.maxAdapterContent)
 
-
-
-               
                 # Paul B - altered to fit with auto_increment + to add the full path to the fastq file:
                 #newFastqFile = paftol.database.analysis.FastqFile(filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newFastqStats)            
                 # Paul B. corrected from: newPaftolFastqFile = paftol.database.analysis.PaftolFastqFile(None, idSequencing, newFastqFile)
@@ -1119,7 +1114,7 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
         sumLengthOfContigs = sumLengthOfContigs + len(record)
         numbrSequences += 1
         seqRecords[record.id] = record
-    logger.warning('Recovered genes fasta file: numbrSequences=%s; sumLengthOfContigs=%s', numbrSequences, sumLengthOfContigs)
+    logger.info('Recovered genes fasta file: numbrSequences=%s; sumLengthOfContigs=%s', numbrSequences, sumLengthOfContigs)
 
 
     # Get all gene names present in paftol_da database:
