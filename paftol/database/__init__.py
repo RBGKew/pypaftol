@@ -663,17 +663,17 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     # Only add .gz ending for fastq files (assumed to be zipped for the raw files):
                     if re.search('.fastq$|.fq$', fastqFname) is not None: 
                         fastqPathName = fastqPath + '/' + fastqFname + '.gz'
-                    # Now need to extend the match to fasta file ending for OneKP and AG data sets:
-                    match = re.search('(.fasta|.fa)(.[bg]z2?)', fastqFname) 
-                    if match is not None: 
-                        fileEnding = match.group(2)
-                        fastqPathName = fastqPath + '/' + fastqFname + fileEnding
+                    # Now need to extend the match to fasta files - NB - this time endings are specific to OneKP (.bz2) and AG (.gz) data sets:
+                    elif re.search('.fasta$|.fa$', fastqFname) is not None and dataOriginAcronym == 'OneKP_Transcripts':
+                        fastqPathName = fastqPath + '/' + fastqFname + '.bz2'
+                    elif re.search('.fasta$|.fa$', fastqFname) is not None and dataOriginAcronym == 'AG':
+                        fastqPathName = fastqPath + '/' + fastqFname + '.gz'
                     else:
                         fastqPathName = fastqPath + '/' + fastqFname
-                    print 'fastqPathName: ', fastqPathName
+                    logger.info('fastqPathName: %s', fastqPathName)
                 else:
                     fastqPathName = None
-                    print 'fastqPathName: ', fastqPathName
+                    logger.info('fastqPathName: %s', fastqPathName)
 
                 # Paul B added:
                 if dataOriginAcronym == 'PAFTOL' or dataOriginAcronym == 'OneKP_Reads' or dataOriginAcronym == 'SRA':
