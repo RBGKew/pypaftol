@@ -730,7 +730,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     logger.warning('fastq file %s already in database, verified by md5sum', fastqFname)
                 else:
                     # Paul B. - raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, fastqFile.md5sum, md5sum)
-                    raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, InputSequence.md5sum, md5sum)
+                    raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, inputSequence.md5sum, md5sum)
         else:
 ### Need to change message - for other datatypes
             logger.warning('No sample identifier obtainable for %s', fastqFname)
