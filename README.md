@@ -1,14 +1,8 @@
 # pypaftol: Home of `paftools`
 
-This repository contains the `paftools` Python module which provides
-functionality for data analysis in the PAFTOL project. Some of this
-functionality will be applicable and hopefully found to be useful
-beyond PAFTOL, e.g. for processing HybSeq data in general.
-Functionality can be accessed either via the `paftools` script or the
-Python API.
+This repository contains the `paftools` Python module which provides functionality for recovery and data analysis of target capture data in the [PAFTOL Project][https://www.kew.org/science/our-science/projects/plant-and-fungal-trees-of-life]. Some of this functionality will be applicable and hopefully found to be useful beyond PAFTOL, e.g. for processing HybSeq data in general. Functionality can be accessed either via the `paftools` script or the Python API.
 
-The documentation provided here is intended to help beta-testers with
-getting started.
+The documentation provided here is intended to help beta-testers with getting started.
 
 Please also check out the [tutorial](paftools_tutorial.md) here.
 
@@ -25,9 +19,10 @@ Building and installing the `paftol` module requires
 * GNU C compiler (`gcc`) and associated tools
 * GNU make
 
-The following bioinformatics applications and suites are required for
-full functionality of the module and the `paftools` script:
+The following bioinformatics applications and suites are required for full functionality of the module and the `paftools` script:
 
+* trimmomatic
+* spades
 * samtools
 * bwa
 * exonerate
@@ -35,9 +30,7 @@ full functionality of the module and the `paftools` script:
 * clustalo (aka clustal-omega)
 * emboss
 * embassy-phylip
-* spades
 * fastqc (currently exactly version 0.11.5 is required)
-* trimmomatic
 
 Additional prerequisites for PAFTOL internal use include:
 
@@ -46,21 +39,19 @@ Additional prerequisites for PAFTOL internal use include:
 These prerequisites should generally be provided on the cluster.
 
 
-## Quick Installation Guide
+## Installation Guide
 
 1. Clone the repository
-```
-git clone https://github.com/RBGKew/pypaftol.git
+```shell
+git clone https://github.com/RBGKew/pypaftol
 ```
 
 2. Install by running the command
 ```
 make hinstall
 ```
-This will install the package in `$HOME/lib/python`, which is the
-standard directory for installing Python modules for use in your
-account only. You'll need to ensure that your `PYTHONPATH` environment
-variable includes this directory, see Tips section below.
+This will install the package in `$HOME/lib/python`, which is the standard directory for installing Python modules for use in your
+account only. You'll need to ensure that your `PYTHONPATH` environment variable includes this directory, see Tips section below.
 
 3. Check that the installation was successful by running
 ```
@@ -69,14 +60,13 @@ paftools -h
 This should give you a help message listing the `paftools` subcommands
 currently available.
 
-4. If you like a HTML version of the APIs provided by the `paftol` package
+4. If you like a HTML version of the APIs provided by the `paftools` package
 and its subpackages, run the command
 ```
 make doc
 ```
 
-At the time of writing this `README`, this installation process works
-on the cluster. Sharing any feedback is very welcome, of course.
+At the time of writing this `README`, this installation process works on the cluster. Sharing any feedback is very welcome, of course.
 
 
 ## Tools Using the PAFTOL Databases
