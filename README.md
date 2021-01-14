@@ -1,6 +1,6 @@
 # pypaftol: Home of `paftools`
 
-This repository contains the `paftol` Python module which provides
+This repository contains the `paftools` Python module which provides
 functionality for data analysis in the PAFTOL project. Some of this
 functionality will be applicable and hopefully found to be useful
 beyond PAFTOL, e.g. for processing HybSeq data in general.
@@ -8,8 +8,7 @@ Functionality can be accessed either via the `paftools` script or the
 Python API.
 
 The documentation provided here is intended to help beta-testers with
-getting started. It is not complete and any feedback is welcome (and
-will be rewarded with biscuits).
+getting started.
 
 Please also check out the [tutorial](paftools_tutorial.md) here.
 
