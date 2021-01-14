@@ -12,7 +12,7 @@ paftools -h
 paftools recoverSeqs -h
 ```
 
-## Recover Target Sequences from Fastq Files
+## Recover Target Sequences from raw reads (target capture data)
 
 The `recoverSeqs` tool is designed to recover target sequences, provided via a 'targets file'. It provides a complex process comprised
 of the following stages:
@@ -33,13 +33,13 @@ unzippedR1FastqFile = 11943_R2.fastq
 adapterFasta = illumina_adapters.fasta
 
 paftools recoverSeqs $targetsFile ${sampleId}.fasta \
-	-f $unzippedR1FastqFile -r $unzippedR2FastqFile \
-	--trimmer trimmomatic --trimmomaticLeadingQuality 10 --trimmomaticTrailingQuality 10 \
-	--trimmomaticMinLength 40 --trimmomaticSlidingWindowSize 4 --trimmomaticSlidingWindowQuality 20 \
-	--trimmomaticAdapterFname $adapterFasta  \
-	--mapper tblastn --assembler overlapSerial --blastNumThreads 4 --allowInvalidBases \
-	--windowSizeReference 50 --relIdentityThresholdReference 0.7 --windowSizeReadOverlap 30 \
-	--relIdentityThresholdReadOverlap 0.9 --summaryCsv ${sampleId}_summary.csv
+-f $unzippedR1FastqFile -r $unzippedR2FastqFile \
+--trimmer trimmomatic --trimmomaticLeadingQuality 10 --trimmomaticTrailingQuality 10 \
+--trimmomaticMinLength 40 --trimmomaticSlidingWindowSize 4 --trimmomaticSlidingWindowQuality 20 \
+--trimmomaticAdapterFname $adapterFasta  \
+--mapper tblastn --assembler overlapSerial --blastNumThreads 4 --allowInvalidBases \
+--windowSizeReference 50 --relIdentityThresholdReference 0.7 --windowSizeReadOverlap 30 \
+--relIdentityThresholdReadOverlap 0.9 --summaryCsv ${sampleId}_summary.csv
 ```
 
 The output consists of :

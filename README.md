@@ -4,6 +4,8 @@ This repository contains the `paftools` Python module which provides functionali
 
 The documentation provided here is intended to help beta-testers with getting started.
 
+## Usage
+
 Description and examples of usage are provided in our [usage](paftools_usage.md) and [tutorial](paftools_tutorial.md) readme.
 
 
