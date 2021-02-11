@@ -1,3 +1,5 @@
+ # Copyright © 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import sys
 import os           # Paul B. for os.getcwd()
 import re           # Paul B. added

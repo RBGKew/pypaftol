@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# Copyright © 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import sys
 import getopt
 import re
