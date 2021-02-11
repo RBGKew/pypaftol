@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright © 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+# Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
 
 import types
 import sys
