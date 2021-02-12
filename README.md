@@ -21,7 +21,12 @@ Building and installing the `paftol` module requires
 
 The following bioinformatics applications and suites are required for full functionality of the module and the `paftools` script:
 
-* trimmomatic
+* Trimmomatic - to use Trimmomatic via Paftools a little shell script is required called 'trimmomatic' that needs to be available from the command line
+```
+#! /bin/bash
+args=$@
+java -jar <FULL_PATH_TO>/trimmomatic-0.39.jar ${args[@]}
+```
 * spades
 * samtools
 * bwa

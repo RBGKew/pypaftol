@@ -1504,7 +1504,9 @@ class TrimmomaticRunner(object):
     def runTrimmomaticPaired(self, forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, trimlogFname=None, workDirname=None):
         if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
             raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
-        trimmomaticArgv = ['TrimmomaticPE']
+        # trimmomaticArgv = ['TrimmomaticPE']
+        # Paul B. - changed to fit with KewHPC
+        trimmomaticArgv = ['trimmomatic PE']
         if self.numThreads is not None:
             trimmomaticArgv.extend(['-threads', str(self.numThreads)])
         if trimlogFname is not None:
