@@ -27,6 +27,7 @@ The following bioinformatics applications and suites are required for full funct
 args=$@
 java -jar <FULL_PATH_TO>/trimmomatic-0.39.jar ${args[@]}
 ```
+* blast
 * spades
 * samtools
 * bwa
