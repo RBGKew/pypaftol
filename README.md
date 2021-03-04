@@ -39,7 +39,7 @@ java -jar <FULL_PATH_TO>/trimmomatic-0.39.jar ${args[@]}
 
 Additional prerequisites for PAFTOL internal use include:
 
-* Python `mysql.connector`
+* Python `mysql.connector`  <!--Paul B. - changed from mysqlc.connector -->
 
 These prerequisites should generally be provided on the cluster.
 
