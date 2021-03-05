@@ -614,7 +614,7 @@ def addRetrieveTargetListParser(subparsers):
     p.add_argument('--fastaFname', help='DNA FASTA file - name of the file matching the blast db - fasta records become the blast subjects (hits)', required=True)
     addBlastnRunnerToParser(p)
     p.add_argument('targetsfile', nargs='?', help='target sequences (DNA FASTA), default stdin. Format of FASTA header line must be: >organismId-geneId (after Angiosoperms353 gene set) - these fasta records become the blast queries')
-    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout. Output FASTA header format: >geneId organismId organism-gene:organismId-geneId originalBlastSubjectHitId evalue originalBlastSubjectHitIdDescription')
+    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout. Output FASTA header contains the full ID (i.e. gene and organism name) of the target gene query as well as the ID and info from the blast subject; format: >geneId organismId organism-gene:organismId-geneId originalBlastSubjectHitId evalue originalBlastSubjectHitIdDescription')
     p.set_defaults(func=runRetrieveTargets)
 
 
