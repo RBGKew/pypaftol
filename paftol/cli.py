@@ -670,7 +670,7 @@ def addAddPaftolFastqFilesParser(subparsers):
     # Paul B. added flag to upload DataOrigin and fastq file path:
     p.add_argument('--dataOrigin', help='specify acronym for data origin: PAFTOL, OneKP_Transcripts, OneKP_Reads, SRA or AG (annotated genome)', required=True)
     p.add_argument('--fastqPath', help='path to fastq or raw fasta files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
-    p.add_argument('--sampleId', help='specify the sample identifier', required=True)
+    p.add_argument('--sampleId', help='specify the sample identifier')      # Paul B - removed: , required=True)
     p.add_argument('--addExternalGenes', help='add info on externally recovered genes from a fasta file - please specify the full path, including the filename (NB - option only relevant to OneKP_Transcripts or AG data sets)')
     p.set_defaults(func=runAddPaftolFastqFiles)
 
