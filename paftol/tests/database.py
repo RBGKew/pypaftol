@@ -1,7 +1,7 @@
 import sys
 import unittest
 import copy
-import cStringIO
+import io
 
 import Bio
 import Bio.Seq
@@ -21,7 +21,7 @@ class DatabaseTestCase(unittest.TestCase):
         self.assertIsNone(None, paftolDatabaseDetails.dbpassword)
         self.assertIsNone(None, paftolDatabaseDetails.dbhost)
         self.assertIsNone(None, paftolDatabaseDetails.dbname)
-        f = cStringIO.StringIO("""user: paftol
+        f = io.StringIO("""user: paftol
 password: topsecret
 host: localhost
 database: paftol

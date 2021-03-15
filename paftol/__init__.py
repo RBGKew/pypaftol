@@ -140,11 +140,11 @@ the target genes.
         self.exoneratePercentIdentityThreshold = 65.0
 
     def analyse(self):
-        raise StandardError('not implemented in this "abstract" base class')
+        raise Exception('not implemented in this "abstract" base class')
 
     def setupTmpdir(self):
         if self.tmpDirname is not None:
-            raise StandardError('illegal state: already have generated working directory %s' % self.tmpDirname)
+            raise Exception('illegal state: already have generated working directory %s' % self.tmpDirname)
         self.tmpDirname = tempfile.mkdtemp(prefix=self.workDirname)
         os.mkdir(self.makeWorkDirname())
 
@@ -167,7 +167,7 @@ the target genes.
 
     def makeWorkDirname(self):
         if self.tmpDirname is None:
-            raise StandardError('illegal state: no temporary directory and hence no working directory')
+            raise Exception('illegal state: no temporary directory and hence no working directory')
         # logger.debug('tmpDirname = %s, workDirname = %s', self.tmpDirname, self.workDirname)
         return os.path.join(self.tmpDirname, self.workDirname)
 
@@ -238,7 +238,7 @@ the target genes.
                 if readName in readNameMappedReadDict:
                     for mappedRead in readNameMappedReadDict[readName]:
                         if mappedRead.fowardRead is not None:
-                            raise StandardError, 'duplicate forward read for %s' % readName
+                            raise Exception('duplicate forward read for %s' % readName)
                         mappedRead.forwardRead = forwardRead
 
     def readMappedReadsPaired(self, result):
@@ -248,22 +248,22 @@ the target genes.
             with open(result.reverseFastq, 'r') as reverseFile:
                 reverseParser = Bio.SeqIO.parse(reverseFile, 'fastq')
                 for forwardRead in forwardParser:
-                    reverseRead = reverseParser.next()
+                    reverseRead = next(reverseParser)
                     forwardRead.id = MappedRead.readBasename(forwardRead.id)
                     reverseRead.id = MappedRead.readBasename(reverseRead.id)
                     if reverseRead.id != forwardRead.id:
-                        raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
+                        raise Exception('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, forwardRead.id, reverseRead.id))
                     readName = forwardRead.id
                     if readName in readNameMappedReadDict:
                         for mappedRead in readNameMappedReadDict[readName]:
                             if mappedRead.forwardRead is not None:
-                                raise StandardError, 'duplicate forward read for %s' % readName
+                                raise Exception('duplicate forward read for %s' % readName)
                             mappedRead.forwardRead = forwardRead
                             mappedRead.reverseRead = reverseRead
                 # FIXME: check for dangling stuff in reverse: reverse.next() should trigger exception (StopIteration?)
 
     def writeMappedReadsFasta(self, result, maxNumReadsPerGene):
-        for paftolGene in result.paftolTargetSet.paftolGeneDict.values():
+        for paftolGene in list(result.paftolTargetSet.paftolGeneDict.values()):
             with open(self.makeGeneReadFname(paftolGene.name, True), 'w') as fastaFile:
                 paftolGene.writeMappedReadsFasta(fastaFile, True, result.reverseFastq is not None, maxNumReadsPerGene)
 
@@ -299,9 +299,9 @@ the target genes.
             # FIXME: premature end of reverse fastq will trigger
             # StopIteration and premature end of forward will leave
             # rest of reverse ignored
-            revReadTitle, revReadSeq, revReadQual = fqiReverse.next()
+            revReadTitle, revReadSeq, revReadQual = next(fqiReverse)
             if readName != revReadTitle.split()[0]:
-                raise StandardError('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
+                raise Exception('paired read files %s / %s out of sync at read %s / %s' % (result.forwardFastq, result.reverseFastq, fwdReadTitle, revReadTitle))
             if readName in readNameGeneDict:
                 for paftolGene in readNameGeneDict[readName]:
                     with open(self.makeGeneReadFname(paftolGene.name, True), 'a') as f:
@@ -342,14 +342,14 @@ the target genes.
                 return True
             # FIXME: resolving tie using contig id, consider using more meaningful criteria but be mindful of biases...???
             if exonerateResult.targetId is None:
-                raise StandardError('cannot break tie when exonerateResult.targetId is None')
+                raise Exception('cannot break tie when exonerateResult.targetId is None')
             if other.targetId is None:
-                raise StandardError('cannot break tie when other.targetId is None')
+                raise Exception('cannot break tie when other.targetId is None')
             if exonerateResult.targetId < other.targetId:
                 return False
             elif other.targetId < exonerateResult.targetId:
                 return True
-            raise StandardError('cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
+            raise Exception('cannot break tie: exonerateResult = %s, other = %s' % (str(exonerateResult), str(other)))
 
         nonContainedExonerateResultList = []
         for exonerateResult in exonerateResultList:
@@ -413,13 +413,13 @@ the target genes.
     def makeTgz(self):
         if self.workdirTgz is not None:
             if self.tmpDirname is None:
-                raise StandardError('illegal state: no temporary directory generated')
+                raise Exception('illegal state: no temporary directory generated')
             tmpTgz = os.path.join(self.tmpDirname, '%s.tgz' % self.workDirname)
             tgzArgv = ['tar', '-zcf', tmpTgz, self.workDirname]
             tgzProcess = subprocess.Popen(tgzArgv, cwd=self.tmpDirname)
             tgzReturncode = tgzProcess.wait()
             if tgzReturncode != 0:
-                raise StandardError('process "%s" returned %d' % (' '.join(tgzArgv), tgzReturncode))
+                raise Exception('process "%s" returned %d' % (' '.join(tgzArgv), tgzReturncode))
             # FIXME: clumsy to first create tgz in temp dir and then
             # moving it to final destination, compute absolute path to
             # final destination and use that directly?
@@ -457,7 +457,7 @@ class TargetMapper(object):
         self.workdir = None
 
     def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
-        raise StandardError, 'abstract method called'
+        raise Exception('abstract method called')
 
 
 class TargetMapperTblastn(TargetMapper):
@@ -473,7 +473,7 @@ class TargetMapperTblastn(TargetMapper):
     def mapReads(self, paftolTargetSet, forwardReadsFname, reverseReadsFname):
         logger.debug('mapping gene sequences to reads')
         if not self.isSetup():
-            raise StandardError, 'illegal state: TargetMapperTblastn instance not set up'
+            raise Exception('illegal state: TargetMapperTblastn instance not set up')
         self.writeTargetsFile(paftolTargetSet)
         referenceFname = self.makeTargetsPath()
         targetProteinList = [paftol.tools.translateSeqRecord(geneSr) for geneSr in paftolTargetSet.getSeqRecordList()]
@@ -506,7 +506,7 @@ class TargetMapperBwa(TargetMapper):
 """
         logger.debug('mapping reads to gene sequences')
         if self.workdir is None:
-            raise StandardError, 'illegal state: no workdir'
+            raise Exception('illegal state: no workdir')
         referenceFname = self.makeTargetsPath()
         self.bwaRunner.indexReference(referenceFname)
         forwardReadsFname = os.path.join(os.getcwd(), result.forwardFastq)
@@ -568,12 +568,12 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
             if self.__dict__[controlParameter] is None:
                 missingControlParameterList.append(controlParameter)
         if len(missingControlParameterList) > 0:
-            raise StandardError, 'missing control parameters: %s' % ', '.join(missingControlParameterList)
+            raise Exception('missing control parameters: %s' % ', '.join(missingControlParameterList))
 
     def assembleGene(self, result, geneName):
         # logger.debug('tracking: starting with gene %s' % geneName)
         if not self.isSetup():
-            raise StandardError, 'cannot assemble gene %s: TargetAssemblerOverlapSerial instance not set up' % geneName
+            raise Exception('cannot assemble gene %s: TargetAssemblerOverlapSerial instance not set up' % geneName)
         self.checkControlParameters()
         overlapCsvFname = self.makeWorkdirPath('overlap-%s.csv' % geneName)
         positionedReadDirname = self.makeWorkdirPath('posread-%s' % geneName)
@@ -598,9 +598,9 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         alignmentList = paftol.tools.semiglobalOneVsAll(repGene, readSrList)
         numReads = len(readSrList)
         if len(alignmentList) != numReads:
-            raise StandardError, 'readSrList / alignment mismatch'
+            raise Exception('readSrList / alignment mismatch')
         positionedReadList = []
-        for i in xrange(numReads):
+        for i in range(numReads):
             # sys.stderr.write('%s / %s: %f\n' % (alignmentList[i][0].id, alignmentList[i][1].id, findMaxRelativeIdentity(alignmentList[i], self.windowSize)))
             maxRelativeIdentity = paftol.tools.findMaxRelativeIdentity(alignmentList[i], self.windowSizeReference)
             if maxRelativeIdentity >= self.relIdentityThresholdReference:
@@ -618,7 +618,7 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         # logger.debug('tracking: positioned reads')
         positionedSrList = [positionedRead.readSr for positionedRead in positionedReadList]
         if positionedReadDirname is not None:
-            for i in xrange(len(positionedSrList)):
+            for i in range(len(positionedSrList)):
                 Bio.SeqIO.write([positionedSrList[i]], '%s/p%03d.fasta' % (positionedReadDirname, i), 'fasta')
         if positionedReadFname is not None:
             Bio.SeqIO.write(positionedSrList, positionedReadFname, 'fasta')
@@ -628,7 +628,7 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
             overlapDataFrame = None
         contigList = []
         currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.semiglobalAlignmentRunner)
-        for i in xrange(len(positionedReadList)):
+        for i in range(len(positionedReadList)):
             if overlapDataFrame is not None:
                 if i == 0:
                     overlapRow = {'read0': None, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': None, 'overlapMatch': None}
@@ -702,9 +702,9 @@ class TargetRecoverer(HybseqAnalyser):
     def recoverContigs(self, result, geneName):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if result.representativePaftolTargetDict is None:
-            raise StandardError('illegal state: no represesentative genes')
+            raise Exception('illegal state: no represesentative genes')
         if result.representativePaftolTargetDict[geneName] is None:
-            raise StandardError('no representative for gene %s' % geneName)
+            raise Exception('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.targetAssembler.assembleGene(result, geneName)
         if contigList is None:
@@ -720,7 +720,7 @@ class TargetRecoverer(HybseqAnalyser):
     
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
         if geneName not in result.contigDict:
-            raise StandardError, 'no contig recovery result for gene %s' % geneName
+            raise Exception('no contig recovery result for gene %s' % geneName)
         contigList = result.contigDict[geneName]
         if contigList is None:
             logger.warning('gene %s: no cds reconstruction possible because no contigs were recovered' % geneName)
@@ -798,16 +798,16 @@ class TargetRecoverer(HybseqAnalyser):
         return splicedSupercontig
     
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
-        raise StandardError, 'obsolete -- use recoverTargets'
+        raise Exception('obsolete -- use recoverTargets')
 
     def recoverTargets(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
-	paftolTargetSet = PaftolTargetSet()
-	paftolTargetSet.readFasta(targetsSourcePath)
+        paftolTargetSet = PaftolTargetSet()
+        paftolTargetSet.readFasta(targetsSourcePath)
         # FIXME: put allowInvalidBases in result for subsequent reference?
-	paftolTargetSet.sanityCheck(allowInvalidBases)
+        paftolTargetSet.sanityCheck(allowInvalidBases)
         result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
-	try:
+        try:
             self.setup(result)
             logger.debug('setup done')
             if self.trimmomaticRunner is None:
@@ -839,7 +839,7 @@ class TargetRecoverer(HybseqAnalyser):
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.contigDict[geneName] = self.recoverContigs(result, geneName)
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
-	    logger.debug('CDS reconstruction done')
+            logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result
         finally:
@@ -863,10 +863,10 @@ class MappedRead(object):
         self.reverseRead = None
 
     def getReadName(self):
-        raise StandardError, 'abstract method not overridden'
+        raise Exception('abstract method not overridden')
 
     def getMappingScore(self):
-        raise StandardError, 'abstract method not overridden'
+        raise Exception('abstract method not overridden')
 
     @staticmethod
     def readBasename(rawReadName):
@@ -881,7 +881,7 @@ class SamMappedRead(MappedRead):
 
     def __init__(self, paftolTarget, samAlignment):
         super(SamMappedRead, self).__init__(paftolTarget)
-	self.samAlignment = samAlignment
+        self.samAlignment = samAlignment
 
     def getReadName(self):
         return self.readBasename(self.samAlignment.qname)
@@ -899,7 +899,7 @@ taken into account.
 
     def __init__(self, paftolTarget, blastAlignment):
         super(BlastMappedRead, self).__init__(paftolTarget)
-	self.blastAlignment = blastAlignment
+        self.blastAlignment = blastAlignment
 
     def getReadName(self):
         return self.readBasename(self.blastAlignment.hit_id)
@@ -936,7 +936,7 @@ facilitating handling of multiple genes and multiple organisms.
         self.mappedReadList = []
 	# self.readAssociationList = []
         if paftolGene.name in organism.paftolTargetDict or organism.name in paftolGene.paftolTargetDict:
-            raise StandardError('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
+            raise Exception('duplicate organism/gene: organism = %s, gene = %s, seqId = %s' % (organism.name, paftolGene.name, seqRecord.id))
         organism.paftolTargetDict[paftolGene.name] = self
         paftolGene.paftolTargetDict[organism.name] = self
 
@@ -991,7 +991,7 @@ class Organism(object):
         self.paftolTargetDict = {}
 
     def numMappedReads(self):
-        return sum([t.numMappedReads() for t in self.paftolTargetDict.values()])
+        return sum([t.numMappedReads() for t in list(self.paftolTargetDict.values())])
 
     def csvRowDict(self):
         d = {}
@@ -1025,7 +1025,7 @@ organisms.
 
     def getReadNameSet(self):
         s = set()
-        for paftolTarget in self.paftolTargetDict.values():
+        for paftolTarget in list(self.paftolTargetDict.values()):
             s = s | paftolTarget.getReadNameSet()
         return s
 
@@ -1033,10 +1033,10 @@ organisms.
         if len(self.paftolTargetDict) == 0:
             return None
         else:
-            return float(sum([len(t.seqRecord) for t in self.paftolTargetDict.values()])) / float(len(self.paftolTargetDict))
+            return float(sum([len(t.seqRecord) for t in list(self.paftolTargetDict.values())])) / float(len(self.paftolTargetDict))
 
     def numMappedReads(self):
-        return sum([t.numMappedReads() for t in self.paftolTargetDict.values()])
+        return sum([t.numMappedReads() for t in list(self.paftolTargetDict.values())])
 
     def csvRowDict(self):
         d = {}
@@ -1050,7 +1050,7 @@ organisms.
         readNameSet = set()
         srList = []
         numReads = 0
-        for paftolTarget in self.paftolTargetDict.values():
+        for paftolTarget in list(self.paftolTargetDict.values()):
             for mappedRead in paftolTarget.mappedReadList:
                 readName = mappedRead.getReadName()
                 if readName not in readNameSet:
@@ -1058,11 +1058,11 @@ organisms.
                     readNameSet.add(readName)
                     if includeForward:
                         if mappedRead.forwardRead is None:
-                            raise StandardError, 'mapped read %s: no forward read SeqRecord' % mappedRead.getReadName()
+                            raise Exception('mapped read %s: no forward read SeqRecord' % mappedRead.getReadName())
                         srList.append(mappedRead.forwardRead)
                     if includeReverse:
                         if mappedRead.reverseRead is None:
-                            raise StandardError, 'mapped read %s: no reverse read SeqRecord' % mappedRead.getReadName()
+                            raise Exception('mapped read %s: no reverse read SeqRecord' % mappedRead.getReadName())
                         srList.append(mappedRead.reverseRead)
         return srList
 
@@ -1113,24 +1113,24 @@ methods, respectively.
         srList = []
         for geneName in geneNameList:
             if geneName not in self.paftolGeneDict:
-                raise StandardError, 'gene %s not found in this target set' % geneName
-            for paftolTarget in self.paftolGeneDict[geneName].paftolTargetDict.values():
+                raise Exception('gene %s not found in this target set' % geneName)
+            for paftolTarget in list(self.paftolGeneDict[geneName].paftolTargetDict.values()):
                 srList.append(paftolTarget.seqRecord)
         return srList
 
     def getSeqRecordSelection(self, organismNameList=None, geneNameList=None):
         if organismNameList is None:
-            organismList = self.organismDict.values()
+            organismList = list(self.organismDict.values())
         else:
             organismList = []
             for organismName in organismNameList:
                 if organismName not in self.organismDict:
-                    raise StandardError, 'organism %s not found in this target set' % organismName
+                    raise Exception('organism %s not found in this target set' % organismName)
                 organismList.append(self.organismDict[organismName])
         if geneNameList is not None:
             for geneName in geneNameList:
                 if geneName not in self.paftolGeneDict:
-                    raise StandardError, 'gene %s not found in this target set' % geneName
+                    raise Exception('gene %s not found in this target set' % geneName)
         srList = []
         for organism in organismList:
             for geneName in organism.paftolTargetDict:
@@ -1146,9 +1146,9 @@ methods, respectively.
         for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
             organismName, geneName = extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
-                raise StandardError('bad organism name: %s' % organismName)
+                raise Exception('bad organism name: %s' % organismName)
             if not isSane(geneName):
-                raise StandardError('bad gene name: %s' % geneName)
+                raise Exception('bad gene name: %s' % geneName)
             if organismName not in self.organismDict:
                 self.organismDict[organismName] = Organism(organismName)
             if geneName not in self.paftolGeneDict:
@@ -1157,13 +1157,13 @@ methods, respectively.
 
     def meanTargetLength(self, geneName):
         if geneName not in self.paftolGeneDict:
-            raise StandardError, 'gene %s not contained in this target set'
+            raise Exception('gene %s not contained in this target set')
         return self.paftolGeneDict[geneName].meanSequenceLength()
 
     def getSeqRecordList(self):
         srList = []
-        for organism in self.organismDict.values():
-            for paftolTarget in organism.paftolTargetDict.values():
+        for organism in list(self.organismDict.values()):
+            for paftolTarget in list(organism.paftolTargetDict.values()):
                 srList.append(paftolTarget.seqRecord)
         return srList
 
@@ -1174,19 +1174,19 @@ methods, respectively.
 
     def checkOrganismAndGene(self, organismName, geneName):
         if organismName not in self.organismDict:
-            raise StandardError('unknown organism: %s' % organismName)
+            raise Exception('unknown organism: %s' % organismName)
         if geneName not in self.paftolGeneDict:
-            raise StandardError('unknown gene: %s' % geneName)
+            raise Exception('unknown gene: %s' % geneName)
         if geneName not in self.organismDict[organismName].paftolTargetDict:
-            raise StandardError('no entry for gene %s in organism %s' % (geneName, organismName))
+            raise Exception('no entry for gene %s in organism %s' % (geneName, organismName))
 
     def processSamAlignment(self, samAlignment):
         if samAlignment.isMapped():
             organismName, geneName = extractOrganismAndGeneNames(samAlignment.rname)
             self.checkOrganismAndGene(organismName, geneName)
             paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
-	    mappedRead = SamMappedRead(paftolTarget, samAlignment)
-	    paftolTarget.addMappedRead(mappedRead)
+            mappedRead = SamMappedRead(paftolTarget, samAlignment)
+            paftolTarget.addMappedRead(mappedRead)
         else:
             self.numOfftargetReads = self.numOfftargetReads + 1
 
@@ -1199,7 +1199,7 @@ methods, respectively.
 
     def makeReadNameGeneDict(self):
         readNameGeneDict = {}
-        for paftolGene in self.paftolGeneDict.values():
+        for paftolGene in list(self.paftolGeneDict.values()):
             for readName in paftolGene.getReadNameSet():
                 if readName not in readNameGeneDict:
                     readNameGeneDict[readName] = []
@@ -1209,8 +1209,8 @@ methods, respectively.
     def makeReadNameMappedReadDict(self):
         # FIXME: not exactly exemplary for following law of Demeter -- inner parts of loop probably want to be PaftolTarget or MappedRead methods
         readNameMappedReadDict = {}
-        for paftolGene in self.paftolGeneDict.values():
-            for paftolTarget in paftolGene.paftolTargetDict.values():
+        for paftolGene in list(self.paftolGeneDict.values()):
+            for paftolTarget in list(paftolGene.paftolTargetDict.values()):
                 for mappedRead in paftolTarget.mappedReadList:
                     readName = mappedRead.getReadName()
                     if readName not in readNameMappedReadDict:
@@ -1220,26 +1220,26 @@ methods, respectively.
 
     def targetStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolTarget.csvFieldNames)
-        for organism in self.organismDict.values():
-            for paftolTarget in organism.paftolTargetDict.values():
+        for organism in list(self.organismDict.values()):
+            for paftolTarget in list(organism.paftolTargetDict.values()):
                 dataFrame.addRow(paftolTarget.csvRowDict())
         return dataFrame
 
     def geneStats(self):
         dataFrame = paftol.tools.DataFrame(PaftolGene.csvFieldNames)
-        for paftolGene in self.paftolGeneDict.values():
+        for paftolGene in list(self.paftolGeneDict.values()):
             dataFrame.addRow(paftolGene.csvRowDict())
         return dataFrame
 
     def organismStats(self):
         dataFrame = paftol.tools.DataFrame(Organism.csvFieldNames)
-        for organism in self.organismDict.values():
+        for organism in list(self.organismDict.values()):
             dataFrame.addRow(organism.csvRowDict())
         return dataFrame
 
     def getMappedReadNameSet(self):
         mappedReadNameSet = set()
-        for paftolGene in self.paftolGeneDict.values():
+        for paftolGene in list(self.paftolGeneDict.values()):
             mappedReadNameSet = mappedReadNameSet | paftolGene.getReadNameSet()
         return mappedReadNameSet
 
@@ -1255,18 +1255,18 @@ methods, respectively.
     # FIXME: apparently obsolete -- delete?
     def writeMappedReadsFasta(self, fastaFname):
         with open(fastaFname, 'w') as fastaFile:
-            for organism in self.organismDict.values():
-                for paftolTarget in organism.paftolTargetDict.values():
+            for organism in list(self.organismDict.values()):
+                for paftolTarget in list(organism.paftolTargetDict.values()):
                     paftolTarget.writeMappedReadsFasta(fastaFile)
 
     # FIXME: untested after transplant from HybpiperAnalyser
     def sanityCheck(self, allowInvalidBases=False):
-        for organism in self.organismDict.values():
-            for paftolTarget in organism.paftolTargetDict.values():
-		if not allowInvalidBases:
-		    setDiff = set(str(paftolTarget.seqRecord.seq).lower()) - set('acgt')
-		    if len(setDiff) != 0:
-			raise StandardError('target %s: illegal base(s) %s' % (paftolTarget.seqRecord.id, ', '.join(setDiff)))
+        for organism in list(self.organismDict.values()):
+            for paftolTarget in list(organism.paftolTargetDict.values()):
+                if not allowInvalidBases:
+                    setDiff = set(str(paftolTarget.seqRecord.seq).lower()) - set('acgt')
+                    if len(setDiff) != 0:
+                        raise Exception('target %s: illegal base(s) %s' % (paftolTarget.seqRecord.id, ', '.join(setDiff)))
 
 
 class ReferenceGene(object):
@@ -1354,7 +1354,7 @@ class ReferenceGenomeMappingProcessor(object):
 
     def __init__(self, referenceGenome):
         if referenceGenome.genomeLength is None:
-            raise StandardError, 'reference genome length is None'
+            raise Exception('reference genome length is None')
         self.referenceGenome = referenceGenome
         self.intergenicId = 'intergenic'
         self.unmappedId = 'unmapped'
@@ -1411,7 +1411,7 @@ class ReferenceGenome(object):
         def extractCdsId(qualifiers, qualifierId):
             qualifier = qualifiers[qualifierId]
             if len(qualifier) == 0:
-                raise StandardError, 'qualifier %s has length 0' % qualifierId
+                raise Exception('qualifier %s has length 0' % qualifierId)
             elif len(qualifier) > 1:
                 logger.warning('qualifier %s has %d values, using [0] (%s)', qualifierId, len(qualifier), ', '.join(qualifier))
             return qualifier[0]
@@ -1444,7 +1444,7 @@ class ReferenceGenome(object):
 
     def scanGenesAth(self):
         if self.genbankFname is None:
-            raise StandardError('no GenBank file name, cannot scan genes (ath method)')
+            raise Exception('no GenBank file name, cannot scan genes (ath method)')
         self.geneList = []
         self.genomeLength = 0
         geneDict = {}
@@ -1456,7 +1456,7 @@ class ReferenceGenome(object):
                         # CHECKME: just presuming that locus_tag qualifier will always be present and have exactly one value
                         geneId = seqFeature.qualifiers['locus_tag'][0]
                         if geneId in geneDict:
-                            raise StandardError('duplicate gene id: %s' % geneId)
+                            raise Exception('duplicate gene id: %s' % geneId)
                         gene = ReferenceGene(geneId, self, seqRecord, seqFeature)
                         self.geneList.append(gene)
                         geneDict[geneId] = gene
@@ -1488,7 +1488,7 @@ conventions may be added.
         if scanMethod == 'ath':
             self.scanGenesAth()
         else:
-            raise StandardError('unknown gene scan method: %s' % scanMethod)
+            raise Exception('unknown gene scan method: %s' % scanMethod)
 
     def findGenesByHsp(self, hspAccession, hsp):
         """Find genes that contain a given HSP.
@@ -1550,7 +1550,7 @@ conventions may be added.
         for blastRecord in Bio.Blast.NCBIXML.parse(blastnProcess.stdout):
             targetId = blastRecord.query
             if targetId in targetIdToGeneDict:
-                raise StandardError('duplicate BLAST record for target %s' % targetId)
+                raise Exception('duplicate BLAST record for target %s' % targetId)
             geneList = []
             for blastAlignment in blastRecord.alignments:
                 for hsp in blastAlignment.hsps:
@@ -1569,12 +1569,12 @@ conventions may be added.
         blastnProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+            raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
         if wExit != 0:
-            raise StandardError('wait on forked process returned %d' % wExit)
+            raise Exception('wait on forked process returned %d' % wExit)
         blastnReturncode = blastnProcess.wait()
         if blastnReturncode != 0:
-            raise StandardError('blastn process exited with %d' % blastnReturncode)
+            raise Exception('blastn process exited with %d' % blastnReturncode)
         cdsList = []
         for targetId in targetIdToGeneDict:
             for gene in targetIdToGeneDict[targetId]:
@@ -1643,7 +1643,7 @@ class PaftolTargetSeqRetriever(object):
                 # Paul B.: this conditional checks for same db hit appearing again for another target gene which would not be good.
                 # This is a different check to checking for multiple db hits appearing for the same gene - I thibnk top hit only is 
                 # being taken by the processBlastAlignment method above 
-                raise StandardError, 'multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName)
+                raise Exception('multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName))
             seqIdGeneDict[seqId] = geneName
         paftolTargetList = []
         for seqRecord in Bio.SeqIO.parse(fastaFname, 'fasta'):
@@ -1702,9 +1702,9 @@ class HybpiperAnalyser(HybseqAnalyser):
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if result.representativePaftolTargetDict is None:
-            raise StandardError('illegal state: no represesentative genes')
+            raise Exception('illegal state: no represesentative genes')
         if result.representativePaftolTargetDict[geneName] is None:
-            raise StandardError('no representative for gene %s' % geneName)
+            raise Exception('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.assembleGeneSpades(result, geneName)
         if contigList is None:
@@ -1813,7 +1813,7 @@ this).
         logger.debug('setting up')
         self.setupTmpdir()
         # FIXME: is writing the targets fasta file really part of setup?
-	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+        result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
 
     def mapReadsBwa(self, result):
         """Map reads to gene sequences (from multiple organisms possibly).
@@ -1841,12 +1841,12 @@ this).
 
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
-	paftolTargetSet = PaftolTargetSet()
-	paftolTargetSet.readFasta(targetsSourcePath)
+        paftolTargetSet = PaftolTargetSet()
+        paftolTargetSet.readFasta(targetsSourcePath)
         # FIXME: put allowInvalidBases in result for subsequent reference?
-	paftolTargetSet.sanityCheck(allowInvalidBases)
+        paftolTargetSet.sanityCheck(allowInvalidBases)
         result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
-	try:
+        try:
             self.setup(result)
             logger.debug('setup done')
             self.mapReadsBwa(result)
@@ -1859,7 +1859,7 @@ this).
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
-	    logger.debug('CDS reconstruction done')
+            logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result
         finally:
@@ -1900,7 +1900,7 @@ this).
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
-	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+        result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
         forwardFastaPath = self.makeWorkdirPath(self.forwardFasta)
         paftol.tools.fastqToFasta(result.forwardFastq, forwardFastaPath)
         self.tblastnRunner.indexDatabase(forwardFastaPath)
@@ -1937,12 +1937,12 @@ this).
 
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         logger.debug('starting')
-	paftolTargetSet = PaftolTargetSet()
-	paftolTargetSet.readFasta(targetsSourcePath)
+        paftolTargetSet = PaftolTargetSet()
+        paftolTargetSet.readFasta(targetsSourcePath)
         # FIXME: put allowInvalidBases in result for subsequent reference?
-	paftolTargetSet.sanityCheck(allowInvalidBases)
+        paftolTargetSet.sanityCheck(allowInvalidBases)
         result = HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
-	try:
+        try:
             self.setup(result)
             logger.debug('setup done')
             self.mapReadsTblastn(result)
@@ -1955,7 +1955,7 @@ this).
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
-	    logger.debug('CDS reconstruction done')
+            logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result
         finally:
@@ -1983,7 +1983,7 @@ class OverlapAnalyser(HybseqAnalyser):
     def setup(self, result):
         logger.debug('setting up')
         self.setupTmpdir()
-	result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+        result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
         forwardFastaPath = self.makeWorkdirPath(self.forwardFasta)
         paftol.tools.fastqToFasta(result.forwardFastq, forwardFastaPath)
         self.tblastnRunner.indexDatabase(forwardFastaPath)
@@ -2032,9 +2032,9 @@ class OverlapAnalyser(HybseqAnalyser):
         alignmentList = paftol.tools.semiglobalOneVsAll(repGene, readSrList)
         numReads = len(readSrList)
         if len(alignmentList) != numReads:
-            raise StandardError, 'readSrList / alignment mismatch'
+            raise Exception('readSrList / alignment mismatch')
         positionedReadList = []
-        for i in xrange(numReads):
+        for i in range(numReads):
             # sys.stderr.write('%s / %s: %f\n' % (alignmentList[i][0].id, alignmentList[i][1].id, findMaxRelativeIdentity(alignmentList[i], self.windowSize)))
             maxRelativeIdentity = paftol.tools.findMaxRelativeIdentity(alignmentList[i], self.windowSizeReference)
             if maxRelativeIdentity >= self.relIdentityThresholdReference:
@@ -2052,7 +2052,7 @@ class OverlapAnalyser(HybseqAnalyser):
         # logger.debug('tracking: positioned reads')
         positionedSrList = [positionedRead.readSr for positionedRead in positionedReadList]
         if positionedReadDirname is not None:
-            for i in xrange(len(positionedSrList)):
+            for i in range(len(positionedSrList)):
                 Bio.SeqIO.write([positionedSrList[i]], '%s/p%03d.fasta' % (positionedReadDirname, i), 'fasta')
         if positionedReadFname is not None:
             Bio.SeqIO.write(positionedSrList, positionedReadFname, 'fasta')
@@ -2062,7 +2062,7 @@ class OverlapAnalyser(HybseqAnalyser):
             overlapDataFrame = None
         contigList = []
         currentContig = paftol.tools.Contig(self.windowSizeReadOverlap, self.relIdentityThresholdReadOverlap, self.alignmentRunner)
-        for i in xrange(len(positionedReadList)):
+        for i in range(len(positionedReadList)):
             if overlapDataFrame is not None:
                 if i == 0:
                     overlapRow = {'read0': None, 'read1': positionedReadList[i].readSr.id, 'read1pos': positionedReadList[i].position, 'maxRelId': positionedReadList[i].maxRelativeIdentity, 'coreLength': positionedReadList[i].coreLength, 'coreMatch': positionedReadList[i].coreMatch, 'overlapLength': None, 'overlapMatch': None}
@@ -2102,9 +2102,9 @@ class OverlapAnalyser(HybseqAnalyser):
     def reconstructCds(self, result, geneName, strictOverlapFiltering):
         logger.debug('reconstructing CDS for gene %s', geneName)
         if result.representativePaftolTargetDict is None:
-            raise StandardError('illegal state: no represesentative genes')
+            raise Exception('illegal state: no represesentative genes')
         if result.representativePaftolTargetDict[geneName] is None:
-            raise StandardError('no representative for gene %s' % geneName)
+            raise Exception('no representative for gene %s' % geneName)
         os.mkdir(self.makeGeneDirPath(geneName))
         contigList = self.assembleGeneSerialOverlap(result, geneName)
         if contigList is None:
@@ -2189,20 +2189,20 @@ class OverlapAnalyser(HybseqAnalyser):
 
     def analyse(self, targetsSourcePath, forwardFastq, reverseFastq, allowInvalidBases, strictOverlapFiltering, maxNumReadsPerGene):
         if self.windowSizeReference is None:
-            raise StandardError, 'illegal state: windowSizeReference not set, not ready to analyse'
+            raise Exception('illegal state: windowSizeReference not set, not ready to analyse')
         if self.relIdentityThresholdReference is None:
-            raise StandardError, 'illegal state: relIdentityThresholdReference not set, not ready to analyse'
+            raise Exception('illegal state: relIdentityThresholdReference not set, not ready to analyse')
         if self.windowSizeReadOverlap is None:
-            raise StandardError, 'illegal state: windowSizeReadOverlap not set, not ready to analyse'
+            raise Exception('illegal state: windowSizeReadOverlap not set, not ready to analyse')
         if self.relIdentityThresholdReadOverlap is None:
-            raise StandardError, 'illegal state: relIdentityThresholdReadOverlap not set, not ready to analyse'
+            raise Exception('illegal state: relIdentityThresholdReadOverlap not set, not ready to analyse')
         logger.debug('starting')
-	paftolTargetSet = paftol.PaftolTargetSet()
-	paftolTargetSet.readFasta(targetsSourcePath)
+        paftolTargetSet = paftol.PaftolTargetSet()
+        paftolTargetSet.readFasta(targetsSourcePath)
         # FIXME: put allowInvalidBases in result for subsequent reference?
-	paftolTargetSet.sanityCheck(allowInvalidBases)
+        paftolTargetSet.sanityCheck(allowInvalidBases)
         result = paftol.HybpiperResult(paftolTargetSet, forwardFastq, reverseFastq)
-	try:
+        try:
             self.setup(result)
             logger.debug('setup done')
             self.mapReadsTblastn(result)
@@ -2215,7 +2215,7 @@ class OverlapAnalyser(HybseqAnalyser):
             result.reconstructedCdsDict = {}
             for geneName in result.paftolTargetSet.paftolGeneDict:
                 result.reconstructedCdsDict[geneName] = self.reconstructCds(result, geneName, strictOverlapFiltering)
-	    logger.debug('CDS reconstruction done')
+            logger.debug('CDS reconstruction done')
             logger.debug('finished')
             return result
         finally:
@@ -2236,11 +2236,11 @@ class HybseqResult(object):
         self.cmdLine = None
 
     def summaryStats(self):
-        raise StandardError, 'not implemented by this abstract class'
+        raise Exception('not implemented by this abstract class')
 
     def writeContigFastaFile(self, contigFastaFname):
         allContigList = []
-        for contigList in self.contigDict.values():
+        for contigList in list(self.contigDict.values()):
             if contigList is not None:
                 allContigList.extend(contigList)
         Bio.SeqIO.write(allContigList, contigFastaFname, 'fasta')
@@ -2285,8 +2285,8 @@ class HybpiperResult(HybseqResult):
 
     def summaryStats(self):
         if self.reconstructedCdsDict is None:
-	    raise StandardError, 'Illegal state, reconstructedCdsDict not populated'
-	summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
+            raise Exception('Illegal state, reconstructedCdsDict not populated')
+        summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumMappedReads', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
         fqDataFrameFwd = paftol.tools.generateFastqcStats(self.forwardFastq)
         perBaseSequenceContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseSequenceContent)
         perBaseNContentFwd = fqDataFrameFwd.calculateMeanStd(fqDataFrameFwd.perBaseNContent)
@@ -2330,9 +2330,9 @@ class HybpiperResult(HybseqResult):
         rowDict['totNumMappedReads'] = len(self.paftolTargetSet.getMappedReadNameSet())
         rowDict['totNumUnmappedReads'] = self.paftolTargetSet.numOfftargetReads
         targetSeqRecordList = self.paftolTargetSet.getSeqRecordList()
-        for paftolOrganism in self.paftolTargetSet.organismDict.values():
+        for paftolOrganism in list(self.paftolTargetSet.organismDict.values()):
             rowDict['paftolOrganism'] = paftolOrganism.name
-            for paftolTarget in paftolOrganism.paftolTargetDict.values():
+            for paftolTarget in list(paftolOrganism.paftolTargetDict.values()):
                 geneName = paftolTarget.paftolGene.name
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
@@ -2359,7 +2359,7 @@ def extractPaftolSampleId(fastqName):
         m = r.match(fastqName)
         if m is not None:
             return m.group(1)
-    raise StandardError, 'invalid PAFTOL fastq sample file name: %s' % fastqName
+    raise Exception('invalid PAFTOL fastq sample file name: %s' % fastqName)
 
 
 def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
@@ -2398,9 +2398,9 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
         rowDict['totNumMappedReads'] = len(hybpiperAnalyser.paftolTargetSet.getMappedReadNameSet())
         rowDict['totNumUnmappedReads'] = hybpiperAnalyser.paftolTargetSet.numOfftargetReads
         targetSeqRecordList = hybpiperAnalyser.paftolTargetSet.getSeqRecordList()
-        for paftolOrganism in hybpiperAnalyser.paftolTargetSet.organismDict.values():
+        for paftolOrganism in list(hybpiperAnalyser.paftolTargetSet.organismDict.values()):
             rowDict['paftolOrganism'] = paftolOrganism.name
-            for paftolTarget in paftolOrganism.paftolTargetDict.values():
+            for paftolTarget in list(paftolOrganism.paftolTargetDict.values()):
                 rowDict['paftolGene'] = paftolTarget.paftolGene.name
                 rowDict['paftolTargetLength'] = len(paftolTarget.seqRecord)
                 rowDict['numMappedReads'] = paftolTarget.numMappedReads()
@@ -2418,8 +2418,8 @@ def paftolSummary(paftolTargetFname, fastqPairList, bwaRunner):
     summaryColumnList = ['sampleName', 'targetsFile', 'paftolGene', 'paftolOrganism', 'paftolTargetLength', 'numReadsFwd', 'numReadsRev', 'qual28Fwd', 'qual28Rev', 'meanA', 'stddevA', 'meanC', 'stddevC', 'meanG', 'stddevG', 'meanT', 'stddevT', 'meanN', 'stddevN', 'numMappedReads', 'numMappedReadsPerGene', 'totNumUnmappedReads', 'hybpiperCdsLength', 'representativeTarget']
     geneSetStatsDataFrame = paftol.tools.DataFrame(summaryColumnList)
     srDict = Bio.SeqIO.to_dict(Bio.SeqIO.parse(f, 'fasta'))
-    for paftolGene in paftolTargetSet.paftolGeneDict.values():
-        for paftolTarget in paftolGene.paftolTargetDict.values():
+    for paftolGene in list(paftolTargetSet.paftolGeneDict.values()):
+        for paftolTarget in list(paftolGene.paftolTargetDict.values()):
             rowDict = {}
             for summaryColumn in summaryColumnList:
                 rowDict[summaryColumn] = None

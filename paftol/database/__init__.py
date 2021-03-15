@@ -55,7 +55,7 @@ def findFastaFile(analysisDatabase, fastaFname):
     '''
     # Paul B. - now getting file from the ReferenceTarget table
     #for fastaFile in analysisDatabase.fastaFileDict.values():   # fastaFile is a row object containing column headers as values
-    for fastaFile in analysisDatabase.referenceTargetDict.values(): 
+    for fastaFile in list(analysisDatabase.referenceTargetDict.values()): 
         # Paul B. filename variable has changed:
         #if fastaFile.filename == fastaFname:
         if fastaFile.targetsFastaFile == fastaFname:
@@ -68,7 +68,7 @@ def findFastqFile(analysisDatabase, fastqFname):
     # NB - each value of the dict is a row object containing column headers as values
     # which gets returned, either from FastqFile (old db) or InputSequence (new db).
     #for fastqFile in analysisDatabase.fastqFileDict.values():
-    for inputSequence in analysisDatabase.inputSequenceDict.values():
+    for inputSequence in list(analysisDatabase.inputSequenceDict.values()):
         if inputSequence.filename == fastqFname:
             return inputSequence
     return None
@@ -95,7 +95,7 @@ class PaftolDatabaseDetails(object):
         # sys.stderr.write('got line: "%s"\n' % repr(line))
         m = detailsRe.match(line.strip())
         if m is None:
-            raise StandardError, errorMsg
+            raise Exception(errorMsg)
         return m.group(1)
 
     def readFile(self, detailsFile):
@@ -154,7 +154,7 @@ def matchesExpectedSequencingRun(sequence, sequencingPoolNumber):
     
 def findMatchingSequenceList(productionDatabase, fastqFname, sequencingPoolNumber):
     sequenceList = []
-    for sequence in productionDatabase.sequenceDict.values():
+    for sequence in list(productionDatabase.sequenceDict.values()):
         if matchesExpectedFastqFname(fastqFname, sequence):
             if matchesExpectedSequencingRun(sequence, sequencingPoolNumber):
                 sequenceList.append(sequence)
@@ -259,7 +259,7 @@ def findSequenceForFastqFnameOld(productionDatabase, fastqFname):
             sequence = productionDatabase.sequenceDict[i]
             if sequence.sequencingRun == sequencingRun and matchesExpectedFastqFname(fastqFname, sequence):
                 return sequence
-        for sequence in productionDatabase.sequenceDict.values():
+        for sequence in list(productionDatabase.sequenceDict.values()):
             if sequence.library is not None and sequence.library.sample is not None and sequence.library.sample.specimen is not None and sequence.library.sample.specimen.idPaftol is not None and sequence.library.sample.specimen.idPaftol == i and matchesExpectedFastqFname(fastqFname, sequence):
                 return sequence
         return None
@@ -276,7 +276,7 @@ def canonicalSymlinkName(sequence, orientation, gzipped):
 
 
 def parseCanonicalSymlink(symlinkName):
-    print 'symlinkName: ', symlinkName
+    print('symlinkName: ', symlinkName)
     symlinkRe = re.compile('PAFTOL_([0-9]+)_R([12]).fastq')
     m = symlinkRe.match(symlinkName)
     if m is not None:
@@ -393,25 +393,25 @@ def addFastqStats(connection, fastqcStats):
 # Paul B. - made a copy of this function just below to use for the new table structure.
 def preInsertCheckPaftolFastqFile(paftolFastqFile):
     if paftolFastqFile.id is not None:
-        raise StandardError, 'illegal state: PaftolFastqFile instance has id %d, not None' % paftolFastqFile.id
+        raise Exception('illegal state: PaftolFastqFile instance has id %d, not None' % paftolFastqFile.id)
     if paftolFastqFile.fastqFile is None:
-        raise StandardError, 'illegal state: PaftolFastqFile has fastqFile attribute set to None'
+        raise Exception('illegal state: PaftolFastqFile has fastqFile attribute set to None')
     if paftolFastqFile.fastqFile.fastqStats is not None and  paftolFastqFile.fastqFile.fastqStats.id is not None:
-        raise StandardError, 'illegal state: new FastqFile %s has existing FastqStats %d' % (paftolFastqFile.fastqFile.filename, paftolFastqFile.fastqFile.fastqStats.id)
+        raise Exception('illegal state: new FastqFile %s has existing FastqStats %d' % (paftolFastqFile.fastqFile.filename, paftolFastqFile.fastqFile.fastqStats.id))
 
 # Paul B - new method for new db schema - not actually sure why we need to do these checks.
 #          Why no other checks on other variables and objects?
 #          Actually does catch this situation: e.g. 5853_R1.fastq if --dataOrigin == PAFTOL
 def preInsertCheckInputSequence(inputSequence):
     if inputSequence.id is not None:
-        raise StandardError, 'illegal state: InputSequence instance has id %d, not None' % inputSequence.id
+        raise Exception('illegal state: InputSequence instance has id %d, not None' % inputSequence.id)
     # Paul B. - added and conditionals - one of these foreign keys needs to be defined: 
     #if inputSequence.paftolSequence is None
     if inputSequence.paftolSequence is None and inputSequence.OneKP_Sequence is None and inputSequence.sraRunSequence is None and inputSequence.annotatedGenome is None:
         #raise StandardError, 'illegal state: inputSequence has paftolSequence attribute set to None'
-        raise StandardError, 'illegal state: inputSequence has to have a value for one of these attributes: paftolSequence, OneKP_Sequence, sraRunSequence and annotatedGenome'
+        raise Exception('illegal state: inputSequence has to have a value for one of these attributes: paftolSequence, OneKP_Sequence, sraRunSequence and annotatedGenome')
     if inputSequence.fastqStats is not None and  inputSequence.fastqStats.id is not None:
-        raise StandardError, 'illegal state: new inputSequence %s has existing FastqStats %d' % (inputSequence.filename, inputSequence.fastqStats.id)
+        raise Exception('illegal state: new inputSequence %s has existing FastqStats %d' % (inputSequence.filename, inputSequence.fastqStats.id))
 
 
 ### Paul B. added this method - redundant with addPaftolFastqFiles() above - can delete
@@ -445,9 +445,9 @@ def insertPaftolFastqFileList(connection, paftolFastqFileList):
         finally:
             if not transactionSuccessful:
                 connection.rollback()
-                print "ERROR: commit unsucessful for insertedPaftolFastqFile.fastqFile.fastqStats.id: ", insertedPaftolFastqFile.fastqFile.fastqStats.id
-                print "ERROR: commit unsucessful for insertedPaftolFastqFile.fastqFile.id: ", insertedPaftolFastqFile.fastqFile.id
-                print "ERROR: commit unsucessful for insertedPaftolFastqFile.id: ", insertedPaftolFastqFile.id
+                print("ERROR: commit unsucessful for insertedPaftolFastqFile.fastqFile.fastqStats.id: ", insertedPaftolFastqFile.fastqFile.fastqStats.id)
+                print("ERROR: commit unsucessful for insertedPaftolFastqFile.fastqFile.id: ", insertedPaftolFastqFile.fastqFile.id)
+                print("ERROR: commit unsucessful for insertedPaftolFastqFile.id: ", insertedPaftolFastqFile.id)
             cursor.close()
     finally:
         if not transactionSuccessful:
@@ -477,7 +477,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
         newPaftolSequence.insertIntoDatabase(cursor)
         newPaftolSequence.id = cursor.lastrowid
         if newPaftolSequence.id is not None:
-            print "newPaftolSequence.id:", newPaftolSequence.id
+            print("newPaftolSequence.id:", newPaftolSequence.id)
         #print "inputSequenceList[0].paftolSequence.id: ", inputSequenceList[0].paftolSequence.id
         #print "inputSequenceList[1].paftolSequence.id: ", inputSequenceList[1].paftolSequence.id  # proves paftolSequence object is the same instance.
         try:
@@ -500,15 +500,15 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                     inputSequence.fastqStats.insertIntoDatabase(cursor)
                     inputSequence.fastqStats.id = cursor.lastrowid
                     if inputSequence.fastqStats.id is not None:
-                        print 'inputSequence.fastqStats.id: ', inputSequence.fastqStats.id      # inputSequence.fastqStats.id
+                        print('inputSequence.fastqStats.id: ', inputSequence.fastqStats.id)      # inputSequence.fastqStats.id
                 # InputSequence requires the primary keys from FastqStats and PaftolSequence tables (retrieved above) 
                 ###insertedInputSequence.insertIntoDatabase(cursor)
                 ###insertedInputSequence.id = cursor.lastrowid
                 inputSequence.insertIntoDatabase(cursor)
                 inputSequence.id = cursor.lastrowid
                 if inputSequence.id is not None:
-                    print 'insertedInputSequence.id: ', inputSequence.id                    # insertedInputSequence.id
-                    print 'insertedInputSequence.filename: ', inputSequence.filename        # insertedInputSequence.filename
+                    print('insertedInputSequence.id: ', inputSequence.id)                    # insertedInputSequence.id
+                    print('insertedInputSequence.filename: ', inputSequence.filename)        # insertedInputSequence.filename
                     if inputSequence.dataOrigin.acronym == 'OneKP_Transcripts' or inputSequence.dataOrigin.acronym == 'AG':
                         if externalGenesFile is not None:
                             ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
@@ -519,16 +519,16 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
         finally:
             if not transactionSuccessful:
                 connection.rollback()
-                print "ERROR: commit unsucessful for insertedInputSequence.fastqStats.id: "             #, insertedInputSequence.fastqStats.id
-                print "ERROR: commit unsucessful for insertedInputSequence.id: "                        #, insertedInputSequence.id
+                print("ERROR: commit unsucessful for insertedInputSequence.fastqStats.id: ")             #, insertedInputSequence.fastqStats.id
+                print("ERROR: commit unsucessful for insertedInputSequence.id: ")                        #, insertedInputSequence.id
                                                                                                         # NB - these variables may not exist if commit fails
-                print "ERROR: commit unsucessful for contigRecovery.id, if --addExternalGenes Flag in use"                          #, contigRecovery.id
-                print "ERROR: commit unsucessful for recoveredContig.id (for last row created), if --addExternalGenes Flag in use"  #, recoveredContig.id
+                print("ERROR: commit unsucessful for contigRecovery.id, if --addExternalGenes Flag in use")                          #, contigRecovery.id
+                print("ERROR: commit unsucessful for recoveredContig.id (for last row created), if --addExternalGenes Flag in use")  #, recoveredContig.id
             cursor.close()
     finally:
         if not transactionSuccessful:
             connection.rollback()
-            print "ERROR: commit unsucessful for newPaftolSequence"      #, inputSequenceList[0].paftolSequence.id
+            print("ERROR: commit unsucessful for newPaftolSequence")      #, inputSequenceList[0].paftolSequence.id
         #lockCursor.execute('UNLOCK TABLES')
         #lockCursor.close()
     return transactionSuccessful
@@ -557,7 +557,7 @@ def rawFilenameStats(filename=None):
     # if file is zipped and produces gobbledeegook values for numbrSequences, sumLengthOfContigs !
     # Attempting to check if file is zipped here:
     if re.search('.gz$|.bz2$', filename) is not None:
-        raise StandardError, 'Raw data fasta file is zipped, needs to be unzipped: %s' % filename
+        raise Exception('Raw data fasta file is zipped, needs to be unzipped: %s' % filename)
 
     for record in Bio.SeqIO.parse(filename, "fasta"):     # returns a SeqRecord object, includes a Seq object called seq
         #print record.id, "\n", record.seq, len(record)
@@ -579,7 +579,7 @@ def findSequence(productionDatabase, sampleId):
 
     Returns a matching sequence table row object if one exists or None
     '''
-    for sequence in productionDatabase.sequenceDict.values():   # returns a copy of all dict VALUES i.e. a Sequence row object
+    for sequence in list(productionDatabase.sequenceDict.values()):   # returns a copy of all dict VALUES i.e. a Sequence row object
         if sequence.externalSequenceId == sampleId:
             return sequence
     return None
@@ -609,7 +609,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     dataOrigin = findDataOrigin(analysisDatabase, dataOriginAcronym)     # Paul B. - returns a DataOrigin object
     if dataOrigin is None:
         connection.close()
-        raise StandardError, 'Data origin entry is incorrect. Allowed values are: \'PAFTOL\', \'OneKP_Transcripts\', \'OneKP_Reads\'  \'SRA\', \'AG\' '
+        raise Exception('Data origin entry is incorrect. Allowed values are: \'PAFTOL\', \'OneKP_Transcripts\', \'OneKP_Reads\'  \'SRA\', \'AG\' ')
         ### NB - I think argparse can handle this if required= is set - if so can delete above code
     # Paul B. - need to create a new PaftolSequence object with info from read1 file only.
     # First, get the idSequencing from the R1 file ('paftol' data set only)
@@ -617,7 +617,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     idSequencing = None                 # Paul B. added - used later in method so needs to be global (?)
     if dataOriginAcronym == 'PAFTOL':   # Paul B. added
         idSequencing, orientation = parseCanonicalSymlink(fastqFnameList[0])
-        print 'idSequencing: ', idSequencing , 'orientation: ', orientation
+        print('idSequencing: ', idSequencing , 'orientation: ', orientation)
         #newPaftolSequence = paftol.database.analysis.PaftolSequence(idSequencing=idSequencing, replicate=None)
         if idSequencing is not None:    # idSequencing may not be found
             newDatasetSequence = paftol.database.analysis.PaftolSequence(idSequencing=idSequencing, replicate=None)
@@ -626,10 +626,10 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     else:
         # For non-paftol data set types, obtaining idSequencing from the paftol.Sequence table instead using sampleId from the sampleId input flag:
         ### NB - might be able to handle data set options better by using word matches rather than conditonals
-        print 'sampleId before findSequence: ', sampleId
+        print('sampleId before findSequence: ', sampleId)
         sequenceRow = findSequence(productionDatabase, sampleId)
         if sequenceRow is None:
-            raise StandardError, 'Sequence row object is empty - externalSequenceID not found for %s' % sampleId
+            raise Exception('Sequence row object is empty - externalSequenceID not found for %s' % sampleId)
             
         idSequencing = sequenceRow.idSequencing # idSequencing is the primary key for table Sequence so it will always exist 
         logger.info('Found idSequencing for sampleId %s: %s', sampleId, idSequencing)   # Visible with this paftools flag:  --loglevel INFO
@@ -641,12 +641,12 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
         elif dataOriginAcronym == 'AG':
             newDatasetSequence = paftol.database.analysis.AnnotatedGenome(accessionId=sampleId, idSequencing=idSequencing)
         else:
-            raise StandardError, 'unknown data origin: %s' % dataOriginAcronym
+            raise Exception('unknown data origin: %s' % dataOriginAcronym)
 
     # Paul B. - removed: newPaftolFastqFileList = []
     newInputSequenceList = []
     for fastqFname in fastqFnameList:
-        print 'fastqFname: ', fastqFname
+        print('fastqFname: ', fastqFname)
         # Paul B. - moved above outside of loop:
         #idSequencing, orientation = parseCanonicalSymlink(fastqFname)
         #print 'idSequencing: ', idSequencing , 'orientation: ', orientation
@@ -731,7 +731,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     logger.info('fastq file %s already in database, verified md5sum', fastqFname)
                 else:
                     # Paul B. - raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, fastqFile.md5sum, md5sum)
-                    raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, inputSequence.md5sum, md5sum)
+                    raise Exception('fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, inputSequence.md5sum, md5sum))
         else:
 ### Need to change message - for other datatypes
             logger.warning('No sample identifier obtainable for %s', fastqFname)
@@ -753,14 +753,14 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
 
 
 def findGeneType(analysisDatabase, geneTypeName):
-    for geneType in analysisDatabase.geneTypeDict.values():
+    for geneType in list(analysisDatabase.geneTypeDict.values()):
         if geneType.geneTypeName == geneTypeName:
             return geneType
     return None
 
 
 def findDataOrigin(analysisDatabase, dataOriginAcronym):
-    for dataOrigin in analysisDatabase.dataOriginDict.values():
+    for dataOrigin in list(analysisDatabase.dataOriginDict.values()):
         if dataOrigin.acronym == dataOriginAcronym:
             return dataOrigin
     return None
@@ -768,14 +768,14 @@ def findDataOrigin(analysisDatabase, dataOriginAcronym):
 
 def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=False, geneTypeName=None):
     if insertGenes and geneTypeName is None:
-        raise StandardError, 'illegal state: insertion of new genes requested but no gene type name given'
+        raise Exception('illegal state: insertion of new genes requested but no gene type name given')
      # Paul B. - recreated the full path to the fasta target file (assumed to be within the paftol dir):
     if fastaPath is not None:       
         fastaPath = fastaPath + '/' + targetsFname
-        print 'fastqPath: ', fastaPath
+        print('fastqPath: ', fastaPath)
     else:
         fastaPath = None
-        print 'fastaPath: ', fastaPath
+        print('fastaPath: ', fastaPath)
     md5sum = paftol.tools.md5HexdigestFromFile(targetsFname)        
     paftolTargetSet = paftol.PaftolTargetSet()         # A PaftolTargetSet object
     paftolTargetSet.readFasta(targetsFname)
@@ -786,7 +786,7 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
     geneType = findGeneType(analysisDatabase, geneTypeName)     # Paul B. - a geneType object
     if geneType is None:
         connection.close()
-        raise StandardError, 'unknown gene type: %s' % geneTypeName
+        raise Exception('unknown gene type: %s' % geneTypeName)
     targetsFile = findFastaFile(analysisDatabase, targetsFname)
     if targetsFile is not None:
         connection.close()
@@ -795,20 +795,20 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
             #print 'ok'
             return
         else:
-            raise StandardError, 'targets file %s in database with md5sum = %s, but found md5sum = %s' % (targetsFname, targetsFile.md5sum, md5sum)
+            raise Exception('targets file %s in database with md5sum = %s, but found md5sum = %s' % (targetsFname, targetsFile.md5sum, md5sum))
     # connection.start_transaction(isolation_level='REPEATABLE READ', readonly=False)
     # Paul B. - changed to fit with the auto_increment
     #targetsFastaFile = paftol.database.analysis.FastaFile(None, targetsFname, md5sum, None, numSequences)
     # Paul B. - now sending to the ReferenceTarget table:
     #targetsFastaFile = paftol.database.analysis.FastaFile(targetsFname, None, md5sum, None, numSequences)
-    knownGeneNameList = [paftolGene.geneName for paftolGene in analysisDatabase.paftolGeneDict.values()]
+    knownGeneNameList = [paftolGene.geneName for paftolGene in list(analysisDatabase.paftolGeneDict.values())]
     missingGeneNameList = []
-    for geneName in paftolTargetSet.paftolGeneDict.keys():
+    for geneName in list(paftolTargetSet.paftolGeneDict.keys()):
         if geneName not in knownGeneNameList:
             missingGeneNameList.append(geneName)
     if not insertGenes and len(missingGeneNameList) > 0:
         connection.close()
-        raise StandardError, 'missing genes: %s' % ', '.join(missingGeneNameList)
+        raise Exception('missing genes: %s' % ', '.join(missingGeneNameList))
     newPaftolGeneList = []
     for missingGeneName in missingGeneNameList:
         # Paul B. - changed to fit with the auto_increment - 25.5.2020 - also added the exemplarGeneId:
@@ -818,11 +818,11 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
     paftolGeneDict = {}
     for newPaftolGene in newPaftolGeneList:
         paftolGeneDict[newPaftolGene.geneName] = newPaftolGene
-    for paftolGene in analysisDatabase.paftolGeneDict.values():
+    for paftolGene in list(analysisDatabase.paftolGeneDict.values()):
         paftolGeneDict[paftolGene.geneName] = paftolGene
     referenceTargetList = []
-    for paftolGene in paftolTargetSet.paftolGeneDict.values():
-        for paftolTarget in paftolGene.paftolTargetDict.values():
+    for paftolGene in list(paftolTargetSet.paftolGeneDict.values()):
+        for paftolTarget in list(paftolGene.paftolTargetDict.values()):
             # Paul B. - changed to fit with the auto_increment:
             #referenceTargetList.append(paftol.database.analysis.ReferenceTarget(None, paftolGeneDict[paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), targetsFastaFile))
             # Paul B. - now changing to add the targets file info:
@@ -859,9 +859,9 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
             if not transactionSuccessful:
                 connection.rollback()
                  # Paul B added:
-                print "ERROR: commit unsucessful for newPaftolGene.id: ", newPaftolGene.id
+                print("ERROR: commit unsucessful for newPaftolGene.id: ", newPaftolGene.id)
                 #print "ERROR: commit unsucessful for targetsFastaFile.id: ", targetsFastaFile.id
-                print "ERROR: commit unsucessful for referenceTarget.id: ", referenceTarget.id
+                print("ERROR: commit unsucessful for referenceTarget.id: ", referenceTarget.id)
             cursor.close()
     finally:
         if not transactionSuccessful:
@@ -879,7 +879,7 @@ def findFastqFiles(analysisDatabase, result):
     revFastqFile = None
     # Paul B. - changed to use inputSequenceDict - each element contains a row object:
     #for fastqFile in analysisDatabase.fastqFileDict.values():
-    for fastqFile in analysisDatabase.inputSequenceDict.values():
+    for fastqFile in list(analysisDatabase.inputSequenceDict.values()):
         if fastqFile.filename == fwdFastqFname:
             fwdFastqFile = fastqFile
         if fastqFile.filename == revFastqFname:
@@ -892,7 +892,7 @@ def findContigRecoveryForFastqFname(analysisDatabase, fastqFname):
     if fastqFile is None:
         return None
     if len(fastqFile.contigRecoveryFwdFastqList) + len(fastqFile.contigRecoveryRevFastqList) > 1:
-        raise StandardError, 'multiple ContigRecovery instances for %s: %s' % (fastqFname, ', '.join(['%d' % cr.id for cr in fastqFile.contigRecoveryFwdFastqList +  fastqFile.contigRecoveryRevFastqList]))
+        raise Exception('multiple ContigRecovery instances for %s: %s' % (fastqFname, ', '.join(['%d' % cr.id for cr in fastqFile.contigRecoveryFwdFastqList +  fastqFile.contigRecoveryRevFastqList])))
     if len(fastqFile.contigRecoveryFwdFastqList) == 1:
         return fastqFile.contigRecoveryFwdFastqList[0]
     if len(fastqFile.contigRecoveryRevFastqList) == 1:
@@ -910,15 +910,15 @@ def preRecoveryCheck(forwardFastqFname, reverseFastqFname):
     if contigRecovery is not None:
         msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (reverseFastqFname, contigRecovery.id))
     if len(msgList) > 0:
-        raise StandardError, ', '.join(msgList)
+        raise Exception(', '.join(msgList))
 
 
 def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
     fastqFileList = []
-    for paftolFastqFile in analysisDatabase.paftolFastqFileDict.values():
+    for paftolFastqFile in list(analysisDatabase.paftolFastqFileDict.values()):
         if paftolFastqFile.idSequencing is not None and paftolFastqFile.idSequencing == idSequencing:
             if paftolFastqFile.fastqFile is None:
-                raise StandardError, 'illegal state: PaftolFastqFile instance %d has no fastqFile' % paftolFastqFile.id
+                raise Exception('illegal state: PaftolFastqFile instance %d has no fastqFile' % paftolFastqFile.id)
             fastqFile.List.append(paftolFastqFile.fastqFile)
     contigRecoveryList = []
     for fastqFile in fastqFileList:
@@ -933,12 +933,12 @@ def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
     elif len(contigRecoveryList) == 1:
         return contigRecoveryList[0]
     else:
-        raise StandardError, 'idSequencing %d: found multiple ContigRecovery instances: %s' % (idSequencing, ', '.join(['%d' % cr.id for cr in contigRecoveryList]))
+        raise Exception('idSequencing %d: found multiple ContigRecovery instances: %s' % (idSequencing, ', '.join(['%d' % cr.id for cr in contigRecoveryList])))
 
     
 def findReferenceTarget(analysisDatabase, geneName, paftolOrganism):
     logger.debug('searching for %s-%s', paftolOrganism, geneName)
-    for referenceTarget in analysisDatabase.referenceTargetDict.values():
+    for referenceTarget in list(analysisDatabase.referenceTargetDict.values()):
         logger.debug('checking %s-%s', referenceTarget.paftolOrganism, referenceTarget.paftolGene.geneName)
         if referenceTarget.paftolOrganism == paftolOrganism and referenceTarget.paftolGene.geneName == geneName:
             return referenceTarget
@@ -961,9 +961,9 @@ def addRecoveryResult(result):
     # Paul B. - alter method find fastq files in the InputSequence table:
     fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
     if fwdFastqFile is None:
-        raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
+        raise Exception('forward fastq file "%s" not in database' % result.forwardFastq)
     if revFastqFile is None:
-        raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
+        raise Exception('reverse fastq file "%s" not in database' % result.reverseFastq)
     trimmedForwardFastqStats = None
     if result.forwardTrimmedPairedFastqcStats is not None:
         trimmedForwardFastqStats = fastqStatsFromFastqcStats(result.forwardTrimmedPairedFastqcStats)
@@ -971,11 +971,11 @@ def addRecoveryResult(result):
     if result.reverseTrimmedPairedFastqcStats is not None:
         trimmedReverseFastqStats = fastqStatsFromFastqcStats(result.reverseTrimmedPairedFastqcStats)
     paftolGeneDict = {}
-    for paftolGene in analysisDatabase.paftolGeneDict.values():
+    for paftolGene in list(analysisDatabase.paftolGeneDict.values()):
         paftolGeneDict[paftolGene.geneName] = paftolGene
     for geneName in result.contigDict:
         if geneName not in paftolGeneDict:
-            raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+            raise Exception('found gene %s in result but it is not in the analysis database' % geneName)
     ### Paul B - changed use auto_increment and to add in the CDS fasta filename rather than all the contigs (required a new Paftol.HybpiperResult object variable)
     #contigFastaFile = None
     reconstructedCdsFastaFname = None
@@ -1013,7 +1013,7 @@ def addRecoveryResult(result):
             #print "Seq:", result.reconstructedCdsDict[geneName].seq
             representativeReferenceTarget = findReferenceTarget(analysisDatabase, geneName, result.representativePaftolTargetDict[geneName].organism.name)
             if representativeReferenceTarget is None:
-                raise StandardError, 'unknown reference target for geneName = %s, organismName = %s' % (geneName, result.representativePaftolTargetDict[geneName].organism.name)
+                raise Exception('unknown reference target for geneName = %s, organismName = %s' % (geneName, result.representativePaftolTargetDict[geneName].organism.name))
 
             # Store the md5sum of each sequence for sample-gene version control:
             md5Seq = hashlib.md5()
@@ -1041,13 +1041,13 @@ def addRecoveryResult(result):
                 trimmedForwardFastqStats.insertIntoDatabase(cursor)
                 trimmedForwardFastqStats.id = cursor.lastrowid
                 if trimmedForwardFastqStats.id is not None:
-                    print "trimmedForwardFastqStats.id: ", trimmedForwardFastqStats.id
+                    print("trimmedForwardFastqStats.id: ", trimmedForwardFastqStats.id)
             if trimmedReverseFastqStats is not None:
                 #trimmedReverseFastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
                 trimmedReverseFastqStats.insertIntoDatabase(cursor)
                 trimmedReverseFastqStats.id = cursor.lastrowid
                 if trimmedReverseFastqStats.id is not None:
-                    print "trimmedReverseFastqStats.id: ", trimmedReverseFastqStats.id
+                    print("trimmedReverseFastqStats.id: ", trimmedReverseFastqStats.id)
             # Paul B. - contigFastaFile now goes into ContigRecovery table (no need for conditional either? contigFastaFile value should just remain NULL
             #if contigFastaFile is not None:
                 #contigFastaFile.id = generateUnusedPrimaryKey(cursor, 'FastaFile')
@@ -1058,13 +1058,13 @@ def addRecoveryResult(result):
             contigRecovery.insertIntoDatabase(cursor)
             contigRecovery.id = cursor.lastrowid
             if contigRecovery.id is not None:
-                print "contigRecovery.id: ", contigRecovery.id
+                print("contigRecovery.id: ", contigRecovery.id)
             for recoveredContig in recoveredContigList:
                 #recoveredContig.id = generateUnusedPrimaryKey(cursor, 'RecoveredContig')
                 recoveredContig.insertIntoDatabase(cursor)
                 recoveredContig.id = cursor.lastrowid
                 if recoveredContig.id is not None:
-                    print "recoveredContig.id: ", recoveredContig.id
+                    print("recoveredContig.id: ", recoveredContig.id)
                 #time.sleep(0.06)
             #### time delay - 1 second doen to 60milsec
             connection.commit()
@@ -1073,11 +1073,11 @@ def addRecoveryResult(result):
             if not transactionSuccessful:
                 connection.rollback()
                 # Paul B added:                                                                         # NB - these variables may not exist if commit fails
-                print "ERROR: commit unsucessful for contigRecovery.id: "                               #, contigRecovery.id
-                print "ERROR: commit unsucessful for trimmedForwardFastqStats.id: "                     #, trimmedForwardFastqStats.id
-                print "ERROR: commit unsucessful for trimmedReverseFastqStats.id: "                     #, trimmedReverseFastqStats.id
+                print("ERROR: commit unsucessful for contigRecovery.id: ")                               #, contigRecovery.id
+                print("ERROR: commit unsucessful for trimmedForwardFastqStats.id: ")                     #, trimmedForwardFastqStats.id
+                print("ERROR: commit unsucessful for trimmedReverseFastqStats.id: ")                     #, trimmedReverseFastqStats.id
                 #print "ERROR: commit unsucessful for contigFastaFile.id: ", contigFastaFile.id
-                print "ERROR: commit unsucessful for recoveredContig.id (for last row created): "       #, recoveredContig.id
+                print("ERROR: commit unsucessful for recoveredContig.id (for last row created): ")       #, recoveredContig.id
             cursor.close()
     finally:
         if not transactionSuccessful:
@@ -1114,7 +1114,7 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
     # if file is zipped and produces gobbledeegook values for numbrSequences, sumLengthOfContigs !
     # Attempting to check if file is zipped here:
     if re.search('.gz$|.bz2$', externalGenesFile) is not None:
-        raise StandardError, 'Raw data fasta file is zipped, needs to be unzipped: %s' % externalGenesFile
+        raise Exception('Raw data fasta file is zipped, needs to be unzipped: %s' % externalGenesFile)
     for record in Bio.SeqIO.parse(externalGenesFile, "fasta"):     # returns a SeqRecord object, includes a Seq object called seq
         #print record.id, "\n", record.seq, len(record)
         sumLengthOfContigs = sumLengthOfContigs + len(record)
@@ -1125,12 +1125,12 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
 
     # Get all gene names present in paftol_da database:
     paftolGeneDict = {}
-    for paftolGene in analysisDatabase.paftolGeneDict.values():     # returns a PaftolGene row object
+    for paftolGene in list(analysisDatabase.paftolGeneDict.values()):     # returns a PaftolGene row object
         paftolGeneDict[paftolGene.geneName] = paftolGene
     # Cross-check gene names input gene contigs fasta file:
     for geneName in seqRecords:
         if geneName not in paftolGeneDict:
-            raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+            raise Exception('found gene %s in result but it is not in the analysis database' % geneName)
 
 
     # Populate the ContigRecovery object.
@@ -1172,10 +1172,10 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
     contigRecovery.insertIntoDatabase(cursor)
     contigRecovery.id = cursor.lastrowid
     if contigRecovery.id is not None:
-        print "contigRecovery.id: ", contigRecovery.id
+        print("contigRecovery.id: ", contigRecovery.id)
         for recoveredContig in recoveredContigList:
             recoveredContig.insertIntoDatabase(cursor)
             recoveredContig.id = cursor.lastrowid
             if recoveredContig.id is not None:
-                print "recoveredContig.id: ", recoveredContig.id
+                print("recoveredContig.id: ", recoveredContig.id)
 

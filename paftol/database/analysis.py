@@ -588,7 +588,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
         if entityId is None:
             entity.fwdFastq = None
         elif entityId not in productionDatabase.inputSequenceDict:
-            raise StandardError, 'no InputSequence entity with id = %d' % entityId
+            raise Exception('no InputSequence entity with id = %d' % entityId)
         else:
             entity.fwdFastq = productionDatabase.inputSequenceDict[entityId]
             # type: int, name: fwdFastqId, foreignTable: InputSequence, foreignColumn: id
@@ -598,7 +598,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
         if entityId is None:
             entity.revFastq = None
         elif entityId not in productionDatabase.inputSequenceDict:
-            raise StandardError, 'no InputSequence entity with id = %d' % entityId
+            raise Exception('no InputSequence entity with id = %d' % entityId)
         else:
             entity.revFastq = productionDatabase.inputSequenceDict[entityId]
             # type: int, name: revFastqId, foreignTable: InputSequence, foreignColumn: id
@@ -608,7 +608,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
         if entityId is None:
             entity.fwdTrimmedFastqStats = None
         elif entityId not in productionDatabase.fastqStatsDict:
-            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+            raise Exception('no FastqStats entity with id = %d' % entityId)
         else:
             entity.fwdTrimmedFastqStats = productionDatabase.fastqStatsDict[entityId]
             # type: int, name: fwdTrimmedFastqStatsId, foreignTable: FastqStats, foreignColumn: id
@@ -618,7 +618,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
         if entityId is None:
             entity.revTrimmedFastqStats = None
         elif entityId not in productionDatabase.fastqStatsDict:
-            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+            raise Exception('no FastqStats entity with id = %d' % entityId)
         else:
             entity.revTrimmedFastqStats = productionDatabase.fastqStatsDict[entityId]
             # type: int, name: revTrimmedFastqStatsId, foreignTable: FastqStats, foreignColumn: id
@@ -631,7 +631,7 @@ def loadContigRecoveryDict(connection, productionDatabase):
         if entityId is None:
             entity.referenceTarget = None
         elif entityId not in productionDatabase.referenceTargetDict:
-            raise StandardError, 'no ReferenceTarget entity with id = %d' % entityId
+            raise Exception('no ReferenceTarget entity with id = %d' % entityId)
         else:
             entity.referenceTarget = productionDatabase.referenceTargetDict[entityId]
             # type: int, name: referenceTargetId, foreignTable: ReferenceTarget, foreignColumn: id
@@ -659,7 +659,7 @@ def loadContigRecoveryDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.contigRecovery = None
         elif entityId not in productionDatabase.contigRecoveryDict:
-            raise StandardError, 'no ContigRecovery entity with id = %d' % entityId
+            raise Exception('no ContigRecovery entity with id = %d' % entityId)
         else:
             entity.contigRecovery = productionDatabase.contigRecoveryDict[entityId]
             # type: int, name: contigRecoveryId, foreignTable: ContigRecovery, foreignColumn: id
@@ -669,7 +669,7 @@ def loadContigRecoveryDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
@@ -782,7 +782,7 @@ def loadGeneTreeDict(connection, productionDatabase):
         if entityId is None:
             entity.paftolGene = None
         elif entityId not in productionDatabase.paftolGeneDict:
-            raise StandardError, 'no PaftolGene entity with id = %d' % entityId
+            raise Exception('no PaftolGene entity with id = %d' % entityId)
         else:
             entity.paftolGene = productionDatabase.paftolGeneDict[entityId]
             # type: int, name: paftolGeneId, foreignTable: PaftolGene, foreignColumn: id
@@ -798,7 +798,7 @@ def loadGeneTreeDict(connection, productionDatabase):
         if entityId is None:
             entity.speciesTree = None
         elif entityId not in productionDatabase.speciesTreeDict:
-            raise StandardError, 'no SpeciesTree entity with id = %d' % entityId
+            raise Exception('no SpeciesTree entity with id = %d' % entityId)
         else:
             entity.speciesTree = productionDatabase.speciesTreeDict[entityId]
             # type: int, name: speciesTreeId, foreignTable: SpeciesTree, foreignColumn: id
@@ -823,7 +823,7 @@ def loadGeneTreeDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.geneTree = None
         elif entityId not in productionDatabase.geneTreeDict:
-            raise StandardError, 'no GeneTree entity with id = %d' % entityId
+            raise Exception('no GeneTree entity with id = %d' % entityId)
         else:
             entity.geneTree = productionDatabase.geneTreeDict[entityId]
             # type: int, name: geneTreeId, foreignTable: GeneTree, foreignColumn: id
@@ -833,7 +833,7 @@ def loadGeneTreeDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
@@ -870,7 +870,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.dataOrigin = None
         elif entityId not in productionDatabase.dataOriginDict:
-            raise StandardError, 'no DataOrigin entity with id = %d' % entityId
+            raise Exception('no DataOrigin entity with id = %d' % entityId)
         else:
             entity.dataOrigin = productionDatabase.dataOriginDict[entityId]
             # type: int, name: dataOriginId, foreignTable: DataOrigin, foreignColumn: id
@@ -880,7 +880,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.sequenceType = None
         elif entityId not in productionDatabase.sequenceTypeDict:
-            raise StandardError, 'no SequenceType entity with id = %d' % entityId
+            raise Exception('no SequenceType entity with id = %d' % entityId)
         else:
             entity.sequenceType = productionDatabase.sequenceTypeDict[entityId]
             # type: int, name: sequenceTypeId, foreignTable: SequenceType, foreignColumn: id
@@ -893,7 +893,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.fastqStats = None
         elif entityId not in productionDatabase.fastqStatsDict:
-            raise StandardError, 'no FastqStats entity with id = %d' % entityId
+            raise Exception('no FastqStats entity with id = %d' % entityId)
         else:
             entity.fastqStats = productionDatabase.fastqStatsDict[entityId]
             # type: int, name: fastqStatsId, foreignTable: FastqStats, foreignColumn: id
@@ -903,7 +903,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.paftolSequence = None
         elif entityId not in productionDatabase.paftolSequenceDict:
-            raise StandardError, 'no PaftolSequence entity with id = %d' % entityId
+            raise Exception('no PaftolSequence entity with id = %d' % entityId)
         else:
             entity.paftolSequence = productionDatabase.paftolSequenceDict[entityId]
             # type: int, name: paftolSequenceId, foreignTable: PaftolSequence, foreignColumn: id
@@ -913,7 +913,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.sraRunSequence = None
         elif entityId not in productionDatabase.sRA_RunSequenceDict:
-            raise StandardError, 'no SRA_RunSequence entity with id = %d' % entityId
+            raise Exception('no SRA_RunSequence entity with id = %d' % entityId)
         else:
             entity.sraRunSequence = productionDatabase.sRA_RunSequenceDict[entityId]
             # type: int, name: sraRunSequenceId, foreignTable: SRA_RunSequence, foreignColumn: id
@@ -923,7 +923,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.OneKP_Sequence = None
         elif entityId not in productionDatabase.oneKP_SequenceDict:
-            raise StandardError, 'no OneKP_Sequence entity with id = %d' % entityId
+            raise Exception('no OneKP_Sequence entity with id = %d' % entityId)
         else:
             entity.OneKP_Sequence = productionDatabase.oneKP_SequenceDict[entityId]
             # type: int, name: OneKP_SequenceId, foreignTable: OneKP_Sequence, foreignColumn: id
@@ -933,7 +933,7 @@ def loadInputSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.annotatedGenome = None
         elif entityId not in productionDatabase.annotatedGenomeDict:
-            raise StandardError, 'no AnnotatedGenome entity with id = %d' % entityId
+            raise Exception('no AnnotatedGenome entity with id = %d' % entityId)
         else:
             entity.annotatedGenome = productionDatabase.annotatedGenomeDict[entityId]
             # type: int, name: annotatedGenomeId, foreignTable: AnnotatedGenome, foreignColumn: id
@@ -971,7 +971,7 @@ def loadOneKP_SequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.OneKP_Sequence = None
         elif entityId not in productionDatabase.oneKP_SequenceDict:
-            raise StandardError, 'no OneKP_Sequence entity with id = %d' % entityId
+            raise Exception('no OneKP_Sequence entity with id = %d' % entityId)
         else:
             entity.OneKP_Sequence = productionDatabase.oneKP_SequenceDict[entityId]
             # type: int, name: OneKP_SequenceId, foreignTable: OneKP_Sequence, foreignColumn: id
@@ -981,7 +981,7 @@ def loadOneKP_SequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
@@ -1005,7 +1005,7 @@ def loadPaftolGeneDict(connection, productionDatabase):
         if entityId is None:
             entity.geneType = None
         elif entityId not in productionDatabase.geneTypeDict:
-            raise StandardError, 'no GeneType entity with id = %d' % entityId
+            raise Exception('no GeneType entity with id = %d' % entityId)
         else:
             entity.geneType = productionDatabase.geneTypeDict[entityId]
             # type: int, name: geneTypeId, foreignTable: GeneType, foreignColumn: id
@@ -1015,7 +1015,7 @@ def loadPaftolGeneDict(connection, productionDatabase):
         if entityId is None:
             entity.exemplarGene = None
         elif entityId not in productionDatabase.exemplarGeneDict:
-            raise StandardError, 'no ExemplarGene entity with id = %d' % entityId
+            raise Exception('no ExemplarGene entity with id = %d' % entityId)
         else:
             entity.exemplarGene = productionDatabase.exemplarGeneDict[entityId]
             # type: int, name: exemplarGeneId, foreignTable: ExemplarGene, foreignColumn: id
@@ -1039,7 +1039,7 @@ def loadPaftolSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.replicate = None
         elif entityId not in productionDatabase.replicateSequenceDict:
-            raise StandardError, 'no ReplicateSequence entity with id = %d' % entityId
+            raise Exception('no ReplicateSequence entity with id = %d' % entityId)
         else:
             entity.replicate = productionDatabase.replicateSequenceDict[entityId]
             # type: int, name: replicateId, foreignTable: ReplicateSequence, foreignColumn: id
@@ -1062,7 +1062,7 @@ def loadRecoveredContigDict(connection, productionDatabase):
         if entityId is None:
             entity.contigRecovery = None
         elif entityId not in productionDatabase.contigRecoveryDict:
-            raise StandardError, 'no ContigRecovery entity with id = %d' % entityId
+            raise Exception('no ContigRecovery entity with id = %d' % entityId)
         else:
             entity.contigRecovery = productionDatabase.contigRecoveryDict[entityId]
             # type: int, name: contigRecoveryId, foreignTable: ContigRecovery, foreignColumn: id
@@ -1072,7 +1072,7 @@ def loadRecoveredContigDict(connection, productionDatabase):
         if entityId is None:
             entity.paftolGene = None
         elif entityId not in productionDatabase.paftolGeneDict:
-            raise StandardError, 'no PaftolGene entity with id = %d' % entityId
+            raise Exception('no PaftolGene entity with id = %d' % entityId)
         else:
             entity.paftolGene = productionDatabase.paftolGeneDict[entityId]
             # type: int, name: paftolGeneId, foreignTable: PaftolGene, foreignColumn: id
@@ -1084,7 +1084,7 @@ def loadRecoveredContigDict(connection, productionDatabase):
         if entityId is None:
             entity.representativeReferenceTarget = None
         elif entityId not in productionDatabase.referenceTargetDict:
-            raise StandardError, 'no ReferenceTarget entity with id = %d' % entityId
+            raise Exception('no ReferenceTarget entity with id = %d' % entityId)
         else:
             entity.representativeReferenceTarget = productionDatabase.referenceTargetDict[entityId]
             # type: int, name: representativeReferenceTargetId, foreignTable: ReferenceTarget, foreignColumn: id
@@ -1107,7 +1107,7 @@ def loadReferenceTargetDict(connection, productionDatabase):
         if entityId is None:
             entity.paftolGene = None
         elif entityId not in productionDatabase.paftolGeneDict:
-            raise StandardError, 'no PaftolGene entity with id = %d' % entityId
+            raise Exception('no PaftolGene entity with id = %d' % entityId)
         else:
             entity.paftolGene = productionDatabase.paftolGeneDict[entityId]
             # type: int, name: paftolGeneId, foreignTable: PaftolGene, foreignColumn: id
@@ -1152,7 +1152,7 @@ def loadSRA_RunSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.replicate = None
         elif entityId not in productionDatabase.replicateSequenceDict:
-            raise StandardError, 'no ReplicateSequence entity with id = %d' % entityId
+            raise Exception('no ReplicateSequence entity with id = %d' % entityId)
         else:
             entity.replicate = productionDatabase.replicateSequenceDict[entityId]
             # type: int, name: replicateId, foreignTable: ReplicateSequence, foreignColumn: id
@@ -1162,7 +1162,7 @@ def loadSRA_RunSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.enaAccession = None
         elif entityId not in productionDatabase.eNA_AccessionDict:
-            raise StandardError, 'no ENA_Accession entity with id = %d' % entityId
+            raise Exception('no ENA_Accession entity with id = %d' % entityId)
         else:
             entity.enaAccession = productionDatabase.eNA_AccessionDict[entityId]
             # type: int, name: enaAccessionId, foreignTable: ENA_Accession, foreignColumn: id
@@ -1185,7 +1185,7 @@ def loadSRA_RunSequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.sraRunSequence = None
         elif entityId not in productionDatabase.sRA_RunSequenceDict:
-            raise StandardError, 'no SRA_RunSequence entity with id = %d' % entityId
+            raise Exception('no SRA_RunSequence entity with id = %d' % entityId)
         else:
             entity.sraRunSequence = productionDatabase.sRA_RunSequenceDict[entityId]
             # type: int, name: sraRunSequenceId, foreignTable: SRA_RunSequence, foreignColumn: id
@@ -1195,7 +1195,7 @@ def loadSRA_RunSequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease

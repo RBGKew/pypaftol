@@ -36,12 +36,12 @@ This is a base class for runners that wrap specific MSA programs.
         p.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+            raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
         if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
+            raise Exception('wait on forked process returned %d' % wExit)
         returncode = p.wait()
         if returncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(argv), returncode)
+            raise Exception('process "%s" returned %d' % (' '.join(argv), returncode))
         return alignment
 
     def makeSubprocess(self):

@@ -123,7 +123,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
     s = str(seq)
     gapStart = None
     gapList = []
-    for i in xrange(len(s)):
+    for i in range(len(s)):
         if s[i] == seq.alphabet.gap_char and gapStart is None:
             gapStart = i
         if s[i] != seq.alphabet.gap_char and gapStart is not None:
@@ -136,9 +136,9 @@ if the sequence contains triplets with both gap and non-gap symbols.
     nongapStart = 0
     for gapStart, gapEnd in gapList:
         if (gapStart - nongapStart) % 3 != 0:
-            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, gapStart))
+            raise Exception('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, gapStart))
         if (gapEnd - gapStart) % 3 != 0:
-            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd))
+            raise Exception('cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd))
         if nongapStart < gapStart:
             ungappedSeq = seq[nongapStart:gapStart]
             ungappedSeq.alphabet = ungappedAlphabet
@@ -147,7 +147,7 @@ if the sequence contains triplets with both gap and non-gap symbols.
         nongapStart = gapEnd
     if nongapStart < len(seq):
         if (len(seq) - nongapStart) % 3 != 0:
-            raise StandardError('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq)))
+            raise Exception('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq)))
         ungappedSeq = seq[nongapStart:]
         ungappedSeq.alphabet = ungappedAlphabet
         t = t + str(ungappedSeq.translate(table))
@@ -207,7 +207,7 @@ def plotAlignmentPostscript(alignment, epsFile, width=None, height=None):
     for sr in alignment:
         lineStart = None
         s = str(sr.seq)
-        for i in xrange(len(s)):
+        for i in range(len(s)):
             if s[i] == gapChar:
                 if lineStart is not None:
                     lineEnd = i * symbolWidth
@@ -231,7 +231,7 @@ class DataFrame(object):
 
     def addRow(self, rowDict):
         if set(rowDict.keys()) != set(self.columnHeaderList):
-            raise StandardError, 'key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in rowDict.keys()]), ', '.join(self.columnHeaderList))
+            raise Exception('key set %s is not compatible with column headers %s' % (', '.join([str(k) for k in list(rowDict.keys())]), ', '.join(self.columnHeaderList)))
         self.rowDictList.append(copy.copy(rowDict))
 
     def nrow(self):
@@ -276,16 +276,16 @@ class FastqcStats(object):
     def readCompleteLine(self, f):
         l = f.readline()
         if len(l) == 0:
-            raise StandardError, 'unexpected empty line'
+            raise Exception('unexpected empty line')
         if l[-1] != '\n':
-            raise StandardError, 'unexpected truncated line'
+            raise Exception('unexpected truncated line')
         return l
 
     def readTableHeader(self, f):
         # FIXME: should probably use readCompleteLine?
         l = f.readline()
         if l[0] != '#':
-            raise StandardError, 'malformed FastQC table header: %s' % l.strip()
+            raise Exception('malformed FastQC table header: %s' % l.strip())
         return l[1:].strip().split('\t')
 
     def checkFastqcVersion(self, f):
@@ -293,16 +293,16 @@ class FastqcStats(object):
         l = self.readCompleteLine(f)
         m = self.fastqcVersionRe.match(l)
         if m is None:
-            raise StandardError, 'malformed FastQC version line: %s' % l.strip()
+            raise Exception('malformed FastQC version line: %s' % l.strip())
         v = m.group(1)
         if v not in ['0.11.5']:
-            raise StandardError, 'unsupported FastQC version %s' % v
+            raise Exception('unsupported FastQC version %s' % v)
 
     def nextModuleDescription(self, f):
         l = self.readCompleteLine(f)
         m = self.fastqcModuleStartRe.match(l)
         if m is None:
-            raise StandardError, 'malformed FastQC module start: %s' % l.strip()
+            raise Exception('malformed FastQC module start: %s' % l.strip())
         description = m.group(1)
         result = m.group(2)
         return description, result
@@ -310,15 +310,15 @@ class FastqcStats(object):
     def parseBasicStatistics(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Basic Statistics':
-            raise StandardError, 'expected "Basic Statistics" module but found "%s"' % description
+            raise Exception('expected "Basic Statistics" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Measure', 'Value']:
-            raise StandardError, 'malformed "Basic Statistics" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Basic Statistics" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['measure', 'value'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'measure': w[0], 'value': w[1]})
             l = self.readCompleteLine(f)
         self.basicStatistics = fastqcDataFrame
@@ -326,41 +326,41 @@ class FastqcStats(object):
     def parsePerBaseSequenceQuality(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Per base sequence quality':
-            raise StandardError, 'expected "Per base sequency quality" module but found "%s"' % description
+            raise Exception('expected "Per base sequency quality" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Base', 'Mean', 'Median', 'Lower Quartile', 'Upper Quartile', '10th Percentile', '90th Percentile']:
-            raise StandardError, 'malformed "Per base sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per base sequence quality" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['base', 'mean', 'median', 'lowerQuartile', 'upperQuartile', 'percentile10', 'percentile90'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 7:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'base': int(w[0]), 'mean': float(w[1]), 'median': float(w[2]), 'lowerQuartile': float(w[3]), 'upperQuartile': float(w[4]), 'percentile10': float(w[5]), 'percentile90': float(w[6])})
             l = self.readCompleteLine(f)
         self.perBaseSequenceQuality = fastqcDataFrame
 
     def parsePerTileSequenceQualityBody(self, f, description, result):
         if self.readTableHeader(f) != ['Tile', 'Base', 'Mean']:
-            raise StandardError, 'malformed "Per tile sequence quality" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per tile sequence quality" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['tile', 'base', 'mean'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 3:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'tile': int(w[0]), 'base': int(w[1]), 'mean': float(w[2])})
             l = self.readCompleteLine(f)
         self.perTileSequenceQuality = fastqcDataFrame
 
     def parsePerSequenceQualityScoresBody(self, f, description, result):
         if self.readTableHeader(f) != ['Quality', 'Count']:
-            raise StandardError, 'malformed "Per sequence quality scores" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per sequence quality scores" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['quality', 'count'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'quality': w[0], 'count': w[1]})
             l = self.readCompleteLine(f)
         self.perSequenceQualityScores = fastqcDataFrame
@@ -368,15 +368,15 @@ class FastqcStats(object):
     def parsePerBaseSequenceContent(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Per base sequence content':
-            raise StandardError, 'expected "Per base sequence content" module but found "%s"' % description
+            raise Exception('expected "Per base sequence content" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Base', 'G', 'A', 'T', 'C']:
-            raise StandardError, 'malformed "Per base sequence content" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per base sequence content" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['base', 'g', 'a', 't', 'c'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 5:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'base': int(w[0]), 'g': float(w[1]), 'a': float(w[2]), 't': float(w[3]), 'c': float(w[4])})
             l = self.readCompleteLine(f)
         self.perBaseSequenceContent = fastqcDataFrame
@@ -384,15 +384,15 @@ class FastqcStats(object):
     def parsePerSequenceGCContent(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Per sequence GC content':
-            raise StandardError, 'expected "Per sequence GC content" module but found "%s"' % description
+            raise Exception('expected "Per sequence GC content" module but found "%s"' % description)
         if self.readTableHeader(f) != ['GC Content', 'Count']:
-            raise StandardError, 'malformed "Per sequence GC content" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per sequence GC content" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['gcContent', 'count'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'gcContent': int(w[0]), 'count': float(w[1])})
             l = self.readCompleteLine(f)
         self.perSequenceGCContent = fastqcDataFrame
@@ -400,15 +400,15 @@ class FastqcStats(object):
     def parsePerBaseNContent(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Per base N content':
-            raise StandardError, 'expected "Per base N content" module but found "%s"' % description
+            raise Exception('expected "Per base N content" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Base', 'N-Count']:
-            raise StandardError, 'malformed "Per base N content" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Per base N content" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['base', 'nCount'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'base': int(w[0]), 'nCount': float(w[1])})
             l = self.readCompleteLine(f)
         self.perBaseNContent = fastqcDataFrame
@@ -416,15 +416,15 @@ class FastqcStats(object):
     def parseSequenceLengthDistribution(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Sequence Length Distribution':
-            raise StandardError, 'expected "Sequence Length Distribution" module but found "%s"' % description
+            raise Exception('expected "Sequence Length Distribution" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Length', 'Count']:
-            raise StandardError, 'malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['length', 'count'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 2:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'length': str(w[0]), 'count': float(w[1])})
             l = self.readCompleteLine(f)
         self.sequenceLengthDistribution = fastqcDataFrame
@@ -432,17 +432,17 @@ class FastqcStats(object):
     def parseSequenceDuplicationLevels(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Sequence Duplication Levels':
-            raise StandardError, 'expected "Sequence Duplication Levels" module but found "%s"' % description
+            raise Exception('expected "Sequence Duplication Levels" module but found "%s"' % description)
         if self.readTableHeader(f) == ['Total', 'Deduplicated', 'Percentage']:
             pass
         if self.readTableHeader(f) != ['Duplication Level', 'Percentage of deduplicated', 'Percentage of total']:
-            raise StandardError, 'malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Sequence Length Distribution" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['duplicationLevel', 'percentageOfDeduplicated', 'percentageOfTotal'], description, result)
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 3:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             fastqcDataFrame.addRow({'duplicationLevel': str(w[0]), 'percentageOfDeduplicated': str(w[1]), 'percentageOfTotal': float(w[2])})
             l = self.readCompleteLine(f)
         self.sequenceDuplicationLevels = fastqcDataFrame
@@ -457,15 +457,15 @@ class FastqcStats(object):
     def parseAdapterContent(self, f):
         description, result = self.nextModuleDescription(f)
         if description != 'Adapter Content':
-            raise StandardError, 'expected "Adapter content" module but found "%s"' % description
+            raise Exception('expected "Adapter content" module but found "%s"' % description)
         if self.readTableHeader(f) != ['Position', 'Illumina Universal Adapter', "Illumina Small RNA 3' Adapter", "Illumina Small RNA 5' Adapter", "Nextera Transposase Sequence", "SOLID Small RNA Adapter"]:
-            raise StandardError, 'malformed "Adapter Content" header: %s' % ', '.join(self.readTableHeader(f))
+            raise Exception('malformed "Adapter Content" header: %s' % ', '.join(self.readTableHeader(f)))
         fastqcDataFrame = FastqcDataFrame(['position', 'illuminaUniversalAdapter', 'illuminaSmallRNA3PrimeAdapter', 'illuminaSmallRNA5PrimeAdapter', 'nexteraTransposaseSequence', 'solidSmallRNAAdapter'], description, result) 
         l = self.readCompleteLine(f)
         while l.strip() != '>>END_MODULE':
             w = l.strip().split('\t')
             if len(w) != 6:
-                raise StandardError, 'malformed line: %s' % l.strip()
+                raise Exception('malformed line: %s' % l.strip())
             if w[0] == '2.':
                 w[0] = '21'
             fastqcDataFrame.addRow({'position': int(w[0]), 'illuminaUniversalAdapter': float(w[1]), 'illuminaSmallRNA3PrimeAdapter': float(w[2]), 'illuminaSmallRNA5PrimeAdapter': float(w[3]), 'nexteraTransposaseSequence': float(w[4]), 'solidSmallRNAAdapter': float(w[5])})
@@ -489,12 +489,12 @@ class FastqcStats(object):
                 self.parsePerTileSequenceQualityBody(f, description, result)
                 description, result = self.nextModuleDescription(f)
                 if description != 'Per sequence quality scores':
-                    raise StandardError, 'expected "Per sequence quality scores" module but found "%s"' % description
+                    raise Exception('expected "Per sequence quality scores" module but found "%s"' % description)
                 self.parsePerSequenceQualityScoresBody(f, description, result)
             elif description == 'Per sequence quality scores':
                 self.parsePerSequenceQualityScoresBody(f, description, result)
             else:
-                raise StandardError, 'expected "Per tile sequence quality" or "Per sequence quality scores" module but found "%s"' % description
+                raise Exception('expected "Per tile sequence quality" or "Per sequence quality scores" module but found "%s"' % description)
             self.parsePerBaseSequenceContent(f)
             self.parsePerSequenceGCContent(f)
             self.parsePerBaseNContent(f)
@@ -541,7 +541,7 @@ def generateFastqcStats(fastqFname):
 """
     m = re.match('(.*)\\.fastq', os.path.basename(fastqFname))
     if m is None:
-        raise StandardError, 'failed to extract basename of fastq filename'
+        raise Exception('failed to extract basename of fastq filename')
     fastqBasename = m.group(1)
     try:
         tmpDirName = tempfile.mkdtemp()
@@ -597,7 +597,7 @@ class FastqcSummaryStats(object):
 class BlastAlignment(object):
 
     def __init__(self, rname, blastAlignment):
-        raise StandardError, 'obsolete'
+        raise Exception('obsolete')
         #self.query = query
         self.rname = rname
         self.qname = blastAlignment.hit_id
@@ -663,7 +663,7 @@ to provide fields required for Hyb-Seq analysis only.
         while c != '':
             m = self.cigarElementRe.match(c)
             if m is None:
-                raise StandardError('malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c))
+                raise Exception('malformed CIGAR "%s" (stuck at "%s")' % (self.cigar, c))
             e = e + (m.group(2) * int(m.group(1)))
             c = c[len(m.group()):]
         return e
@@ -800,7 +800,7 @@ roll your own (ryo) formatting facility.
 Ranges and strand orientations are changed accordingly.
 """
         if self.targetStrand not in '+-':
-            raise StandardError('cannot reverse complement strand with orientation "%s"' % self.targetStrand)
+            raise Exception('cannot reverse complement strand with orientation "%s"' % self.targetStrand)
         if self.targetAlignmentSeq is not None:
             self.targetAlignmentSeq = self.targetAlignmentSeq.reverse_complement(id=True, name=True, description=True)
             self.targetAlignmentStart, self.targetAlignmentEnd = self.targetAlignmentEnd, self.targetAlignmentStart
@@ -855,7 +855,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         #FIXME: take gapChar from alphabet or parameter?
         gapChar = '-'
         if self.exonerateModel != 'affine:local:dna2dna':
-            raise StandardError('nucleotideAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
+            raise Exception('nucleotideAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
         v = self.vulgar.split()
         qAln = ''
         tAln = ''
@@ -867,7 +867,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         qAligned = qSeq[self.queryAlignmentStart:self.queryAlignmentEnd].upper()
         if qAligned != str(self.queryAlignmentSeq.seq).upper():
             sys.stderr.write('%s:\nqseq: %s\nqaln: %s\n' % (self.queryId, qAligned, str(self.querySeq.seq)))
-            raise StandardError, 'query sequence and query alignment sequence mismatch'
+            raise Exception('query sequence and query alignment sequence mismatch')
         qRightFlank = qSeq[self.queryAlignmentEnd:].lower()
         # sys.stderr.write('%s: tas = %d, tae = %d, strand = %s\n' % (self.targetId, self.targetAlignmentStart, self.targetAlignmentEnd, self.targetStrand))
         if self.targetStrand == '+':
@@ -878,7 +878,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             # sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
             if tAligned != str(self.targetAlignmentSeq.seq).upper():
                 sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
-                raise StandardError, 'target sequence and target alignment sequence mismatch'
+                raise Exception('target sequence and target alignment sequence mismatch')
             tRightFlank = tSeq[self.targetAlignmentEnd:].lower()
         elif self.targetStrand == '-':
             tSeq = str(self.targetSeq.reverse_complement().seq)
@@ -892,13 +892,13 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             if tAligned != str(self.targetAlignmentSeq.seq).upper():
                 # sys.stderr.write('targetAlignmentStart = %d, targetAlignmentEnd = %d, rcTas = %d, rcTae = %d, len(tSeq) = %d, len(tAligned) = %d, tAligned = tSeq[%d:%d]\n' % (self.targetAlignmentStart, self.targetAlignmentEnd, rcTas, rcTae, len(tSeq), len(tAligned), self.targetAlignmentEnd, self.targetAlignmentStart))
                 # sys.stderr.write('%s:\ntseq: %s\ntaln: %s\nqaln: %s\n' % (self.targetId, tSeq, tAligned, qAligned))
-                raise StandardError, 'target sequence and target alignment sequence mismatch'
+                raise Exception('target sequence and target alignment sequence mismatch')
             tRightFlank = tSeq[rcTae:].lower()
         else:
-            raise StandardError, 'need target strand orientation +/-'
+            raise Exception('need target strand orientation +/-')
         # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
         # logger.debug('%s', str(self.targetAlignmentSeq.seq))
-        for i in xrange(0, len(v), 3):
+        for i in range(0, len(v), 3):
             vLabel = v[i]
             vQueryLength = int(v[i + 1])
             vTargetLength = int(v[i + 2])
@@ -914,7 +914,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
                     qAln = qAln + qAligned[qPos:(qPos + vQueryLength)]
                     tAln = tAln + gapChar * vQueryLength
             else:
-                raise StandardError, 'unsupported VULGAR label: %s' % vLabel
+                raise Exception('unsupported VULGAR label: %s' % vLabel)
             vLength = max(vQueryLength, vTargetLength)
             vulgarLetterAnnotation.extend([vLabel] * vLength)
             qPos = qPos + vQueryLength
@@ -955,7 +955,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
 """
         gapChar = '-'
         if self.exonerateModel != 'protein2genome:local':
-            raise StandardError('proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
+            raise Exception('proteinAlignment is not supported for exonerate model "%s"' % self.exonerateModel)
         v = self.vulgar.split()
         qAln = ''
         tAln = ''
@@ -963,7 +963,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
         tPos = 0
         # logger.debug('queryAlignmentSeq: %d, targetAlignmentSeq: %d', len(self.queryAlignmentSeq), len(self.targetAlignmentSeq))
         # logger.debug('%s', str(self.targetAlignmentSeq.seq))
-        for i in xrange(0, len(v), 3):
+        for i in range(0, len(v), 3):
             vLabel = v[i]
             vQueryLength = int(v[i + 1])
             vTargetLength = int(v[i + 2])
@@ -974,7 +974,7 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             elif vLabel == 'G':
                 if vQueryLength == 0:
                     if vTargetLength % 3 != 0:
-                        raise StandardError('cannot process nucleotide gaps with length not a multiple of 3')
+                        raise Exception('cannot process nucleotide gaps with length not a multiple of 3')
                     qAln = qAln + gapChar * (vTargetLength / 3)
                     tAln = tAln + str(self.targetAlignmentSeq[tPos:(tPos + vTargetLength)].seq)
                 elif vTargetLength == 0:
@@ -1066,7 +1066,7 @@ class ExonerateRunner(object):
         line = f.readline()
         # logger.debug('%s', line.strip())
         if line == '':
-            raise StandardError('unexpected EOF')
+            raise Exception('unexpected EOF')
         if line[-1] == '\n':
             line = line[:-1]
         return line
@@ -1075,9 +1075,9 @@ class ExonerateRunner(object):
         line = self.nextLine(f)
         m = self.labelledLineRe.match(line)
         if m is None:
-            raise StandardError('malformed line (expected label %s): %s' % (label, line.strip()))
+            raise Exception('malformed line (expected label %s): %s' % (label, line.strip()))
         if m.group(1) != label:
-            raise StandardError('expected label %s but got %s' % (label, m.group(1)))
+            raise Exception('expected label %s but got %s' % (label, m.group(1)))
         return m.group(2).strip()
 
     def parseInt(self, f, label):
@@ -1096,9 +1096,9 @@ class ExonerateRunner(object):
         line = self.nextLine(f)
         m = self.seqStartRe.match(line)
         if m is None:
-            raise StandardError('malformed line (expected seqStart): %s' % line.strip())
+            raise Exception('malformed line (expected seqStart): %s' % line.strip())
         if m.group(1) != label:
-            raise StandardError('expected sequence label %s but got %s' % (label, m.group(1)))
+            raise Exception('expected sequence label %s but got %s' % (label, m.group(1)))
         seq = ''
         s = self.nextLine(f)
         while s != 'seqEnd':
@@ -1114,11 +1114,11 @@ class ExonerateRunner(object):
         if line == '':
             return None
         if line.strip() != 'ryoStart':
-            raise StandardError('malformed input: ryoStart missing, got %s instead' % line.strip())
+            raise Exception('malformed input: ryoStart missing, got %s instead' % line.strip())
         exonerateResult.exonerateModel = self.parseString(f, 'exonerateModel')
         exonerateResult.queryId = self.parseString(f, 'queryId')
         if exonerateResult.queryId != exonerateResult.querySeq.id:
-            raise StandardError('result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId))
+            raise Exception('result incompatible with query: querySeq.id = %s, exonerate queryId = %s' % (self.querySeq.id, exonerateResult.queryId))
         exonerateResult.queryDef = self.parseString(f, 'queryDef')
         exonerateResult.queryStrand = self.parseString(f, 'queryStrand')
         exonerateResult.queryAlignmentStart = self.parseInt(f, 'queryAlignmentStart')
@@ -1130,7 +1130,7 @@ class ExonerateRunner(object):
         exonerateResult.targetId = self.parseString(f, 'targetId')
         if targetSeqDict is not None:
             if exonerateResult.targetId not in targetSeqDict:
-                raise StandardError, 'found targetId %s but no corresponding sequence' % exonerateResult.targetId
+                raise Exception('found targetId %s but no corresponding sequence' % exonerateResult.targetId)
             exonerateResult.targetSeq = targetSeqDict[exonerateResult.targetId]
         exonerateResult.targetDef = self.parseString(f, 'targetDef')
         exonerateResult.targetStrand = self.parseString(f, 'targetStrand')
@@ -1163,10 +1163,10 @@ class ExonerateRunner(object):
             exonerateResult.queryCdsSeq = None
             exonerateResult.targetCdsSeq = None
         else:
-            raise StandardError('unsupported exonerate model: %s' % exonerateResult.exonerateModel)
+            raise Exception('unsupported exonerate model: %s' % exonerateResult.exonerateModel)
         line = self.nextLine(f)
         if line.strip() != 'ryoEnd':
-            raise StandardError('malformed input: ryoEnd missing')
+            raise Exception('malformed input: ryoEnd missing')
         return exonerateResult
 
     def parse(self, querySeq, targetFname, exonerateModel, bestn=None, minPercentIdentity=None, addRawTargetSeqs=False):
@@ -1220,12 +1220,12 @@ class ExonerateRunner(object):
             p.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
-                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+                raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
             if wExit != 0:
-                raise StandardError('wait on forked process returned %d' % wExit)
+                raise Exception('wait on forked process returned %d' % wExit)
             r = p.wait()
             if r != 0:
-                raise StandardError('exonerate process exited with %d' % r)
+                raise Exception('exonerate process exited with %d' % r)
         finally:
             if paftol.keepTmp:
                 logger.warning('not deleting query scratch file %s', queryScratchFname)
@@ -1261,7 +1261,7 @@ content.
 @param csvfile: The file to write to
 @type csvfile: C{str} or file like
 """
-        if isinstance(csvfile, types.StringType):
+        if isinstance(csvfile, bytes):
             self.csvfile = open(csvfile, 'w')
             self.csvDictWriter = csv.DictWriter(self.csvfile, self.csvFieldnames)
         else:
@@ -1287,7 +1287,7 @@ the caller's responsibility to close it.
 @param exonerateResult: the instance from which to take the row's content
 """
         if self.csvDictWriter is None:
-            raise StandardError('illegal state: no DictWriter (close called previously?)')
+            raise Exception('illegal state: no DictWriter (close called previously?)')
         d = {}
         d['querySeqId'] = None if exonerateResult.querySeq is None else exonerateResult.querySeq.id
         d['targetFname'] = exonerateResult.targetFname
@@ -1329,7 +1329,7 @@ def alignMerge(pairwiseAlignmentList):
     otherSymbolSeqList = []
     vulgarLetterAnnotationList = []
     staralignLetterAnnotationList = []
-    for i in xrange(len(pairwiseAlignmentList)):
+    for i in range(len(pairwiseAlignmentList)):
         if 'vulgar' in pairwiseAlignmentList[i][1].letter_annotations:
             vulgarLetterAnnotationList.append([])
         else:
@@ -1340,11 +1340,11 @@ def alignMerge(pairwiseAlignmentList):
         otherseqList.append(str(pairwiseAlignment[1].seq))
         otherSymbolSeqList.append([])
     i = [0] * len(pairwiseAlignmentList)
-    while max([len(refseqList[n]) - i[n] for n in xrange(len(pairwiseAlignmentList))]) > 0:
+    while max([len(refseqList[n]) - i[n] for n in range(len(pairwiseAlignmentList))]) > 0:
         refGap = False
         refSym = None
         refSymAlignIndex = None
-        for n in xrange(len(pairwiseAlignmentList)):
+        for n in range(len(pairwiseAlignmentList)):
             # sys.stderr.write('n = %d, i[n] = %d, l = %d\n' % (n, i[n], len(refseqList[n])))
             if i[n] == len(refseqList[n]):
                 r  = gapChar
@@ -1358,10 +1358,10 @@ def alignMerge(pairwiseAlignmentList):
                 refSymAlignIndex = n
             else:
                 if r != refSym:
-                    raise StandardError, 'reference sequences inconsistent, found symbols %s (%s:%d) and %s (%s:%d)' % (refSym, pairwiseAlignmentList[refSymAlignIndex][1].id, refSymAlignIndex, r, pairwiseAlignmentList[n][1].id, n)
+                    raise Exception('reference sequences inconsistent, found symbols %s (%s:%d) and %s (%s:%d)' % (refSym, pairwiseAlignmentList[refSymAlignIndex][1].id, refSymAlignIndex, r, pairwiseAlignmentList[n][1].id, n))
         if refGap:
             refSymbolSeq.append(gapChar)
-            for n in xrange(len(pairwiseAlignmentList)):
+            for n in range(len(pairwiseAlignmentList)):
                 if i[n] ==len(otherseqList[n]):
                     otherSymbolSeqList[n].append(gapChar)
                     vulgarLetterAnnotationList[n].append(None)
@@ -1379,10 +1379,10 @@ def alignMerge(pairwiseAlignmentList):
                             vulgarLetterAnnotationList[n].append(None)
                         staralignLetterAnnotationList[n].append(None)
                     else:
-                        raise StandardError, 'weird: refSym = %s, refseqsym = %s, n = %d, i[n] = %d, id = %s' % (refSym, refseqList[n][i[n]], n, i[n], pairwiseAlignmentList[n][1].id)
+                        raise Exception('weird: refSym = %s, refseqsym = %s, n = %d, i[n] = %d, id = %s' % (refSym, refseqList[n][i[n]], n, i[n], pairwiseAlignmentList[n][1].id))
         else:
             refSymbolSeq.append(refSym)
-            for n in xrange(len(pairwiseAlignmentList)):
+            for n in range(len(pairwiseAlignmentList)):
                 otherSymbolSeqList[n].append(otherseqList[n][i[n]])
                 if 'vulgar' in pairwiseAlignmentList[n][1].letter_annotations:
                     vulgarLetterAnnotationList[n].append(pairwiseAlignmentList[n][1].letter_annotations['vulgar'][i[n]])
@@ -1391,7 +1391,7 @@ def alignMerge(pairwiseAlignmentList):
     refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id='%s_ref' % refId)
     srList = [refSr]
     # sys.stderr.write('ref. %s: length: %d\n' % (refSr.id, len(refSr)))
-    for n in xrange(len(pairwiseAlignmentList)):
+    for n in range(len(pairwiseAlignmentList)):
         letter_annotations = {}
         if vulgarLetterAnnotationList[n] is not None:
             letter_annotations['vulgar'] = vulgarLetterAnnotationList[n]
@@ -1418,7 +1418,7 @@ class ExonerateStarAlignment(object):
                 Bio.SeqIO.write([seqRecord], tmpFastaFile, 'fasta')
             # only best alignment for now, extending to multiple local alignments will require name fiddling...
             exonerateResultList = exonerateRunner.parse(self.reference, tmpFastaFname, 'affine:local', bestn=1, addRawTargetSeqs=True)
-        except StandardError as e:
+        except Exception as e:
             raise e
         finally:
             # FIXME: check keepTmp when moving this into pypaftol
@@ -1447,7 +1447,7 @@ class ExonerateStarAlignment(object):
         rgbIndex = None
         lastRgbStart = None
         epsFile.write('%% sequence %s\n' % sr.id)
-        for i in xrange(len(sr)):
+        for i in range(len(sr)):
             if s[i] == gapChar:
                 if v is not None and v[i] is None:
                     rgbIndex = 2
@@ -1467,7 +1467,7 @@ class ExonerateStarAlignment(object):
 
     def epsSketch(self, epsFile, width=None, height=None):
         if self.xstarAlignment is None:
-            raise StandardError, 'no star alignment to sketch'
+            raise Exception('no star alignment to sketch')
         if width is None:
             width = self.xstarAlignment.get_alignment_length()
         if height is None:
@@ -1503,7 +1503,7 @@ class TrimmomaticRunner(object):
 
     def runTrimmomaticPaired(self, forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, trimlogFname=None, workDirname=None):
         if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
-            raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
+            raise Exception('must specify both slidingWindowSize and slidingWindowQuality or neither')
         # trimmomaticArgv = ['TrimmomaticPE']
         # Paul B. - changed to fit with KewHPC that is running trimmomatic via a script called 'trimmomatic'; NB - in output logs it still says 'TrimmomaticPE: Started with arguments:' -OK.
         trimmomaticArgv = ['trimmomatic', 'PE']
@@ -1528,7 +1528,7 @@ class TrimmomaticRunner(object):
         trimmomaticProcess = subprocess.Popen(trimmomaticArgv, cwd=workDirname)
         returncode = trimmomaticProcess.wait()
         if returncode != 0:
-            raise StandardError('trimmomatic process "%s" exited with %d' % (' '.join(trimmomaticArgv), returncode))
+            raise Exception('trimmomatic process "%s" exited with %d' % (' '.join(trimmomaticArgv), returncode))
         return (forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, )
 
 
@@ -1635,7 +1635,7 @@ C{samAlignmentProcessor}.
         bwaReturncode = bwaProcess.wait()
         # samtoolsReturncode = samtoolsProcess.wait()
         if bwaReturncode != 0:
-            raise StandardError('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
+            raise Exception('process "%s" returned %d' % (' '.join(bwaArgv), bwaReturncode))
         # if samtoolsReturncode != 0:
         #     raise StandardError('process "%s" returned %d' % (' '.join(samtoolsArgv), samtoolsReturncode))
 
@@ -1767,12 +1767,12 @@ C{blastAlignmentProcessor}.
         blastProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
-            raise StandardError, 'wait returned pid %s (expected %d)' % (wPid, pid)
+            raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
         if wExit != 0:
-            raise StandardError, 'wait on forked process returned %d' % wExit
+            raise Exception('wait on forked process returned %d' % wExit)
         blastReturncode = blastProcess.wait()
         if blastReturncode != 0:
-            raise StandardError, 'process "%s" returned %d' % (' '.join(blastArgv), blastReturncode)
+            raise Exception('process "%s" returned %d' % (' '.join(blastArgv), blastReturncode))
 
 
 class BlastnRunner(BlastRunner):
@@ -1841,7 +1841,7 @@ class SpadesRunner(object):
         elif libraryType == self.SINGLE:
             spadesInputArgs = ['-s', readsFname]
         else:
-            raise StandardError, 'library type %d unknown / unsupported' % libraryType
+            raise Exception('library type %d unknown / unsupported' % libraryType)
         spadesArgv = ['spades.py', '--only-assembler']
         if self.numThreads is not None:
             spadesArgv.extend(['--threads', '%d' % self.numThreads])
@@ -1884,7 +1884,7 @@ class MeanAndStddev(object):
 
 def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
     if len(sr1) != len(sr2):
-        raise StandardError, 'sequences %s and %s differ in length: %d != %d' % (sr1.id, sr2.id, len(sr1), len(sr2))
+        raise Exception('sequences %s and %s differ in length: %d != %d' % (sr1.id, sr2.id, len(sr1), len(sr2)))
     gapChar = None
     if isinstance(sr1.seq.alphabet, Bio.Alphabet.Gapped) and isinstance(sr2.seq.alphabet, Bio.Alphabet.Gapped):
         if sr1.seq.alphabet.gap_char == sr2.seq.alphabet.gap_char:
@@ -1895,7 +1895,7 @@ def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
         s1 = s1.lower()
         s2 = s2.lower()
     n = 0
-    for i in xrange(len(s1)):
+    for i in range(len(s1)):
         if s1[i] == s2[i]:
             if gapChar is None or s1[i] != gapChar:
                 # logger.debug('s1[%d] = %s, s2[%d] = %s', i, s1[i], i, s2[i])
@@ -1917,10 +1917,10 @@ annotated with C{None}.
 @rtype: C{list}
     """
     if not isinstance(sr.seq.alphabet, Bio.Alphabet.Gapped):
-        raise StandardError, 'sequence is not gapped (not an aligned sequence?)'
+        raise Exception('sequence is not gapped (not an aligned sequence?)')
     s = str(sr.seq)
     gapClass = [None] * len(sr)
-    for i in xrange(len(s)):
+    for i in range(len(s)):
         if s[i] == sr.seq.alphabet.gap_char:
             gapClass[i] = 'i'
     i = 0
@@ -1958,15 +1958,15 @@ def pairwiseAlignmentStatsRowDict(alignment):
         rowDict['terminalGapLength2'] = sum([1 if gc == 't' else 0 for gc in a2gc])
         rowDict['internalGapLength1'] = sum([1 if gc == 'i' else 0 for gc in a1gc])
         rowDict['internalGapLength2'] = sum([1 if gc == 'i' else 0 for gc in a2gc])
-        rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in xrange(len(a1gc) - 1)])
-        rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in xrange(len(a2gc) - 1)])
+        rowDict['numInternalGaps1'] = sum([1 if a1gc[i] != 'i' and a1gc[i + 1] == 'i' else 0 for i in range(len(a1gc) - 1)])
+        rowDict['numInternalGaps2'] = sum([1 if a2gc[i] != 'i' and a2gc[i + 1] == 'i' else 0 for i in range(len(a2gc) - 1)])
     return rowDict
 
 
 def pairwiseAlignmentStats(sr1Dict, sr2Dict, alignmentRunner, alignmentFastaFname=None):
     alignmentStatsFrame = DataFrame(['seqKey', 'seqId1', 'seqId2', 'seqLength1', 'seqLength2', 'alignmentLength', 'numIdentity', 'terminalGapLength1', 'terminalGapLength2', 'internalGapLength1', 'internalGapLength2', 'numInternalGaps1', 'numInternalGaps2'])
     alignmentSaveList = []
-    keySet = set(sr1Dict.keys() + sr2Dict.keys())
+    keySet = set(list(sr1Dict.keys()) + list(sr2Dict.keys()))
     for k in keySet:
         sr1 = None
         sr2 = None
@@ -2006,7 +2006,7 @@ class PairwiseAlignmentRunner(object):
         pass
 
     def align(self, sra, srbList):
-        raise StandardError, 'abstract method'
+        raise Exception('abstract method')
 
 
 class NeedleRunner(PairwiseAlignmentRunner):
@@ -2037,12 +2037,12 @@ class NeedleRunner(PairwiseAlignmentRunner):
             needleProcess.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
-                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+                raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
             if wExit != 0:
-                raise StandardError('wait on forked process returned %d' % wExit)
+                raise Exception('wait on forked process returned %d' % wExit)
             r = needleProcess.wait()
             if r != 0:
-                raise StandardError('needle process exited with %d' % r)
+                raise Exception('needle process exited with %d' % r)
         finally:
             if paftol.keepTmp:
                 logger.warning('not deleting needle bsequence file %s', bsequenceFname)
@@ -2079,12 +2079,12 @@ class WaterRunner(PairwiseAlignmentRunner):
             waterProcess.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
-                raise StandardError('wait returned pid %s (expected %d)' % (wPid, pid))
+                raise Exception('wait returned pid %s (expected %d)' % (wPid, pid))
             if wExit != 0:
-                raise StandardError('wait on forked process returned %d' % wExit)
+                raise Exception('wait on forked process returned %d' % wExit)
             r = waterProcess.wait()
             if r != 0:
-                raise StandardError('water process exited with %d' % r)
+                raise Exception('water process exited with %d' % r)
         finally:
             if paftol.keepTmp:
                 logger.warning('not deleting water bsequence file %s', bsequenceFname)
@@ -2112,7 +2112,7 @@ class SemiglobalAlignmentRunner(PairwiseAlignmentRunner):
 
 def findRelativeIdentity(alignment):
     n = 0
-    for i in xrange(alignment.get_alignment_length()):
+    for i in range(alignment.get_alignment_length()):
         if len(set(alignment[:, i])) == 1:
             n = n + 1
     return float(n) / float(alignment.get_alignment_length())
@@ -2120,12 +2120,12 @@ def findRelativeIdentity(alignment):
 
 def findMaxRelativeIdentity(alignment, windowSize):
     maxNumIdentities = None
-    numSymbolsList = [len(set(alignment[:, i])) for i in xrange(alignment.get_alignment_length())]
-    constColumn = [1 if numSymbolsList[i] == 1 else 0 for i in xrange(alignment.get_alignment_length())]
+    numSymbolsList = [len(set(alignment[:, i])) for i in range(alignment.get_alignment_length())]
+    constColumn = [1 if numSymbolsList[i] == 1 else 0 for i in range(alignment.get_alignment_length())]
     numIdentities = 0
-    for i in xrange(windowSize - 1):
+    for i in range(windowSize - 1):
         numIdentities = numIdentities + constColumn[i]
-    for i in xrange(alignment.get_alignment_length() - windowSize + 1):
+    for i in range(alignment.get_alignment_length() - windowSize + 1):
         numIdentities = numIdentities + constColumn[i + windowSize - 1]
         # sys.stderr.write('i = %d, numIdentities = %d\n' % (i, numIdentities))
         if maxNumIdentities is None or maxNumIdentities < numIdentities:
@@ -2138,7 +2138,7 @@ def findMaxRelativeIdentity(alignment, windowSize):
 def testMaxRelativeIdentity(alignment):
     Bio.AlignIO.write(alignment, sys.stderr, 'fasta')
     m = alignment.get_alignment_length() / 2
-    for i in xrange(m):
+    for i in range(m):
         windowSize = i + 1
         sys.stderr.write('max. relative identity at window %d: %f\n' % (windowSize, findMaxRelativeIdentity(alignment, windowSize)))
 
@@ -2217,7 +2217,7 @@ def findReadPosition(alignment):
 def findOverlapAlignment(alignment):
     gapChar = '-'
     if len(alignment) != 2:
-        raise StandardError, 'pairwise alignment required but this one has %d sequences' % len(alignment)
+        raise Exception('pairwise alignment required but this one has %d sequences' % len(alignment))
     l = 0
     if alignment[0, 0] == gapChar:
         l = findFirstNongapPosition(alignment[0], gapChar)
@@ -2236,7 +2236,7 @@ class ContigColumn(object):
 
     def __init__(self, numRows=0, symbol=None):
         self.symbolList = []
-        for i in xrange(numRows):
+        for i in range(numRows):
             self.addRow(symbol)
 
     def getNumRows(self):
@@ -2263,7 +2263,7 @@ class ContigColumn(object):
                 frequencyDict[symbol] = frequencyDict[symbol] + 1
         maxFrequency = max(frequencyDict.values())
         mfSymbolList = []
-        for symbol in frequencyDict.keys():
+        for symbol in list(frequencyDict.keys()):
             if frequencyDict[symbol] == maxFrequency:
                 mfSymbolList.append(symbol)
         return mfSymbolList
@@ -2307,7 +2307,7 @@ class Contig(object):
         if terminalGapChar is None:
             terminalGapChar = self.gapChar
         # logger.debug('terminalGapChar: %s', str(terminalGapChar))
-        for r in xrange(self.getNumReads()):
+        for r in range(self.getNumReads()):
             srList.append(self.getSeqRecord(r, terminalGapChar))
         return Bio.Align.MultipleSeqAlignment(srList)
 
@@ -2350,7 +2350,7 @@ class Contig(object):
             # sys.stderr.write('p = %d\n' % p)
             p = p + 1
             if p >= self.numColumns():
-                raise StandardError, 'reached end of column list'
+                raise Exception('reached end of column list')
         return p
 
     def insertGapColumn(self, columnIndex=None):
@@ -2365,7 +2365,7 @@ class Contig(object):
             column.addRow(self.gapChar)
 
     def removeTerminalGaps(self):
-        for rowIndex in xrange(self.numRows()):
+        for rowIndex in range(self.numRows()):
             # logger.debug('row: %d', rowIndex)
             columnIndex = 0
             while columnIndex < self.numColumns() and self.getSymbol(rowIndex, columnIndex) == self.gapChar:
@@ -2408,7 +2408,7 @@ class Contig(object):
             while c < 0:
                 self.insertGapColumn(0)
                 c = c + 1
-            for i in xrange(alignment.get_alignment_length()):
+            for i in range(alignment.get_alignment_length()):
                 # logger.debug('c = %d', c)
                 if alignment[0][i] == self.gapChar:
                     # sys.stderr.write('%d: gap in old read\n' % i)

@@ -1296,7 +1296,9 @@ PyObject *clib_setverbose(PyObject *self, PyObject *args)
 static PyObject *clib_dummy(PyObject *self, PyObject *args)
 {
   fprintf(stderr, "clib_dummy called\n");
-  PyObject *py_helloworld = PyString_FromString("hello world");
+  /* Paul B - changed for Python 2 to 3  */
+  /* PyObject *py_helloworld = PyString_FromString("hello world"); */
+  PyObject *py_helloworld = PyBytes_FromString("hello world");
   return(py_helloworld);
   /*
   PyErr_SetString(PyExc_SystemError, "demo system error");
@@ -1375,16 +1377,22 @@ static BIOSEQUENCE *extract_biosequence_from_list(PyObject *python_list, Py_ssiz
     PyErr_SetString(PyExc_RuntimeError, "failed to retrieve element from list");
     return (NULL);
   }
-  if (!PyString_Check(python_seqstr))
+  /* Paul B - changed for Python 2 to 3  */
+  /* if (!PyString_Check(python_seqstr)) */
+  if (!PyBytes_Check(python_seqstr))
   {
     PyErr_SetString(PyExc_RuntimeError, "retrieved non-string element from list");
     Py_DECREF(python_seqstr);
     return (NULL);
   }
-  s = PyString_AsString(python_seqstr);
+  /* Paul B - changed for Python 2 to 3  */
+  /* s = PyString_AsString(python_seqstr); */
+  s = PyBytes_AsString(python_seqstr);
   if (s == NULL)
   {
-    PyErr_SetString(PyExc_RuntimeError, "PyString_AsString failed");
+    /* Paul B - changed for Python 2 to 3  */
+    /* PyErr_SetString(PyExc_RuntimeError, "PyString_AsString failed"); */
+    PyErr_SetString(PyExc_RuntimeError, "PyBytes_AsString failed");
     Py_DECREF(python_seqstr);
     return (NULL);
   }
@@ -1515,10 +1523,26 @@ static PyMethodDef clib_methods[] = {
 };
 
 
+/* Paul B - added for Python 2 to 3  */
+static struct PyModuleDef moduledef = {
+        PyModuleDef_HEAD_INIT,
+        "paftol.clib",
+        NULL,
+        NULL,
+        clib_methods,
+        NULL,
+        NULL,
+        NULL,
+        NULL
+};
+
+
 PyMODINIT_FUNC initclib(void)
 {
   PyObject *clib_module;
-  clib_module = Py_InitModule("paftol.clib", clib_methods);
+  /* Paul B - changed for Python 2 to 3  */
+  /* clib_module = Py_InitModule("paftol.clib", clib_methods); */
+  clib_module = PyModule_Create(&moduledef);
   /* FIXME: should not ignore return value */
   PyModule_AddStringConstant(clib_module, "clib_api_version", clib_api_version);
 }

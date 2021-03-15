@@ -918,7 +918,7 @@ def loadFamilyDict(connection, productionDatabase):
         if entityId is None:
             entity.order = None
         elif entityId not in productionDatabase.orderDict:
-            raise StandardError, 'no Order entity with idOrder = %d' % entityId
+            raise Exception('no Order entity with idOrder = %d' % entityId)
         else:
             entity.order = productionDatabase.orderDict[entityId]
             # type: int, name: idOrder, foreignTable: Order, foreignColumn: idOrder
@@ -967,7 +967,7 @@ def loadGenusDict(connection, productionDatabase):
         if entityId is None:
             entity.family = None
         elif entityId not in productionDatabase.familyDict:
-            raise StandardError, 'no Family entity with idFamily = %d' % entityId
+            raise Exception('no Family entity with idFamily = %d' % entityId)
         else:
             entity.family = productionDatabase.familyDict[entityId]
             # type: int, name: idFamily, foreignTable: Family, foreignColumn: idFamily
@@ -978,7 +978,7 @@ def loadGenusDict(connection, productionDatabase):
         if entityId is None:
             entity.source = None
         elif entityId not in productionDatabase.sourceDict:
-            raise StandardError, 'no Source entity with idSource = %d' % entityId
+            raise Exception('no Source entity with idSource = %d' % entityId)
         else:
             entity.source = productionDatabase.sourceDict[entityId]
             # type: int, name: idSource, foreignTable: Source, foreignColumn: idSource
@@ -1027,7 +1027,7 @@ def loadLibraryDict(connection, productionDatabase):
         if entityId is None:
             entity.sample = None
         elif entityId not in productionDatabase.sampleDict:
-            raise StandardError, 'no Sample entity with idSample = %d' % entityId
+            raise Exception('no Sample entity with idSample = %d' % entityId)
         else:
             entity.sample = productionDatabase.sampleDict[entityId]
             # type: int, name: idSample, foreignTable: Sample, foreignColumn: idSample
@@ -1043,7 +1043,7 @@ def loadLibraryDict(connection, productionDatabase):
         if entityId is None:
             entity.coordinate = None
         elif entityId not in productionDatabase.coordinatesDict:
-            raise StandardError, 'no Coordinates entity with idCoordinate = %d' % entityId
+            raise Exception('no Coordinates entity with idCoordinate = %d' % entityId)
         else:
             entity.coordinate = productionDatabase.coordinatesDict[entityId]
             # type: int, name: idCoordinate, foreignTable: Coordinates, foreignColumn: idCoordinate
@@ -1054,7 +1054,7 @@ def loadLibraryDict(connection, productionDatabase):
         if entityId is None:
             entity.status = None
         elif entityId not in productionDatabase.statusDict:
-            raise StandardError, 'no Status entity with idStatus = %d' % entityId
+            raise Exception('no Status entity with idStatus = %d' % entityId)
         else:
             entity.status = productionDatabase.statusDict[entityId]
             # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
@@ -1064,7 +1064,7 @@ def loadLibraryDict(connection, productionDatabase):
         if entityId is None:
             entity.indexes = None
         elif entityId not in productionDatabase.indexesDict:
-            raise StandardError, 'no Indexes entity with idIndexes = %d' % entityId
+            raise Exception('no Indexes entity with idIndexes = %d' % entityId)
         else:
             entity.indexes = productionDatabase.indexesDict[entityId]
             # type: int, name: idIndexes, foreignTable: Indexes, foreignColumn: idIndexes
@@ -1192,7 +1192,7 @@ def loadProjectDict(connection, productionDatabase):
         if entityId is None:
             entity.dataSource = None
         elif entityId not in productionDatabase.dataSourceDict:
-            raise StandardError, 'no DataSource entity with idDataSource = %d' % entityId
+            raise Exception('no DataSource entity with idDataSource = %d' % entityId)
         else:
             entity.dataSource = productionDatabase.dataSourceDict[entityId]
             # type: int, name: idDataSource, foreignTable: DataSource, foreignColumn: idDataSource
@@ -1229,7 +1229,7 @@ def loadSampleDict(connection, productionDatabase):
         if entityId is None:
             entity.specimen = None
         elif entityId not in productionDatabase.specimenDict:
-            raise StandardError, 'no Specimen entity with idSpecimen = %d' % entityId
+            raise Exception('no Specimen entity with idSpecimen = %d' % entityId)
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
             # type: int, name: idSpecimen, foreignTable: Specimen, foreignColumn: idSpecimen
@@ -1240,7 +1240,7 @@ def loadSampleDict(connection, productionDatabase):
         if entityId is None:
             entity.action = None
         elif entityId not in productionDatabase.actionDict:
-            raise StandardError, 'no Action entity with idAction = %d' % entityId
+            raise Exception('no Action entity with idAction = %d' % entityId)
         else:
             entity.action = productionDatabase.actionDict[entityId]
             # type: int, name: idAction, foreignTable: Action, foreignColumn: idAction
@@ -1250,7 +1250,7 @@ def loadSampleDict(connection, productionDatabase):
         if entityId is None:
             entity.extractionType = None
         elif entityId not in productionDatabase.extractionTypeDict:
-            raise StandardError, 'no ExtractionType entity with idExtractionType = %d' % entityId
+            raise Exception('no ExtractionType entity with idExtractionType = %d' % entityId)
         else:
             entity.extractionType = productionDatabase.extractionTypeDict[entityId]
             # type: int, name: idExtractionType, foreignTable: ExtractionType, foreignColumn: idExtractionType
@@ -1260,7 +1260,7 @@ def loadSampleDict(connection, productionDatabase):
         if entityId is None:
             entity.quality = None
         elif entityId not in productionDatabase.qualityDict:
-            raise StandardError, 'no Quality entity with idQuality = %d' % entityId
+            raise Exception('no Quality entity with idQuality = %d' % entityId)
         else:
             entity.quality = productionDatabase.qualityDict[entityId]
             # type: int, name: idQuality, foreignTable: Quality, foreignColumn: idQuality
@@ -1274,7 +1274,7 @@ def loadSampleDict(connection, productionDatabase):
         if entityId is None:
             entity.dnaVolume = None
         elif entityId not in productionDatabase.dNAVolumeDict:
-            raise StandardError, 'no DNAVolume entity with idDnaVolume = %d' % entityId
+            raise Exception('no DNAVolume entity with idDnaVolume = %d' % entityId)
         else:
             entity.dnaVolume = productionDatabase.dNAVolumeDict[entityId]
             # type: int, name: idDNAVolume, foreignTable: DNAVolume, foreignColumn: idDNAVolume
@@ -1301,7 +1301,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.library = None
         elif entityId not in productionDatabase.libraryDict:
-            raise StandardError, 'no Library entity with idLibrary = %d' % entityId
+            raise Exception('no Library entity with idLibrary = %d' % entityId)
         else:
             entity.library = productionDatabase.libraryDict[entityId]
             # type: int, name: idLibrary, foreignTable: Library, foreignColumn: idLibrary
@@ -1311,7 +1311,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.platform = None
         elif entityId not in productionDatabase.platformDict:
-            raise StandardError, 'no Platform entity with idPlatform = %d' % entityId
+            raise Exception('no Platform entity with idPlatform = %d' % entityId)
         else:
             entity.platform = productionDatabase.platformDict[entityId]
             # type: int, name: idPlatform, foreignTable: Platform, foreignColumn: idPlatform
@@ -1321,7 +1321,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.location = None
         elif entityId not in productionDatabase.locationDict:
-            raise StandardError, 'no Location entity with idLocation = %d' % entityId
+            raise Exception('no Location entity with idLocation = %d' % entityId)
         else:
             entity.location = productionDatabase.locationDict[entityId]
             # type: int, name: idLocation, foreignTable: Location, foreignColumn: idLocation
@@ -1334,7 +1334,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.status = None
         elif entityId not in productionDatabase.statusDict:
-            raise StandardError, 'no Status entity with idStatus = %d' % entityId
+            raise Exception('no Status entity with idStatus = %d' % entityId)
         else:
             entity.status = productionDatabase.statusDict[entityId]
             # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
@@ -1348,7 +1348,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.blacklistedReason = None
         elif entityId not in productionDatabase.blacklistedReasonDict:
-            raise StandardError, 'no BlacklistedReason entity with idBlacklistedReason = %d' % entityId
+            raise Exception('no BlacklistedReason entity with idBlacklistedReason = %d' % entityId)
         else:
             entity.blacklistedReason = productionDatabase.blacklistedReasonDict[entityId]
             # type: int, name: idBlacklistedReason, foreignTable: BlacklistedReason, foreignColumn: idBlacklistedReason
@@ -1358,7 +1358,7 @@ def loadSequenceDict(connection, productionDatabase):
         if entityId is None:
             entity.sequencingStrategy = None
         elif entityId not in productionDatabase.sequencingStrategyDict:
-            raise StandardError, 'no SequencingStrategy entity with idSequencingStrategy = %d' % entityId
+            raise Exception('no SequencingStrategy entity with idSequencingStrategy = %d' % entityId)
         else:
             entity.sequencingStrategy = productionDatabase.sequencingStrategyDict[entityId]
             # type: int, name: idSequencingStrategy, foreignTable: SequencingStrategy, foreignColumn: idSequencingStrategy
@@ -1384,7 +1384,7 @@ def loadSequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.sequencing = None
         elif entityId not in productionDatabase.sequenceDict:
-            raise StandardError, 'no Sequence entity with idSequencing = %d' % entityId
+            raise Exception('no Sequence entity with idSequencing = %d' % entityId)
         else:
             entity.sequencing = productionDatabase.sequenceDict[entityId]
             # type: int, name: idSequencing, foreignTable: Sequence, foreignColumn: idSequencing
@@ -1394,7 +1394,7 @@ def loadSequenceDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: idDataRelease, foreignTable: DataRelease, foreignColumn: idDataRelease
@@ -1474,7 +1474,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.genus = None
         elif entityId not in productionDatabase.genusDict:
-            raise StandardError, 'no Genus entity with idGenus = %d' % entityId
+            raise Exception('no Genus entity with idGenus = %d' % entityId)
         else:
             entity.genus = productionDatabase.genusDict[entityId]
             # type: int, name: idGenus, foreignTable: Genus, foreignColumn: idGenus
@@ -1485,7 +1485,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.species = None
         elif entityId not in productionDatabase.speciesDict:
-            raise StandardError, 'no Species entity with idSpecies = %d' % entityId
+            raise Exception('no Species entity with idSpecies = %d' % entityId)
         else:
             entity.species = productionDatabase.speciesDict[entityId]
             # type: int, name: idSpecies, foreignTable: Species, foreignColumn: idSpecies
@@ -1503,7 +1503,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.sourceSpecimen = None
         elif entityId not in productionDatabase.sourceSpecimenDict:
-            raise StandardError, 'no SourceSpecimen entity with idSourceSpecimen = %d' % entityId
+            raise Exception('no SourceSpecimen entity with idSourceSpecimen = %d' % entityId)
         else:
             entity.sourceSpecimen = productionDatabase.sourceSpecimenDict[entityId]
             # type: int, name: idSourceSpecimen, foreignTable: SourceSpecimen, foreignColumn: idSourceSpecimen
@@ -1513,7 +1513,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.project = None
         elif entityId not in productionDatabase.projectDict:
-            raise StandardError, 'no Project entity with idProject = %d' % entityId
+            raise Exception('no Project entity with idProject = %d' % entityId)
         else:
             entity.project = productionDatabase.projectDict[entityId]
             # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
@@ -1524,7 +1524,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.materialSource = None
         elif entityId not in productionDatabase.materialSourceDict:
-            raise StandardError, 'no MaterialSource entity with idMaterialSource = %d' % entityId
+            raise Exception('no MaterialSource entity with idMaterialSource = %d' % entityId)
         else:
             entity.materialSource = productionDatabase.materialSourceDict[entityId]
             # type: int, name: idMaterialSource, foreignTable: MaterialSource, foreignColumn: idMaterialSource
@@ -1535,7 +1535,7 @@ def loadSpecimenDict(connection, productionDatabase):
         if entityId is None:
             entity.museumId = None
         elif entityId not in productionDatabase.museumDict:
-            raise StandardError, 'no Museum entity with idMuseumId = %d' % entityId
+            raise Exception('no Museum entity with idMuseumId = %d' % entityId)
         else:
             entity.museumId = productionDatabase.museumDict[entityId]
             # type: int, name: idMuseumID, foreignTable: Museum, foreignColumn: idMuseumID
@@ -1559,7 +1559,7 @@ def loadSpecimenDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.specimen = None
         elif entityId not in productionDatabase.specimenDict:
-            raise StandardError, 'no Specimen entity with idSpecimen = %d' % entityId
+            raise Exception('no Specimen entity with idSpecimen = %d' % entityId)
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
             # type: int, name: idSpecimen, foreignTable: Specimen, foreignColumn: idSpecimen
@@ -1569,7 +1569,7 @@ def loadSpecimenDataReleaseDict(connection, productionDatabase):
         if entityId is None:
             entity.dataRelease = None
         elif entityId not in productionDatabase.dataReleaseDict:
-            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+            raise Exception('no DataRelease entity with idDataRelease = %d' % entityId)
         else:
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: idDataRelease, foreignTable: DataRelease, foreignColumn: idDataRelease
@@ -1591,7 +1591,7 @@ def loadSpecimenGeneStatsDict(connection, productionDatabase):
         if entityId is None:
             entity.specimen = None
         elif entityId not in productionDatabase.specimenDict:
-            raise StandardError, 'no Specimen entity with idSpecimen = %d' % entityId
+            raise Exception('no Specimen entity with idSpecimen = %d' % entityId)
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
             # type: int, name: idSpecimen, foreignTable: Specimen, foreignColumn: idSpecimen
@@ -1616,7 +1616,7 @@ def loadSpecimenRawReadsDict(connection, productionDatabase):
         if entityId is None:
             entity.specimen = None
         elif entityId not in productionDatabase.specimenDict:
-            raise StandardError, 'no Specimen entity with idSpecimen = %d' % entityId
+            raise Exception('no Specimen entity with idSpecimen = %d' % entityId)
         else:
             entity.specimen = productionDatabase.specimenDict[entityId]
             # type: int, name: idSpecimen, foreignTable: Specimen, foreignColumn: idSpecimen

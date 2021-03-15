@@ -90,12 +90,12 @@ def checkAbsenceOfOptions(illegalOptNameList, argNamespace, msg):
         if argNamespace.__dict__[optName] is not None :
             foundIllegalOptNameList.append(optName)
     if len(foundIllegalOptNameList) > 0:
-        raise StandardError, '%s: %s' % (msg, ', '.join(foundIllegalOptNameList))
+        raise Exception('%s: %s' % (msg, ', '.join(foundIllegalOptNameList)))
 
 
 def requiredArg(arg, msg):
     if arg is None:
-        raise StandardError, msg
+        raise Exception(msg)
     return arg
 
 def argToOverlapAssemblerSerial(argNamespace):
@@ -208,9 +208,9 @@ like approach, unsing BWA for mapping reads to targets.
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
     hybpiperResult = hybpiperBwaAnalyser.analyse(targetsFile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
-        Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(hybpiperResult.reconstructedCdsDict.values()) if sr is not None], argNamespace.outfile, 'fasta')
     else:
-        Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(hybpiperResult.reconstructedCdsDict.values()) if sr is not None], sys.stdout, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = hybpiperResult.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
@@ -232,9 +232,9 @@ like approach, unsing tblastn for mapping reads to targets.
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
     hybpiperResult = hybpiperTblastnAnalyser.analyse(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
-        Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(hybpiperResult.reconstructedCdsDict.values()) if sr is not None], argNamespace.outfile, 'fasta')
     else:
-        Bio.SeqIO.write([sr for sr in hybpiperResult.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(hybpiperResult.reconstructedCdsDict.values()) if sr is not None], sys.stdout, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = hybpiperResult.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
@@ -259,9 +259,9 @@ def runTargetRecovery(argNamespace):
         bwaRunner = argToBwaRunner(argNamespace)
         targetMapper = paftol.TargetMapperBwa(bwaRunner)
     else:
-        raise StandardError, 'unsupported / unknown mapper %s' % argNamespace.mapper
+        raise Exception('unsupported / unknown mapper %s' % argNamespace.mapper)
     if argNamespace.assembler == 'spades':
-        raise StandardError, 'spades assembly not yet refactored'
+        raise Exception('spades assembly not yet refactored')
     elif argNamespace.assembler == 'overlapSerial':
         targetAssembler = argToOverlapAssemblerSerial(argNamespace)
     targetRecoverer = paftol.TargetRecoverer(argNamespace.tgz, 'targetrecover', trimmomaticRunner=trimmomaticRunner, targetMapper=targetMapper, targetAssembler=targetAssembler)
@@ -269,9 +269,9 @@ def runTargetRecovery(argNamespace):
     result = targetRecoverer.recoverTargets(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     result.cmdLine = argNamespace.rawCmdLine
     if argNamespace.outfile is not None:
-        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(result.reconstructedCdsDict.values()) if sr is not None], argNamespace.outfile, 'fasta')
     else:
-        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(result.reconstructedCdsDict.values()) if sr is not None], sys.stdout, 'fasta')
     if argNamespace.contigFname is not None:
         result.writeContigFastaFile(argNamespace.contigFname)
     # Paul B. - assigning the cds output filename to the result object so it can be used in the database upload:
@@ -288,7 +288,7 @@ def runTargetRecovery(argNamespace):
         # part of the path prefix in front of the /paftol/ directory that is not required for a downstream process.
         # Add the path to the fasta filename:
         fastaFilePath = pwd + '/' + result.reconstructedCdsFastaFname
-        print 'fastaFilePath: ', fastaFilePath
+        print('fastaFilePath: ', fastaFilePath)
         result.reconstructedCdsFastaFnamePath = fastaFilePath
         paftol.database.addRecoveryResult(result)
     
@@ -306,9 +306,9 @@ def runOverlapAnalysis(argNamespace):
     targetsfile = sys.stdin if argNamespace.targetsfile is None else argNamespace.targetsfile
     result = overlapAnalyser.analyse(targetsfile, argNamespace.forwardreads, argNamespace.reversereads, argNamespace.allowInvalidBases, argNamespace.strictOverlapFiltering, argNamespace.maxNumReadsPerGene)
     if argNamespace.outfile is not None:
-        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], argNamespace.outfile, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(result.reconstructedCdsDict.values()) if sr is not None], argNamespace.outfile, 'fasta')
     else:
-        Bio.SeqIO.write([sr for sr in result.reconstructedCdsDict.values() if sr is not None], sys.stdout, 'fasta')
+        Bio.SeqIO.write([sr for sr in list(result.reconstructedCdsDict.values()) if sr is not None], sys.stdout, 'fasta')
     if argNamespace.summaryCsv is not None:
         summaryStats = result.summaryStats()
         with open(argNamespace.summaryCsv, 'w') as f:
@@ -420,7 +420,7 @@ def runGeneSetStats(argNamespace):
     if argNamespace.sampleId is not None:
         sampleId = argNamespace.sampleId
     if argNamespace.targetsfile is None:
-        raise StandardError, 'no targets file specified'
+        raise Exception('no targets file specified')
     else:
         paftolTargetSet.readFasta(argNamespace.targetsfile)
     if argNamespace.seqfile is None:
@@ -452,7 +452,7 @@ def runExonerateStarAlignment(argNamespace):
 def runAddOrganism(argNamespace):
     logger.info('starting, organismName = %s', argNamespace.organismName)
     if '-' in argNamespace.organismName:
-        raise StandardError, 'invalid organism name: %s (contains at least one dash)' % argNamespace.organismName
+        raise Exception('invalid organism name: %s (contains at least one dash)' % argNamespace.organismName)
     if argNamespace.inFasta is None:
         infile = sys.stdin
     else:
@@ -504,7 +504,7 @@ def runDelgeneNewick(argNamespace):
         # sys.stderr.write('%s\n' % str(terminalCladeList)))
         for clade in terminalCladeList:
             if clade.name is None:
-                raise StandardError, 'clade has no name'
+                raise Exception('clade has no name')
             organismName, geneName = paftol.extractOrganismAndGeneNames(clade.name)
             clade.name = organismName
         treeList.append(tree)
@@ -517,7 +517,7 @@ def runAddExternalAccession(argNamespace):
     elif argNamespace.fastq is not None:
         paftol.database.insertFastaExternalAccession(argNamespace.filename, argNamespace.dataOriginAcronym, argNamespace.accession)
     else:
-        raise StandardError, 'unknown file type "%s"' % str(argNamespace.filetype)
+        raise Exception('unknown file type "%s"' % str(argNamespace.filetype))
 
 
 def addDevParser(subparsers):
