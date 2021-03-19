@@ -1526,7 +1526,7 @@ static PyMethodDef clib_methods[] = {
 /* Paul B - added for Python 2 to 3  */
 static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
-        "paftol.clib",
+        "cli",
         NULL,
         NULL,
         clib_methods,
@@ -1537,7 +1537,7 @@ static struct PyModuleDef moduledef = {
 };
 
 
-PyMODINIT_FUNC initclib(void)
+PyMODINIT_FUNC PyInit_clib(void)
 {
   PyObject *clib_module;
   /* Paul B - changed for Python 2 to 3  */

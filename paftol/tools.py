@@ -13,7 +13,8 @@ import tempfile
 import logging
 import copy
 import math
-import md5
+#import md5      # Paul B. - not present in Python 3
+import hashlib  # Paul B. Updated code to use hashlib
 import shutil
 
 import Bio
@@ -49,9 +50,11 @@ def fastqOrientation(fastqFname):
         return int(m.group(1))
     return None
 
-
+# Paul B. - updated code to use hashlib module
 def md5HexDigest(s):
-    m = md5.new(s)
+    #m = md5.new(s)
+    m = hashlib.md5()
+    m.update(s)
     return m.hexdigest()
 
 
