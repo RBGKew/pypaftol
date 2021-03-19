@@ -1526,7 +1526,7 @@ static PyMethodDef clib_methods[] = {
 /* Paul B - added for Python 2 to 3  */
 static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
-        "cli",
+        "clib",
         NULL,
         NULL,
         clib_methods,
