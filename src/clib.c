@@ -1,3 +1,5 @@
+/* Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew */
+
 #include <Python.h>
 
 #include <stdlib.h>

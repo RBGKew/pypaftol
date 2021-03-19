@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import types
 import sys
 import re
@@ -1502,7 +1504,9 @@ class TrimmomaticRunner(object):
     def runTrimmomaticPaired(self, forwardReadsFname, reverseReadsFname, forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, trimlogFname=None, workDirname=None):
         if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
             raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
-        trimmomaticArgv = ['TrimmomaticPE']
+        # trimmomaticArgv = ['TrimmomaticPE']
+        # Paul B. - changed to fit with KewHPC that is running trimmomatic via a script called 'trimmomatic'; NB - in output logs it still says 'TrimmomaticPE: Started with arguments:' -OK.
+        trimmomaticArgv = ['trimmomatic', 'PE']
         if self.numThreads is not None:
             trimmomaticArgv.extend(['-threads', str(self.numThreads)])
         if trimlogFname is not None:

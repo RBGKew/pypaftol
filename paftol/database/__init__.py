@@ -1,3 +1,5 @@
+# Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import sys
 import re
 import copy
@@ -573,7 +575,7 @@ def findSequence(productionDatabase, sampleId):
     Then this loop woud have to return a dict of them all then exit if keys > 1 OR pick the one with the largest idSequencing 
     which would be the most recent sequencing. OK for now though.
 
-    NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object!   
+    NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object!
 
     Returns a matching sequence table row object if one exists or None
     '''
@@ -624,9 +626,10 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     else:
         # For non-paftol data set types, obtaining idSequencing from the paftol.Sequence table instead using sampleId from the sampleId input flag:
         ### NB - might be able to handle data set options better by using word matches rather than conditonals
+        print 'sampleId before findSequence: ', sampleId
         sequenceRow = findSequence(productionDatabase, sampleId)
         if sequenceRow is None:
-            raise StandardError, 'Sequence row object is empty - externalSequenceID not found for ', sampleId
+            raise StandardError, 'Sequence row object is empty - externalSequenceID not found for %s' % sampleId
             
         idSequencing = sequenceRow.idSequencing # idSequencing is the primary key for table Sequence so it will always exist 
         logger.info('Found idSequencing for sampleId %s: %s', sampleId, idSequencing)   # Visible with this paftools flag:  --loglevel INFO
@@ -726,8 +729,6 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                 # Paul B. - if fastqFile.md5sum == md5sum:
                 if inputSequence.md5sum == md5sum:
                     logger.info('fastq file %s already in database, verified md5sum', fastqFname)
-                    # Paul B. added:
-                    logger.warning('fastq file %s already in database, verified by md5sum', fastqFname)
                 else:
                     # Paul B. - raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, fastqFile.md5sum, md5sum)
                     raise StandardError, 'fastq file %s in database with md5sum = %s, but found md5sum = %s' % (fastqFname, inputSequence.md5sum, md5sum)

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import sys
 import getopt
 import re
@@ -475,8 +478,9 @@ class ReplicateSequence(object):
 
 class SRA_RunSequence(object):
 
-    def __init__(self, accessionId=None, replicate=None, enaAccession=None):
+    def __init__(self, idSequencing=None, accessionId=None, replicate=None, enaAccession=None):
         self.id = None
+        self.idSequencing = idSequencing
         self.accessionId = accessionId
         self.replicate = replicate
         self.enaAccession = enaAccession
@@ -487,8 +491,9 @@ class SRA_RunSequence(object):
         self.srA_RunSequenceDataReleaseSraRunSequenceList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `SRA_RunSequence` (`accessionId`, `replicateId`, `enaAccessionId`) VALUES (%s, %s, %s)'
+        sqlCmd = 'INSERT INTO `SRA_RunSequence` (`idSequencing`, `accessionId`, `replicateId`, `enaAccessionId`) VALUES (%s, %s, %s, %s)'
         l = []
+        l.append(self.idSequencing)
         l.append(self.accessionId)
         l.append(None if self.replicate is None else self.replicate.id)
         l.append(None if self.enaAccession is None else self.enaAccession.id)
@@ -1135,14 +1140,15 @@ def loadReplicateSequenceDict(connection, productionDatabase):
 def loadSRA_RunSequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `accessionId`, `replicateId`, `enaAccessionId` FROM `SRA_RunSequence`'
+    sqlStatement = 'SELECT `id`, `idSequencing`, `accessionId`, `replicateId`, `enaAccessionId` FROM `SRA_RunSequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SRA_RunSequence()
         entity.id = paftol.database.intOrNone(row[0])
-        entity.accessionId = paftol.database.strOrNone(row[1])
+        entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.accessionId = paftol.database.strOrNone(row[2])
         # many to one: replicate
-        entityId = paftol.database.intOrNone(row[2])
+        entityId = paftol.database.intOrNone(row[3])
         if entityId is None:
             entity.replicate = None
         elif entityId not in productionDatabase.replicateSequenceDict:
@@ -1152,7 +1158,7 @@ def loadSRA_RunSequenceDict(connection, productionDatabase):
             # type: int, name: replicateId, foreignTable: ReplicateSequence, foreignColumn: id
             entity.replicate.srA_RunSequenceReplicateList.append(entity)
         # many to one: enaAccession
-        entityId = paftol.database.intOrNone(row[3])
+        entityId = paftol.database.intOrNone(row[4])
         if entityId is None:
             entity.enaAccession = None
         elif entityId not in productionDatabase.eNA_AccessionDict:

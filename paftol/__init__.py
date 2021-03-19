@@ -1,3 +1,5 @@
+# Copyright (c) 2020 The Board of Trustees of the Royal Botanic Gardens, Kew
+
 import sys
 import re
 import os
@@ -1600,14 +1602,34 @@ class PaftolTargetSeqRetriever(object):
 
     def __init__(self):
         self.blastAlignmentDict = None
+        # Paul B. - added to store the target gene organism ID:
+        self.blastAlignmentOrganismDict = {}
 
     def processBlastAlignment(self, query, blastAlignment):
+
+        ''' Paul B. - Adds a single blast record to to this objects blastAlignmentDict - loop through
+                      all blast records occurs in BlastRunner.processBlast() method 
+
+        Input parameters: query name (in this case a target sequence name in this format: 
+                          organismId-geneId) and a single blast alignment record.
+
+        Note: method adds the top hit only and for each gene only unless there is a hit with a better e-value.
+              Might want to extend this to ensure that the top hit is also reasonably covered across the gene (?)
+              BUT gene may straddle multiple HSPs. 
+    '''
+        ### Paul B. - removing split of the 'query' gene name
         organismName, geneName = extractOrganismAndGeneNames(query)
+        ###geneName = query    # Not working w.r.t. multiple PAFTOL genes check - may need to split further down
+       
         if geneName in self.blastAlignmentDict:
             if blastAlignment.hsps[0].expect < self.blastAlignmentDict[geneName].hsps[0].expect:
                 self.blastAlignmentDict[geneName] = blastAlignment
+                # Paul B. added to also store the organism associated with this query:
+                self.blastAlignmentOrganismDict[geneName] = organismName
         else:
             self.blastAlignmentDict[geneName] = blastAlignment
+            # Paul B added:
+            self.blastAlignmentOrganismDict[geneName] = organismName
 
     def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet, blastnRunner=None):
         if blastnRunner is None:
@@ -1618,6 +1640,9 @@ class PaftolTargetSeqRetriever(object):
         for geneName in self.blastAlignmentDict:
             seqId = self.blastAlignmentDict[geneName].hit_id
             if seqId in seqIdGeneDict:
+                # Paul B.: this conditional checks for same db hit appearing again for another target gene which would not be good.
+                # This is a different check to checking for multiple db hits appearing for the same gene - I thibnk top hit only is 
+                # being taken by the processBlastAlignment method above 
                 raise StandardError, 'multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName)
             seqIdGeneDict[seqId] = geneName
         paftolTargetList = []
@@ -1626,8 +1651,12 @@ class PaftolTargetSeqRetriever(object):
                 seqId = seqRecord.id
                 geneName = seqIdGeneDict[seqId]
                 evalue = self.blastAlignmentDict[geneName].hsps[0].expect
-                seqRecord.description = '%s, original ID: %s, evalue: %1.12g' % (seqRecord.description, seqId, evalue)
-                # seqRecord.id = '%s-%s' % (genomeName, geneName, )
+                # Paul B. - added:
+                organism = self.blastAlignmentOrganismDict[geneName]
+                # Paul B. - added organism name to output
+                #seqRecord.description = '%s, original ID: %s, evalue: %1.12g' % (seqRecord.description, seqId, evalue)
+                seqRecord.description = '%s %s organism-gene:%s-%s originalID:%s evalue:%1.12g %s' % (geneName, organism, organism, geneName, seqId, evalue, seqRecord.description)
+                #seqRecord.id = '%s-%s' % (genomeName, geneName, )
                 seqRecord.id = '%s' % geneName
                 paftolTargetList.append(seqRecord)
         return paftolTargetList
