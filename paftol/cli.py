@@ -609,12 +609,12 @@ def addExtractCdsListParser(subparsers):
 
 
 def addRetrieveTargetListParser(subparsers):
-    p = subparsers.add_parser('retrievetargets', help='retrieve targets list from a fasta file containing a transcriptome')
-    p.add_argument('--genomeName', help='genome name', required=True)
-    p.add_argument('--fastaFname', help='FASTA file ', required=True)
+    p = subparsers.add_parser('retrievetargets', help='retrieve DNA sequences matching a gene targets file (e.g. Angiopserms353 gene set) from a transcriptome or  coding sequences from an annotated genome')
+    p.add_argument('--genomeName', help='genome name - name of the DNA blast db - the database must be created beforehand and the makeblastdb —parseSeqId option must be used', required=True)
+    p.add_argument('--fastaFname', help='DNA FASTA file - name of the file matching the blast db - fasta records become the blast subjects (hits)', required=True)
     addBlastnRunnerToParser(p)
-    p.add_argument('targetsfile', nargs='?', help='target sequences (FASTA), default stdin')
-    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout')
+    p.add_argument('targetsfile', nargs='?', help='target sequences (DNA FASTA), default stdin. Format of FASTA header line must be: >organismId-geneId (after Angiosoperms353 gene set) - these fasta records become the blast queries')
+    p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout. Output FASTA header contains the full ID (i.e. gene and organism name) of the target gene query as well as the ID and info from the blast subject; format: >geneId organismId organism-gene:organismId-geneId originalBlastSubjectHitId evalue originalBlastSubjectHitIdDescription')
     p.set_defaults(func=runRetrieveTargets)
 
 
@@ -670,7 +670,7 @@ def addAddPaftolFastqFilesParser(subparsers):
     # Paul B. added flag to upload DataOrigin and fastq file path:
     p.add_argument('--dataOrigin', help='specify acronym for data origin: PAFTOL, OneKP_Transcripts, OneKP_Reads, SRA or AG (annotated genome)', required=True)
     p.add_argument('--fastqPath', help='path to fastq or raw fasta files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
-    p.add_argument('--sampleId', help='specify the sample identifier', required=True)
+    p.add_argument('--sampleId', help='specify the sample identifier')      # Paul B - removed: , required=True)
     p.add_argument('--addExternalGenes', help='add info on externally recovered genes from a fasta file - please specify the full path, including the filename (NB - option only relevant to OneKP_Transcripts or AG data sets)')
     p.set_defaults(func=runAddPaftolFastqFiles)
 
