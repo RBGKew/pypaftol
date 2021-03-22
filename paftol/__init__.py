@@ -233,11 +233,11 @@ the target genes.
         readNameMappedReadDict = result.paftolTargetSet.makeReadNameMappedReadDict()
         with open(result.forwardFastq, 'r') as forwardFile:
             forwardParser = Bio.SeqIO.parse(forwardFile, 'fastq')
-            for forwardRead in fowardParser:
+            for forwardRead in forwardParser:
                 readName = forwardRead.id
                 if readName in readNameMappedReadDict:
                     for mappedRead in readNameMappedReadDict[readName]:
-                        if mappedRead.fowardRead is not None:
+                        if mappedRead.forwardRead is not None:
                             raise StandardError, 'duplicate forward read for %s' % readName
                         mappedRead.forwardRead = forwardRead
 
@@ -580,14 +580,22 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         positionedReadFname = self.makeWorkdirPath('posread-%s.fasta' % geneName)
         os.mkdir(positionedReadDirname)
         readSrFwdList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=True, includeReverse=False))
-        readSrRevList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=False, includeReverse=True))
+        if result.isPaired()==False:
+            logger.debug('result not paired readSrRevList') 
+        else:
+            logger.debug('result is paired readSrRevList') 
+            readSrRevList = copy.deepcopy(result.paftolTargetSet.paftolGeneDict[geneName].makeMappedReadsUniqueList(includeForward=False, includeReverse=True))
         readSrList = []
         for readSr in readSrFwdList:
             readSr.id = '%s-fwd' % readSr.id
             readSrList.append(readSr)
-        for readSr in readSrRevList:
-            readSr.id = '%s-rev' % readSr.id
-            readSrList.append(readSr)
+        if result.isPaired()==False:
+            logger.debug('result not paired readSr') 
+        else:
+            logger.debug('result is paired readSr') 
+            for readSr in readSrRevList:
+                readSr.id = '%s-rev' % readSr.id
+                readSrList.append(readSr)
         readSrList.extend(paftol.tools.reverseComplementSeqRecordList(readSrList))
         repGene = result.representativePaftolTargetDict[geneName].seqRecord
         # repGeneProtein = self.translateGene(repGene)
@@ -687,7 +695,7 @@ class TargetRecoverer(HybseqAnalyser):
         self.targetMapper.setup(self.makeWorkdirPath(self.targetMapperWorkdir))
         self.targetAssembler.setup(self.makeWorkdirPath(self.targetAssemblerWorkdir))
         # FIXME: is writing the targets fasta file really part of setup?
-	# result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
+    # result.paftolTargetSet.writeFasta(self.makeTargetsFname(True))
         
     # ideas for hybrid / consensus sequence for (multiple) re-mapping
     # reference CDS:     atgtac------catacagaagagacgtga
