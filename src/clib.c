@@ -1545,6 +1545,8 @@ PyMODINIT_FUNC PyInit_clib(void)
   clib_module = PyModule_Create(&moduledef);
   /* FIXME: should not ignore return value */
   PyModule_AddStringConstant(clib_module, "clib_api_version", clib_api_version);
+  /* Paul B. - added for Python 3: */
+  return clib_module;
 }
 
 /* don't forget to change the clib_api_version */
