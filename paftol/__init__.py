@@ -824,16 +824,24 @@ class TargetRecoverer(HybseqAnalyser):
                 trimmedReversePairedFastqPath = reverseFastq
             else:
                 logger.debug('running with trimmomatic trimming')
-                trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
-                trimmedReversePairedFastqPath = self.makeWorkdirPath(self.trimmedPairedRev)
-                trimmedForwardUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedFwd)
-                trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
-                trimlogPath = self.makeWorkdirPath(self.trimlogFname)
-                self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath, trimmedForwardUnpairedFastqPath, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
-                result.forwardFastqTrimmedPaired = trimmedForwardPairedFastqPath
-                result.reverseFastqTrimmedPaired = trimmedReversePairedFastqPath
-                result.forwardFastqTrimmedUnpaired = trimmedForwardUnpairedFastqPath
-                result.reverseFastqTrimmedUnpaired = trimmedReverseUnpairedFastqPath
+                if reverseFastq is None:
+                    logger.debug('No reverseFastq, single end mode')
+                    trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
+                    trimmedReversePairedFastqPath = None
+                    trimlogPath = self.makeWorkdirPath(self.trimlogFname)
+                    self.trimmomaticRunner.runTrimmomaticSE(forwardFastq, trimmedForwardPairedFastqPath, trimlogFname = trimlogPath)
+                    result.forwardFastqTrimmedPaired = trimmedForwardPairedFastqPath
+                else:
+                    trimmedForwardPairedFastqPath = self.makeWorkdirPath(self.trimmedPairedFwd)
+                    trimmedReversePairedFastqPath = self.makeWorkdirPath(self.trimmedPairedRev)
+                    trimmedForwardUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedFwd)
+                    trimmedReverseUnpairedFastqPath = self.makeWorkdirPath(self.trimmedUnpairedRev)
+                    trimlogPath = self.makeWorkdirPath(self.trimlogFname)
+                    self.trimmomaticRunner.runTrimmomaticPaired(forwardFastq, reverseFastq, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath, trimmedForwardUnpairedFastqPath, trimmedReverseUnpairedFastqPath, trimlogFname = trimlogPath)
+                    result.forwardFastqTrimmedPaired = trimmedForwardPairedFastqPath
+                    result.reverseFastqTrimmedPaired = trimmedReversePairedFastqPath
+                    result.forwardFastqTrimmedUnpaired = trimmedForwardUnpairedFastqPath
+                    result.reverseFastqTrimmedUnpaired = trimmedReverseUnpairedFastqPath
                 result.generateFastqcStats()
             self.targetMapper.mapReads(paftolTargetSet, trimmedForwardPairedFastqPath, trimmedReversePairedFastqPath)
             logger.debug('mapping done')

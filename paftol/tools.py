@@ -1531,6 +1531,35 @@ class TrimmomaticRunner(object):
             raise StandardError('trimmomatic process "%s" exited with %d' % (' '.join(trimmomaticArgv), returncode))
         return (forwardPairedFname, reversePairedFname, forwardUnpairedFname, reverseUnpairedFname, )
 
+    def runTrimmomaticSE(self, forwardReadsFname, forwardPairedFname, trimlogFname=None, workDirname=None):
+        if (self.slidingWindowSize is None and self.slidingWindowQuality is not None) or (self.slidingWindowSize is not None and self.slidingWindowQuality is None):
+            raise StandardError, 'must specify both slidingWindowSize and slidingWindowQuality or neither'
+        # trimmomaticArgv = ['TrimmomaticPE']
+        # Paul B. - changed to fit with KewHPC that is running trimmomatic via a script called 'trimmomatic'; NB - in output logs it still says 'TrimmomaticPE: Started with arguments:' -OK.
+        trimmomaticArgv = ['trimmomatic', 'SE']
+        if self.numThreads is not None:
+            trimmomaticArgv.extend(['-threads', str(self.numThreads)])
+        if trimlogFname is not None:
+            trimmomaticArgv.extend(['-trimlog', trimlogFname])
+        trimmomaticArgv.extend([forwardReadsFname, forwardPairedFname])
+        if self.adapterFname is not None:
+            # Paul B. - altered to incorporate palindromic trimming:
+            #trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
+            trimmomaticArgv.append('ILLUMINACLIP:%s:2:30:10:2:true' % self.adapterFname) # seedMismatches, palindromeClipThreshold, simpleClipThreshold
+        if self.leadingQuality is not None:
+            trimmomaticArgv.append('LEADING:%d' % self.leadingQuality)
+        if self.trailingQuality is not None:
+            trimmomaticArgv.append('TRAILING:%d' % self.trailingQuality)
+        if self.slidingWindowSize is not None:
+            trimmomaticArgv.append('SLIDINGWINDOW:%d:%d' % (self.slidingWindowSize, self.slidingWindowQuality))
+        if self.minLength is not None:
+            trimmomaticArgv.append('MINLEN:%d' % self.minLength)
+        logger.debug('%s', ' '.join(trimmomaticArgv))
+        trimmomaticProcess = subprocess.Popen(trimmomaticArgv, cwd=workDirname)
+        returncode = trimmomaticProcess.wait()
+        if returncode != 0:
+            raise StandardError('trimmomatic process "%s" exited with %d' % (' '.join(trimmomaticArgv), returncode))
+        return (forwardPairedFname, )
 
 class BwaRunner(object):
     """Wrapper class for running C{bwa}.
