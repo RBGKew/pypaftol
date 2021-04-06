@@ -874,7 +874,8 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
 
 def findFastqFiles(analysisDatabase, result):
     fwdFastqFname = os.path.basename(result.forwardFastq)
-    revFastqFname = os.path.basename(result.reverseFastq)
+    if result.reverseFastq is not None:
+        revFastqFname = os.path.basename(result.reverseFastq)
     fwdFastqFile = None
     revFastqFile = None
     # Paul B. - changed to use inputSequenceDict - each element contains a row object:
@@ -882,8 +883,9 @@ def findFastqFiles(analysisDatabase, result):
     for fastqFile in analysisDatabase.inputSequenceDict.values():
         if fastqFile.filename == fwdFastqFname:
             fwdFastqFile = fastqFile
-        if fastqFile.filename == revFastqFname:
-            revFastqFile = fastqFile
+        if result.reverseFastq is not None:
+            if fastqFile.filename == revFastqFname:
+                revFastqFile = fastqFile
     return fwdFastqFile, revFastqFile
 
 
@@ -963,7 +965,7 @@ def addRecoveryResult(result):
     if fwdFastqFile is None:
         raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
     if revFastqFile is None:
-        raise StandardError, 'reverse fastq file "%s" not in database' % result.reverseFastq
+        logger.info('reverse fastq file not in database')
     trimmedForwardFastqStats = None
     if result.forwardTrimmedPairedFastqcStats is not None:
         trimmedForwardFastqStats = fastqStatsFromFastqcStats(result.forwardTrimmedPairedFastqcStats)
