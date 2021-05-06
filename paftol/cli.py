@@ -572,6 +572,7 @@ def addRecoverParser(subparsers):
     addTblastnRunnerToParser(p)
     addBwaRunnerToParser(p)    
     addOverlapAssemblerToParser(p)
+    addSpadesRunnerToParser(p)      # Paul B. added
     p.set_defaults(func=runTargetRecovery)
 
     
