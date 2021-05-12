@@ -668,7 +668,7 @@ class TargetAssemblerOverlapSerial(TargetAssembler):
         for contig in contigList:
             meanDepth = contig.getMeanDepth()       # Paul B. - adding a coverage cut off - try 4:
             logger.debug('meanDepth %s', meanDepth) # Paul B.
-            if contig.getMeanDepth() >= 3:          # Paul B.
+            if contig.getMeanDepth() >= 4:          # Paul B.
                 consensus = contig.getConsensus()
                 if consensus is not None:
                     consensus.id = '%s--contig%05d' % (geneName, contigNumber)
