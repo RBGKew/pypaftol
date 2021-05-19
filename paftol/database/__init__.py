@@ -80,6 +80,7 @@ class PaftolDatabaseDetails(object):
     reDbpassword = re.compile('password: *([^ ]+)') 
     reDbhost = re.compile('host: *([^ ]+)')
     reDbname = re.compile('database: *([^ ]+)')     # Paul B - Renamed to 'database' to fit with the actual keyword required
+    reDbport = re.compile('port: *([^ ]+)')         # Paul B - added provision to name a mysql port to use
 
     def __init__(self, detailsFile=None):
         if detailsFile is None:
@@ -87,6 +88,7 @@ class PaftolDatabaseDetails(object):
             self.dbpassword = None
             self.dbhost = None
             self.dbname = None
+            self.dbport = None  # Paul B. added
         else:
             self.readFile(detailsFile)
 
@@ -95,7 +97,12 @@ class PaftolDatabaseDetails(object):
         # sys.stderr.write('got line: "%s"\n' % repr(line))
         m = detailsRe.match(line.strip())
         if m is None:
-            raise StandardError, errorMsg
+            ### Need to compare line with ^port:''
+            rePortFlag = re.compile('port:')        
+            if rePortFlag.match(line.strip()) is None:  # Paul B. added - optional parameter - but what happens if this parameter is empty but shouldn't be?! 
+                return None                             # Paul B. added
+            else:                                       # Paul B. added
+                raise StandardError, errorMsg
         return m.group(1)
 
     def readFile(self, detailsFile):
@@ -103,9 +110,14 @@ class PaftolDatabaseDetails(object):
         self.dbpassword = self.readDetailsLine(detailsFile, self.reDbpassword, 'malformed dbpassword line')
         self.dbhost = self.readDetailsLine(detailsFile, self.reDbhost, 'malformed dbhost line')
         self.dbname = self.readDetailsLine(detailsFile, self.reDbname, 'malformed dbname line')
+        self.dbport = self.readDetailsLine(detailsFile, self.reDbport, 'malformed dbport line') # Paul B. added - NB - the order these lines needs to match that of the db config file
+                                                                                                # NB - the db test code works but lacks the test for the port    
 
     def makeConnection(self):
-        return mysql.connector.connection.MySQLConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname)
+        if self.dbport is None:    # Paul B. added
+            return mysql.connector.connection.MySQLConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname)
+        else: 
+            return mysql.connector.connection.MySQLConnection(user=self.dbusername, password=self.dbpassword, host=self.dbhost, database=self.dbname, port=self.dbport) # Paul B. added
 
 
 def getDatabaseDetails(detailsFname):
@@ -949,146 +961,162 @@ def findReferenceTarget(analysisDatabase, geneName, paftolOrganism):
 
 def addRecoveryResult(result):
     analysisDatabaseDetails = getAnalysisDatabaseDetails()      ### PaulB - returns a mysql.connector connection object
-    connection = analysisDatabaseDetails.makeConnection()
-    #connection.autocommit = True                               ### Paul B. - tried autocommit
-    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
-    # Paul B. - 25.2.2020 - now acesses the ReferenceTarget table instead:
-    ### NBNB - this is not good I think but it works - targetsFastaFile needs to have its own table
-    targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
-    numMappedReads = len(result.paftolTargetSet.getMappedReadNameSet())
-    numUnmappedReads = result.paftolTargetSet.numOfftargetReads
-    if targetsFastaFile is None:
-        # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
-        logger.info('unknown targets file "%s" -- continuing')
-    # Paul B. - alter method find fastq files in the InputSequence table:
-    fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
-    if fwdFastqFile is None:
-        raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
-    if revFastqFile is None:
-        logger.info('reverse fastq file not in database')
-    trimmedForwardFastqStats = None
-    if result.forwardTrimmedPairedFastqcStats is not None:
-        trimmedForwardFastqStats = fastqStatsFromFastqcStats(result.forwardTrimmedPairedFastqcStats)
-    trimmedReverseFastqStats = None
-    if result.reverseTrimmedPairedFastqcStats is not None:
-        trimmedReverseFastqStats = fastqStatsFromFastqcStats(result.reverseTrimmedPairedFastqcStats)
-    paftolGeneDict = {}
-    for paftolGene in analysisDatabase.paftolGeneDict.values():
-        paftolGeneDict[paftolGene.geneName] = paftolGene
-    for geneName in result.contigDict:
-        if geneName not in paftolGeneDict:
-            raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
-    ### Paul B - changed use auto_increment and to add in the CDS fasta filename rather than all the contigs (required a new Paftol.HybpiperResult object variable)
-    #contigFastaFile = None
-    reconstructedCdsFastaFname = None
-    #if result.contigFastaFname is not None:
-    #if result.reconstructedCdsFastaFname is not None:
-        #contigFastaFile = paftol.database.analysis.FastaFile(None, result.contigFastaFname, paftol.tools.md5HexdigestFromFile(result.contigFastaFname), None, len(paftol.tools.fastaSeqRecordList(result.contigFastaFname)))
-        # Paul B. - removed FastaFile, fasta contig file now goes into ContigRecovery table:
-        #contigFastaFile = paftol.database.analysis.FastaFile(result.reconstructedCdsFastaFname, result.reconstructedCdsFastaFnamePath, paftol.tools.md5HexdigestFromFile(result.reconstructedCdsFastaFname), None, len(paftol.tools.fastaSeqRecordList(result.reconstructedCdsFastaFname)))
-    ### Paul B - removed id=None first parameter to fit with the auto_increment change:
-    #print "testing targetsFastaFile: ", result.paftolTargetSet.fastaHandleStr
-    #contigRecovery = paftol.database.analysis.ContigRecovery(fwdFastq=fwdFastqFile, revFastq=revFastqFile, fwdTrimmedFastqStats=trimmedForwardFastqStats, revTrimmedFastqStats=trimmedReverseFastqStats, contigFastaFile=contigFastaFile, targetsFastaFile=targetsFastaFile, numMappedReads=numMappedReads, numUnmappedReads=numUnmappedReads, softwareVersion=paftol.__version__, cmdLine=result.cmdLine)
-    # Paul B. - contig file info now goes into ContigRecovery table:
-    contigRecovery = paftol.database.analysis.ContigRecovery(fwdFastq=fwdFastqFile, revFastq=revFastqFile, \
-    fwdTrimmedFastqStats=trimmedForwardFastqStats, revTrimmedFastqStats=trimmedReverseFastqStats, \
-    contigFastaFileName=result.reconstructedCdsFastaFname, contigFastaFilePathName=result.reconstructedCdsFastaFnamePath, contigFastaFileMd5sum=paftol.tools.md5HexdigestFromFile(result.reconstructedCdsFastaFname), \
-    referenceTarget=targetsFastaFile, \
-    numMappedReads=numMappedReads, numUnmappedReads=numUnmappedReads, softwareVersion=paftol.__version__, cmdLine=result.cmdLine)
-    recoveredContigList = []
-    ### Paul B. - Added info from result.reconstructedCdsDict to RecoveredContig table instead.
-    ### NB - result.contigDict[geneName] is a list of contig BioSeqRecord objects but
-    ### but result.reconstructedCdsDict[geneName] just contains a single supercontig BioSeqRecord object NOT in a list
-    ### so don't need the contig for loop.
-    #for geneName in result.contigDict:
-    #   if result.contigDict[geneName] is not None and len(result.contigDict[geneName]) > 0:  # I think this is the numbr  of Seq records for this gene!!!
-    #        for contig in result.contigDict[geneName]:
-                # I think this accesses the id and seq values (not tested)
-                #print "Contig.id ", contig.id   
-                #print "contig.seq", contig.seq
+    
+    connectionSuccessful = False                              # Paul B added
+    connectionCountr = 1                                      # Paul B added
+    while connectionSuccessful == False:                      # Paul B added
+        try:                                                  # Paul B added
+            logger.warning('Connection attempt %s ...', connectionCountr) # Paul B added
+            connection = analysisDatabaseDetails.makeConnection()
+            #connection.autocommit = True                               ### Paul B. - tried autocommit
+            analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+            # Paul B. - 25.2.2020 - now acesses the ReferenceTarget table instead:
+            ### NBNB - this is not good I think but it works - targetsFastaFile needs to have its own table
+            targetsFastaFile = findFastaFile(analysisDatabase, result.paftolTargetSet.fastaHandleStr)
+            numMappedReads = len(result.paftolTargetSet.getMappedReadNameSet())
+            numUnmappedReads = result.paftolTargetSet.numOfftargetReads
+            if targetsFastaFile is None:
+                # raise StandardError, 'targets file "%s" not in database' % result.paftolTargetSet.fastaHandleStr
+                logger.info('unknown targets file "%s" -- continuing')
+            # Paul B. - alter method find fastq files in the InputSequence table:
+            fwdFastqFile, revFastqFile = findFastqFiles(analysisDatabase, result)
+            if fwdFastqFile is None:
+                raise StandardError, 'forward fastq file "%s" not in database' % result.forwardFastq
+            if revFastqFile is None:
+                logger.info('reverse fastq file not in database')
+            trimmedForwardFastqStats = None
+            if result.forwardTrimmedPairedFastqcStats is not None:
+                trimmedForwardFastqStats = fastqStatsFromFastqcStats(result.forwardTrimmedPairedFastqcStats)
+            trimmedReverseFastqStats = None
+            if result.reverseTrimmedPairedFastqcStats is not None:
+                trimmedReverseFastqStats = fastqStatsFromFastqcStats(result.reverseTrimmedPairedFastqcStats)
+            paftolGeneDict = {}
+            for paftolGene in analysisDatabase.paftolGeneDict.values():
+                paftolGeneDict[paftolGene.geneName] = paftolGene
+            for geneName in result.contigDict:
+                if geneName not in paftolGeneDict:
+                    raise StandardError, 'found gene %s in result but it is not in the analysis database' % geneName
+            ### Paul B - changed use auto_increment and to add in the CDS fasta filename rather than all the contigs (required a new Paftol.HybpiperResult object variable)
+            #contigFastaFile = None
+            reconstructedCdsFastaFname = None
+            #if result.contigFastaFname is not None:
+            #if result.reconstructedCdsFastaFname is not None:
+                #contigFastaFile = paftol.database.analysis.FastaFile(None, result.contigFastaFname, paftol.tools.md5HexdigestFromFile(result.contigFastaFname), None, len(paftol.tools.fastaSeqRecordList(result.contigFastaFname)))
+                # Paul B. - removed FastaFile, fasta contig file now goes into ContigRecovery table:
+                #contigFastaFile = paftol.database.analysis.FastaFile(result.reconstructedCdsFastaFname, result.reconstructedCdsFastaFnamePath, paftol.tools.md5HexdigestFromFile(result.reconstructedCdsFastaFname), None, len(paftol.tools.fastaSeqRecordList(result.reconstructedCdsFastaFname)))
+            ### Paul B - removed id=None first parameter to fit with the auto_increment change:
+            #print "testing targetsFastaFile: ", result.paftolTargetSet.fastaHandleStr
+            #contigRecovery = paftol.database.analysis.ContigRecovery(fwdFastq=fwdFastqFile, revFastq=revFastqFile, fwdTrimmedFastqStats=trimmedForwardFastqStats, revTrimmedFastqStats=trimmedReverseFastqStats, contigFastaFile=contigFastaFile, targetsFastaFile=targetsFastaFile, numMappedReads=numMappedReads, numUnmappedReads=numUnmappedReads, softwareVersion=paftol.__version__, cmdLine=result.cmdLine)
+            # Paul B. - contig file info now goes into ContigRecovery table:
+            contigRecovery = paftol.database.analysis.ContigRecovery(fwdFastq=fwdFastqFile, revFastq=revFastqFile, \
+            fwdTrimmedFastqStats=trimmedForwardFastqStats, revTrimmedFastqStats=trimmedReverseFastqStats, \
+            contigFastaFileName=result.reconstructedCdsFastaFname, contigFastaFilePathName=result.reconstructedCdsFastaFnamePath, contigFastaFileMd5sum=paftol.tools.md5HexdigestFromFile(result.reconstructedCdsFastaFname), \
+            referenceTarget=targetsFastaFile, \
+            numMappedReads=numMappedReads, numUnmappedReads=numUnmappedReads, softwareVersion=paftol.__version__, cmdLine=result.cmdLine)
+            recoveredContigList = []
+            ### Paul B. - Added info from result.reconstructedCdsDict to RecoveredContig table instead.
+            ### NB - result.contigDict[geneName] is a list of contig BioSeqRecord objects but
+            ### but result.reconstructedCdsDict[geneName] just contains a single supercontig BioSeqRecord object NOT in a list
+            ### so don't need the contig for loop.
+            #for geneName in result.contigDict:
+            #   if result.contigDict[geneName] is not None and len(result.contigDict[geneName]) > 0:  # I think this is the numbr  of Seq records for this gene!!!
+            #        for contig in result.contigDict[geneName]:
+                        # I think this accesses the id and seq values (not tested)
+                        #print "Contig.id ", contig.id   
+                        #print "contig.seq", contig.seq
 
-    RC_Countr = 0   # Counting the number of recovered contigs so I can compare and check it with the value calculated by the db (to check that auto_increment is working)
-    for geneName in result.reconstructedCdsDict:
-        if result.reconstructedCdsDict[geneName] is not None and len(result.reconstructedCdsDict[geneName]) > 0:    # 8.9.2020 - This is the length of the seq, not the eqivalent of len(result.contigDict[geneName]) > 0!!!! Still OK I think?
-            #print "result.reconstructedCdsDict[geneName].id: ", result.reconstructedCdsDict[geneName].id
-            #print "Length of seq:", len(result.reconstructedCdsDict[geneName])
-            #print "Seq:", result.reconstructedCdsDict[geneName].seq
-            representativeReferenceTarget = findReferenceTarget(analysisDatabase, geneName, result.representativePaftolTargetDict[geneName].organism.name)
-            if representativeReferenceTarget is None:
-                raise StandardError, 'unknown reference target for geneName = %s, organismName = %s' % (geneName, result.representativePaftolTargetDict[geneName].organism.name)
+            RC_Countr = 0   # Counting the number of recovered contigs so I can compare and check it with the value calculated by the db (to check that auto_increment is working)
+            for geneName in result.reconstructedCdsDict:
+                if result.reconstructedCdsDict[geneName] is not None and len(result.reconstructedCdsDict[geneName]) > 0:    # 8.9.2020 - This is the length of the seq, not the eqivalent of len(result.contigDict[geneName]) > 0!!!! Still OK I think?
+                    #print "result.reconstructedCdsDict[geneName].id: ", result.reconstructedCdsDict[geneName].id
+                    #print "Length of seq:", len(result.reconstructedCdsDict[geneName])
+                    #print "Seq:", result.reconstructedCdsDict[geneName].seq
+                    representativeReferenceTarget = findReferenceTarget(analysisDatabase, geneName, result.representativePaftolTargetDict[geneName].organism.name)
+                    if representativeReferenceTarget is None:
+                        raise StandardError, 'unknown reference target for geneName = %s, organismName = %s' % (geneName, result.representativePaftolTargetDict[geneName].organism.name)
 
-            # Store the md5sum of each sequence for sample-gene version control:
-            md5Seq = hashlib.md5()
-            md5Seq.update(str(result.reconstructedCdsDict[geneName].seq))
-            md5sum = md5Seq.hexdigest()
-            #print 'seq record md5sum:', md5sum
+                    # Store the md5sum of each sequence for sample-gene version control:
+                    md5Seq = hashlib.md5()
+                    md5Seq.update(str(result.reconstructedCdsDict[geneName].seq))
+                    md5sum = md5Seq.hexdigest()
+                    #print 'seq record md5sum:', md5sum
 
-            ### Paul B - removed 'None' first parameter to fit with the auto_increment change; changed from len(contig) to len(result.reconstructedCdsDict[geneName])
-            ###          Also started to use argument=value format
-            #recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery, paftolGeneDict[geneName], len(result.reconstructedCdsDict[geneName]), representativeReferenceTarget)
-            recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery=contigRecovery, paftolGene=paftolGeneDict[geneName], seqLength=len(result.reconstructedCdsDict[geneName]), md5sum=md5sum, representativeReferenceTarget=representativeReferenceTarget)
-            recoveredContigList.append(recoveredContig)
-            RC_Countr += 1
-    contigRecovery.numRecoveredContigsCheck = RC_Countr
-    transactionSuccessful = False
-    ### Paul B. - can now remove table locking because now using auto_increment
-    #lockCursor = connection.cursor(prepared=False)
-    #lockCursor.execute('LOCK TABLE FastaFile WRITE, FastqFile WRITE, FastqStats WRITE, ContigRecovery WRITE, RecoveredContig WRITE')
-    try:
-        cursor = connection.cursor(prepared=True)
-        try:
-            ###  Paul B. - making changes to use auto_increment:
-            if trimmedForwardFastqStats is not None:
-                #trimmedForwardFastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
-                trimmedForwardFastqStats.insertIntoDatabase(cursor)
-                trimmedForwardFastqStats.id = cursor.lastrowid
-                if trimmedForwardFastqStats.id is not None:
-                    print "trimmedForwardFastqStats.id: ", trimmedForwardFastqStats.id
-            if trimmedReverseFastqStats is not None:
-                #trimmedReverseFastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
-                trimmedReverseFastqStats.insertIntoDatabase(cursor)
-                trimmedReverseFastqStats.id = cursor.lastrowid
-                if trimmedReverseFastqStats.id is not None:
-                    print "trimmedReverseFastqStats.id: ", trimmedReverseFastqStats.id
-            # Paul B. - contigFastaFile now goes into ContigRecovery table (no need for conditional either? contigFastaFile value should just remain NULL
-            #if contigFastaFile is not None:
-                #contigFastaFile.id = generateUnusedPrimaryKey(cursor, 'FastaFile')
-                #contigFastaFile.insertIntoDatabase(cursor)
-                #contigFastaFile.id = cursor.lastrowid
-                #print "contigFastaFile.id: ", contigFastaFile.id
-            #contigRecovery.id = generateUnusedPrimaryKey(cursor, 'ContigRecovery')
-            contigRecovery.insertIntoDatabase(cursor)
-            contigRecovery.id = cursor.lastrowid
-            if contigRecovery.id is not None:
-                print "contigRecovery.id: ", contigRecovery.id
-            for recoveredContig in recoveredContigList:
-                #recoveredContig.id = generateUnusedPrimaryKey(cursor, 'RecoveredContig')
-                recoveredContig.insertIntoDatabase(cursor)
-                recoveredContig.id = cursor.lastrowid
-                if recoveredContig.id is not None:
-                    print "recoveredContig.id: ", recoveredContig.id
-                #time.sleep(0.06)
-            #### time delay - 1 second doen to 60milsec
-            connection.commit()
-            transactionSuccessful = True
-        finally:
-            if not transactionSuccessful:
-                connection.rollback()
-                # Paul B added:                                                                         # NB - these variables may not exist if commit fails
-                print "ERROR: commit unsucessful for contigRecovery.id: "                               #, contigRecovery.id
-                print "ERROR: commit unsucessful for trimmedForwardFastqStats.id: "                     #, trimmedForwardFastqStats.id
-                print "ERROR: commit unsucessful for trimmedReverseFastqStats.id: "                     #, trimmedReverseFastqStats.id
-                #print "ERROR: commit unsucessful for contigFastaFile.id: ", contigFastaFile.id
-                print "ERROR: commit unsucessful for recoveredContig.id (for last row created): "       #, recoveredContig.id
-            cursor.close()
-    finally:
-        if not transactionSuccessful:
-            connection.rollback()
-            # Paul B. removed this again- it should appear above:
-            #print "ERROR: commit unsucessful for contigRecovery.id: ", contigRecovery.id
-        #lockCursor.execute('UNLOCK TABLES')
-        #lockCursor.close()
-    connection.close()
+                    ### Paul B - removed 'None' first parameter to fit with the auto_increment change; changed from len(contig) to len(result.reconstructedCdsDict[geneName])
+                    ###          Also started to use argument=value format
+                    #recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery, paftolGeneDict[geneName], len(result.reconstructedCdsDict[geneName]), representativeReferenceTarget)
+                    recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery=contigRecovery, paftolGene=paftolGeneDict[geneName], seqLength=len(result.reconstructedCdsDict[geneName]), md5sum=md5sum, representativeReferenceTarget=representativeReferenceTarget)
+                    recoveredContigList.append(recoveredContig)
+                    RC_Countr += 1
+            contigRecovery.numRecoveredContigsCheck = RC_Countr
+            transactionSuccessful = False
+            ### Paul B. - can now remove table locking because now using auto_increment
+            #lockCursor = connection.cursor(prepared=False)
+            #lockCursor.execute('LOCK TABLE FastaFile WRITE, FastqFile WRITE, FastqStats WRITE, ContigRecovery WRITE, RecoveredContig WRITE')
+            try:
+                cursor = connection.cursor(prepared=True)
+                try:
+                    ###  Paul B. - making changes to use auto_increment:
+                    if trimmedForwardFastqStats is not None:
+                        #trimmedForwardFastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
+                        trimmedForwardFastqStats.insertIntoDatabase(cursor)
+                        trimmedForwardFastqStats.id = cursor.lastrowid
+                        if trimmedForwardFastqStats.id is not None:
+                            print "trimmedForwardFastqStats.id: ", trimmedForwardFastqStats.id
+                    if trimmedReverseFastqStats is not None:
+                        #trimmedReverseFastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
+                        trimmedReverseFastqStats.insertIntoDatabase(cursor)
+                        trimmedReverseFastqStats.id = cursor.lastrowid
+                        if trimmedReverseFastqStats.id is not None:
+                            print "trimmedReverseFastqStats.id: ", trimmedReverseFastqStats.id
+                    # Paul B. - contigFastaFile now goes into ContigRecovery table (no need for conditional either? contigFastaFile value should just remain NULL
+                    #if contigFastaFile is not None:
+                        #contigFastaFile.id = generateUnusedPrimaryKey(cursor, 'FastaFile')
+                        #contigFastaFile.insertIntoDatabase(cursor)
+                        #contigFastaFile.id = cursor.lastrowid
+                        #print "contigFastaFile.id: ", contigFastaFile.id
+                    #contigRecovery.id = generateUnusedPrimaryKey(cursor, 'ContigRecovery')
+                    contigRecovery.insertIntoDatabase(cursor)
+                    contigRecovery.id = cursor.lastrowid
+                    if contigRecovery.id is not None:
+                        print "contigRecovery.id: ", contigRecovery.id
+                    for recoveredContig in recoveredContigList:
+                        #recoveredContig.id = generateUnusedPrimaryKey(cursor, 'RecoveredContig')
+                        recoveredContig.insertIntoDatabase(cursor)
+                        recoveredContig.id = cursor.lastrowid
+                        if recoveredContig.id is not None:
+                            print "recoveredContig.id: ", recoveredContig.id
+                        #time.sleep(0.06)
+                    #### time delay - 1 second doen to 60milsec
+                    connection.commit()
+                    transactionSuccessful = True
+                finally:
+                    if not transactionSuccessful:
+                        connection.rollback()
+                        # Paul B added:                                                                         # NB - these variables may not exist if commit fails
+                        print "ERROR: commit unsucessful for contigRecovery.id: "                               #, contigRecovery.id
+                        print "ERROR: commit unsucessful for trimmedForwardFastqStats.id: "                     #, trimmedForwardFastqStats.id
+                        print "ERROR: commit unsucessful for trimmedReverseFastqStats.id: "                     #, trimmedReverseFastqStats.id
+                        #print "ERROR: commit unsucessful for contigFastaFile.id: ", contigFastaFile.id
+                        print "ERROR: commit unsucessful for recoveredContig.id (for last row created): "       #, recoveredContig.id
+                    cursor.close()
+            finally:
+                if not transactionSuccessful:
+                    connection.rollback()
+                    # Paul B. removed this again- it should appear above:
+                    #print "ERROR: commit unsucessful for contigRecovery.id: ", contigRecovery.id
+                #lockCursor.execute('UNLOCK TABLES')
+                #lockCursor.close()
+            connection.close()
+            connectionSuccessful = True    # Paul B added
+            logger.warning('connectionSuccessful == %s', connectionSuccessful) # Paul B added
+        except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError): # Paul B added
+            timeToSleep = random.randint(1,25)                                                                                      # Paul B added
+            print "Sample unable to connect to the database - retrying in ", timeToSleep, "seconds..."                              # Paul B added
+            time.sleep(timeToSleep)                                                 # Paul B added
+            connectionCountr += 1                                                   # Paul B added
+            if connectionCountr > 10:                                               # Paul B added 
+                logger.warning('Tried to connect to database 10 times, giving up!') # Paul B added 
+                return  transactionSuccessful                                       # Paul B added
     return transactionSuccessful
 
 
