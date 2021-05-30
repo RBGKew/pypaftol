@@ -9,6 +9,7 @@ import logging
 import unicodedata
 import datetime
 import time             ### Paul B. added to sleep after commiting
+import random           # Paul B. added
 import hashlib          ### Paul B. added - md5 module is deprecated       
 
 import mysql.connector
