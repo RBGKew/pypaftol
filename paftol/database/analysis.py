@@ -180,9 +180,10 @@ class ExemplarGene(object):
 
 class FastqStats(object):
 
-    def __init__(self, numReads=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None, meanAdapterContent=None, maxAdapterContent=None, sumLengthOfSeqs=None):
+    def __init__(self, numReads=None, numbrRecords=None, qual28=None, meanA=None, meanC=None, meanG=None, meanT=None, stddevA=None, stddevC=None, stddevG=None, stddevT=None, meanN=None, stddevN=None, meanAdapterContent=None, maxAdapterContent=None, sumLengthOfSeqs=None):
         self.id = None
         self.numReads = numReads
+        self.numbrRecords = numbrRecords
         self.qual28 = qual28
         self.meanA = meanA
         self.meanC = meanC
@@ -206,9 +207,10 @@ class FastqStats(object):
         self.inputSequenceFastqStatsList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `FastqStats` (`numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `FastqStats` (`numReads`, `numbrRecords`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.numReads)
+        l.append(self.numbrRecords)
         l.append(self.qual28)
         l.append(self.meanA)
         l.append(self.meanC)
@@ -223,6 +225,24 @@ class FastqStats(object):
         l.append(self.meanAdapterContent)
         l.append(self.maxAdapterContent)
         l.append(self.sumLengthOfSeqs)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class GAP_Sequence(object):
+
+    def __init__(self, idSequencing=None, sampleId=None):
+        self.id = None
+        self.idSequencing = idSequencing
+        self.sampleId = sampleId
+        # one-to-many
+        # fk_InputSequence_GAP_SequenceId: InputSequence.GAP_SequenceId REFERENCES GAP_Sequence(GAP_SequenceId)
+        self.inputSequenceGAP_SequenceList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `GAP_Sequence` (`idSequencing`, `sampleId`) VALUES (%s, %s)'
+        l = []
+        l.append(self.idSequencing)
+        l.append(self.sampleId)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -294,7 +314,7 @@ class GeneType(object):
 
 class InputSequence(object):
 
-    def __init__(self, dataOrigin=None, sequenceType=None, filename=None, pathName=None, md5sum=None, fastqStats=None, paftolSequence=None, sraRunSequence=None, OneKP_Sequence=None, annotatedGenome=None):
+    def __init__(self, dataOrigin=None, sequenceType=None, filename=None, pathName=None, md5sum=None, fastqStats=None, paftolSequence=None, sraRunSequence=None, OneKP_Sequence=None, annotatedGenome=None, GAP_Sequence=None, UnannotatedGenome=None):
         self.id = None
         self.dataOrigin = dataOrigin
         self.sequenceType = sequenceType
@@ -306,6 +326,8 @@ class InputSequence(object):
         self.sraRunSequence = sraRunSequence
         self.OneKP_Sequence = OneKP_Sequence
         self.annotatedGenome = annotatedGenome
+        self.GAP_Sequence = GAP_Sequence
+        self.UnannotatedGenome = UnannotatedGenome
         # one-to-many
         # fk_ContigRecovery_fwdFastqId: ContigRecovery.fwdFastqId REFERENCES InputSequence(fwdFastqId)
         self.contigRecoveryFwdFastqList = []
@@ -313,7 +335,7 @@ class InputSequence(object):
         self.contigRecoveryRevFastqList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `InputSequence` (`dataOriginId`, `sequenceTypeId`, `filename`, `pathName`, `md5sum`, `fastqStatsId`, `paftolSequenceId`, `sraRunSequenceId`, `OneKP_SequenceId`, `annotatedGenomeId`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `InputSequence` (`dataOriginId`, `sequenceTypeId`, `filename`, `pathName`, `md5sum`, `fastqStatsId`, `paftolSequenceId`, `sraRunSequenceId`, `OneKP_SequenceId`, `annotatedGenomeId`, `GAP_SequenceId`, `UnannotatedGenomeId`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.dataOrigin is None else self.dataOrigin.id)
         l.append(None if self.sequenceType is None else self.sequenceType.id)
@@ -325,6 +347,8 @@ class InputSequence(object):
         l.append(None if self.sraRunSequence is None else self.sraRunSequence.id)
         l.append(None if self.OneKP_Sequence is None else self.OneKP_Sequence.id)
         l.append(None if self.annotatedGenome is None else self.annotatedGenome.id)
+        l.append(None if self.GAP_Sequence is None else self.GAP_Sequence.id)
+        l.append(None if self.UnannotatedGenome is None else self.UnannotatedGenome.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -556,6 +580,32 @@ class SpeciesTree(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class UnannotatedGenome(object):
+
+    def __init__(self, idSequencing=None, accessionId=None, speciesLatinName=None, commonName=None, source=None, genomeVersion=None):
+        self.id = None
+        self.idSequencing = idSequencing
+        self.accessionId = accessionId
+        self.speciesLatinName = speciesLatinName
+        self.commonName = commonName
+        self.source = source
+        self.genomeVersion = genomeVersion
+        # one-to-many
+        # fk_unannotatedGenomeId: InputSequence.UnannotatedGenomeId REFERENCES UnannotatedGenome(UnannotatedGenomeId)
+        self.inputSequenceUnannotatedGenomeList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `UnannotatedGenome` (`idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion`) VALUES (%s, %s, %s, %s, %s, %s)'
+        l = []
+        l.append(self.idSequencing)
+        l.append(self.accessionId)
+        l.append(self.speciesLatinName)
+        l.append(self.commonName)
+        l.append(self.source)
+        l.append(self.genomeVersion)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 def loadAnnotatedGenomeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -744,26 +794,42 @@ def loadExemplarGeneDict(connection, productionDatabase):
 def loadFastqStatsDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `numReads`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs` FROM `FastqStats`'
+    sqlStatement = 'SELECT `id`, `numReads`, `numbrRecords`, `qual28`, `meanA`, `meanC`, `meanG`, `meanT`, `stddevA`, `stddevC`, `stddevG`, `stddevT`, `meanN`, `stddevN`, `meanAdapterContent`, `maxAdapterContent`, `sumLengthOfSeqs` FROM `FastqStats`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = FastqStats()
         entity.id = paftol.database.intOrNone(row[0])
         entity.numReads = paftol.database.intOrNone(row[1])
-        entity.qual28 = paftol.database.intOrNone(row[2])
-        entity.meanA = paftol.database.floatOrNone(row[3])
-        entity.meanC = paftol.database.floatOrNone(row[4])
-        entity.meanG = paftol.database.floatOrNone(row[5])
-        entity.meanT = paftol.database.floatOrNone(row[6])
-        entity.stddevA = paftol.database.floatOrNone(row[7])
-        entity.stddevC = paftol.database.floatOrNone(row[8])
-        entity.stddevG = paftol.database.floatOrNone(row[9])
-        entity.stddevT = paftol.database.floatOrNone(row[10])
-        entity.meanN = paftol.database.floatOrNone(row[11])
-        entity.stddevN = paftol.database.floatOrNone(row[12])
-        entity.meanAdapterContent = paftol.database.floatOrNone(row[13])
-        entity.maxAdapterContent = paftol.database.floatOrNone(row[14])
-        entity.sumLengthOfSeqs = paftol.database.intOrNone(row[15])
+        entity.numbrRecords = paftol.database.intOrNone(row[2])
+        entity.qual28 = paftol.database.intOrNone(row[3])
+        entity.meanA = paftol.database.floatOrNone(row[4])
+        entity.meanC = paftol.database.floatOrNone(row[5])
+        entity.meanG = paftol.database.floatOrNone(row[6])
+        entity.meanT = paftol.database.floatOrNone(row[7])
+        entity.stddevA = paftol.database.floatOrNone(row[8])
+        entity.stddevC = paftol.database.floatOrNone(row[9])
+        entity.stddevG = paftol.database.floatOrNone(row[10])
+        entity.stddevT = paftol.database.floatOrNone(row[11])
+        entity.meanN = paftol.database.floatOrNone(row[12])
+        entity.stddevN = paftol.database.floatOrNone(row[13])
+        entity.meanAdapterContent = paftol.database.floatOrNone(row[14])
+        entity.maxAdapterContent = paftol.database.floatOrNone(row[15])
+        entity.sumLengthOfSeqs = paftol.database.intOrNone(row[16])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadGAP_SequenceDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `idSequencing`, `sampleId` FROM `GAP_Sequence`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = GAP_Sequence()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.sampleId = paftol.database.intOrNone(row[2])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -860,7 +926,7 @@ def loadGeneTypeDict(connection, productionDatabase):
 def loadInputSequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `dataOriginId`, `sequenceTypeId`, `filename`, `pathName`, `md5sum`, `fastqStatsId`, `paftolSequenceId`, `sraRunSequenceId`, `OneKP_SequenceId`, `annotatedGenomeId` FROM `InputSequence`'
+    sqlStatement = 'SELECT `id`, `dataOriginId`, `sequenceTypeId`, `filename`, `pathName`, `md5sum`, `fastqStatsId`, `paftolSequenceId`, `sraRunSequenceId`, `OneKP_SequenceId`, `annotatedGenomeId`, `GAP_SequenceId`, `UnannotatedGenomeId` FROM `InputSequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = InputSequence()
@@ -938,6 +1004,26 @@ def loadInputSequenceDict(connection, productionDatabase):
             entity.annotatedGenome = productionDatabase.annotatedGenomeDict[entityId]
             # type: int, name: annotatedGenomeId, foreignTable: AnnotatedGenome, foreignColumn: id
             entity.annotatedGenome.inputSequenceAnnotatedGenomeList.append(entity)
+        # many to one: GAP_Sequence
+        entityId = paftol.database.intOrNone(row[11])
+        if entityId is None:
+            entity.GAP_Sequence = None
+        elif entityId not in productionDatabase.gAP_SequenceDict:
+            raise StandardError, 'no GAP_Sequence entity with id = %d' % entityId
+        else:
+            entity.GAP_Sequence = productionDatabase.gAP_SequenceDict[entityId]
+            # type: int, name: GAP_SequenceId, foreignTable: GAP_Sequence, foreignColumn: id
+            entity.GAP_Sequence.inputSequenceGAP_SequenceList.append(entity)
+        # many to one: UnannotatedGenome
+        entityId = paftol.database.intOrNone(row[12])
+        if entityId is None:
+            entity.UnannotatedGenome = None
+        elif entityId not in productionDatabase.unannotatedGenomeDict:
+            raise StandardError, 'no UnannotatedGenome entity with id = %d' % entityId
+        else:
+            entity.UnannotatedGenome = productionDatabase.unannotatedGenomeDict[entityId]
+            # type: int, name: UnannotatedGenomeId, foreignTable: UnannotatedGenome, foreignColumn: id
+            entity.UnannotatedGenome.inputSequenceUnannotatedGenomeList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -1237,6 +1323,25 @@ def loadSpeciesTreeDict(connection, productionDatabase):
     return entityDict
 
 
+def loadUnannotatedGenomeDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `idSequencing`, `accessionId`, `speciesLatinName`, `commonName`, `source`, `genomeVersion` FROM `UnannotatedGenome`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = UnannotatedGenome()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.idSequencing = paftol.database.intOrNone(row[1])
+        entity.accessionId = paftol.database.strOrNone(row[2])
+        entity.speciesLatinName = paftol.database.strOrNone(row[3])
+        entity.commonName = paftol.database.strOrNone(row[4])
+        entity.source = paftol.database.strOrNone(row[5])
+        entity.genomeVersion = paftol.database.strOrNone(row[6])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 class AnalysisDatabase(object):
 
     def __init__(self, connection):
@@ -1248,6 +1353,7 @@ class AnalysisDatabase(object):
         self.eNA_AccessionDict = {}
         self.exemplarGeneDict = {}
         self.fastqStatsDict = {}
+        self.gAP_SequenceDict = {}
         self.geneTreeDict = {}
         self.geneTreeDataReleaseDict = {}
         self.geneTypeDict = {}
@@ -1263,6 +1369,7 @@ class AnalysisDatabase(object):
         self.sRA_RunSequenceDataReleaseDict = {}
         self.sequenceTypeDict = {}
         self.speciesTreeDict = {}
+        self.unannotatedGenomeDict = {}
         self.annotatedGenomeDict = loadAnnotatedGenomeDict(connection, self)
         self.dataOriginDict = loadDataOriginDict(connection, self)
         self.sequenceTypeDict = loadSequenceTypeDict(connection, self)
@@ -1272,6 +1379,8 @@ class AnalysisDatabase(object):
         self.eNA_AccessionDict = loadENA_AccessionDict(connection, self)
         self.sRA_RunSequenceDict = loadSRA_RunSequenceDict(connection, self)
         self.oneKP_SequenceDict = loadOneKP_SequenceDict(connection, self)
+        self.gAP_SequenceDict = loadGAP_SequenceDict(connection, self)
+        self.unannotatedGenomeDict = loadUnannotatedGenomeDict(connection, self)
         self.inputSequenceDict = loadInputSequenceDict(connection, self)
         self.geneTypeDict = loadGeneTypeDict(connection, self)
         self.exemplarGeneDict = loadExemplarGeneDict(connection, self)
@@ -1298,6 +1407,8 @@ class AnalysisDatabase(object):
         s = s + 'eNA_Accession: %d\n' % len(self.eNA_AccessionDict)
         s = s + 'sRA_RunSequence: %d\n' % len(self.sRA_RunSequenceDict)
         s = s + 'oneKP_Sequence: %d\n' % len(self.oneKP_SequenceDict)
+        s = s + 'gAP_Sequence: %d\n' % len(self.gAP_SequenceDict)
+        s = s + 'unannotatedGenome: %d\n' % len(self.unannotatedGenomeDict)
         s = s + 'inputSequence: %d\n' % len(self.inputSequenceDict)
         s = s + 'geneType: %d\n' % len(self.geneTypeDict)
         s = s + 'exemplarGene: %d\n' % len(self.exemplarGeneDict)

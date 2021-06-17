@@ -412,17 +412,24 @@ def preInsertCheckPaftolFastqFile(paftolFastqFile):
     if paftolFastqFile.fastqFile.fastqStats is not None and  paftolFastqFile.fastqFile.fastqStats.id is not None:
         raise StandardError, 'illegal state: new FastqFile %s has existing FastqStats %d' % (paftolFastqFile.fastqFile.filename, paftolFastqFile.fastqFile.fastqStats.id)
 
-# Paul B - new method for new db schema - not actually sure why we need to do these checks.
-#          Why no other checks on other variables and objects?
-#          Actually does catch this situation: e.g. 5853_R1.fastq if --dataOrigin == PAFTOL
+
 def preInsertCheckInputSequence(inputSequence):
+    ''' Paul B - new method for new db schema - not actually sure why we need to do these checks.
+        Why no other checks on other variables and objects?
+        Actually does catch this situation: e.g. 5853_R1.fastq if --dataOrigin == PAFTOL
+
+        Note that the names e.g. inputSequence.sraRunSequence don't always exactly match the table names. 
+        It's because these are the names of the objects defined in the InputSequence class object. Yes, but
+        these names can only come from the db then written out by the API!!
+    '''
+
     if inputSequence.id is not None:
         raise StandardError, 'illegal state: InputSequence instance has id %d, not None' % inputSequence.id
     # Paul B. - added and conditionals - one of these foreign keys needs to be defined: 
     #if inputSequence.paftolSequence is None
-    if inputSequence.paftolSequence is None and inputSequence.OneKP_Sequence is None and inputSequence.sraRunSequence is None and inputSequence.annotatedGenome is None:
+    if inputSequence.paftolSequence is None and inputSequence.OneKP_Sequence is None and inputSequence.sraRunSequence is None and inputSequence.annotatedGenome is None and inputSequence.GAP_Sequence is None and inputSequence.UnannotatedGenome is None:
         #raise StandardError, 'illegal state: inputSequence has paftolSequence attribute set to None'
-        raise StandardError, 'illegal state: inputSequence has to have a value for one of these attributes: paftolSequence, OneKP_Sequence, sraRunSequence and annotatedGenome'
+        raise StandardError, 'illegal state: inputSequence has to have a value for one of these attributes: paftolSequence, OneKP_Sequence, sraRunSequence, annotatedGenome, GAP_Sequence, UnannotatedGenome'
     if inputSequence.fastqStats is not None and  inputSequence.fastqStats.id is not None:
         raise StandardError, 'illegal state: new inputSequence %s has existing FastqStats %d' % (inputSequence.filename, inputSequence.fastqStats.id)
 
@@ -522,7 +529,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                 if inputSequence.id is not None:
                     print 'insertedInputSequence.id: ', inputSequence.id                    # insertedInputSequence.id
                     print 'insertedInputSequence.filename: ', inputSequence.filename        # insertedInputSequence.filename
-                    if inputSequence.dataOrigin.acronym == 'OneKP_Transcripts' or inputSequence.dataOrigin.acronym == 'AG':
+                    if inputSequence.dataOrigin.acronym == 'OneKP_Transcripts' or inputSequence.dataOrigin.acronym == 'AG' or inputSequence.dataOrigin.acronym == 'UG':
                         if externalGenesFile is not None:
                             ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
                             addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, newDatasetSequence=newPaftolSequence, externalGenesFile=externalGenesFile)
@@ -555,7 +562,7 @@ def fastqStatsFromFastqcStats(fastqcStats):
 
 def rawFilenameStats(filename=None):
     ''' Paul B. added method:
-    Gets stats for a raw fasta file - specific to OneKP_Transcripts and AG data
+    Gets stats for a raw fasta file - specific to OneKP_Transcripts and AG/UG data only
     
     @param filename: fasta file name
     @type filename: C{str}
@@ -589,6 +596,7 @@ def findSequence(productionDatabase, sampleId):
     which would be the most recent sequencing. OK for now though.
 
     NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object!
+    NB - If the production database is updated with extra rows, unless these rows are required, it seems that the db API doesn't need to be remade.
 
     Returns a matching sequence table row object if one exists or None
     '''
@@ -622,14 +630,13 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     dataOrigin = findDataOrigin(analysisDatabase, dataOriginAcronym)     # Paul B. - returns a DataOrigin object
     if dataOrigin is None:
         connection.close()
-        raise StandardError, 'Data origin entry is incorrect. Allowed values are: \'PAFTOL\', \'OneKP_Transcripts\', \'OneKP_Reads\'  \'SRA\', \'AG\' '
+        raise StandardError, 'Data origin entry is incorrect. Allowed values are: \'PAFTOL\', \'OneKP_Transcripts\', \'OneKP_Reads\'  \'SRA\', \'GAP\', \'AG\', \'UG\'  '
         ### NB - I think argparse can handle this if required= is set - if so can delete above code
     # Paul B. - need to create a new PaftolSequence object with info from read1 file only.
     # First, get the idSequencing from the R1 file ('paftol' data set only)
     newDatasetSequence = None           # Paul B. added - new table object for any data set type
     idSequencing = None                 # Paul B. added - used later in method so needs to be global (?)
     if dataOriginAcronym == 'PAFTOL':   # Paul B. added
-        idSequencing, orientation = parseCanonicalSymlink(fastqFnameList[0])
         print 'idSequencing: ', idSequencing , 'orientation: ', orientation
         #newPaftolSequence = paftol.database.analysis.PaftolSequence(idSequencing=idSequencing, replicate=None)
         if idSequencing is not None:    # idSequencing may not be found
@@ -639,7 +646,9 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     else:
         # For non-paftol data set types, obtaining idSequencing from the paftol.Sequence table instead using sampleId from the sampleId input flag:
         ### NB - might be able to handle data set options better by using word matches rather than conditonals
-        print 'sampleId before findSequence: ', sampleId
+        if sampleId is None:
+            raise StandardError, 'sampleId from the --sampleId option is empty.'
+        #print 'sampleId before findSequence: ', sampleId
         sequenceRow = findSequence(productionDatabase, sampleId)
         if sequenceRow is None:
             raise StandardError, 'Sequence row object is empty - externalSequenceID not found for %s' % sampleId
@@ -653,6 +662,10 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
             newDatasetSequence = paftol.database.analysis.SRA_RunSequence(accessionId=sampleId, idSequencing=idSequencing)
         elif dataOriginAcronym == 'AG':
             newDatasetSequence = paftol.database.analysis.AnnotatedGenome(accessionId=sampleId, idSequencing=idSequencing)
+        elif dataOriginAcronym == 'GAP':
+            newDatasetSequence = paftol.database.analysis.GAP_Sequence(sampleId=sampleId, idSequencing=idSequencing)
+        elif dataOriginAcronym == 'UG':
+            newDatasetSequence = paftol.database.analysis.UnannotatedGenome(accessionId=sampleId, idSequencing=idSequencing)    
         else:
             raise StandardError, 'unknown data origin: %s' % dataOriginAcronym
 
@@ -670,8 +683,8 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
             inputSequence = findFastqFile(analysisDatabase, fastqFname)
             # Paul B. - changed: if fastqFile is None:
             # NB - if you insert the same fastq file twice i.e. two R1 files by mistake, this will not
-            #      will not be detected here because the first fastq file is not yet uploaded until 
-            #      the insert method is called.
+            #      be detected here because the first fastq file is not yet uploaded until the insert
+            #      method is called.
             if inputSequence is None:
 
                 # Paul B. recreated the full path to the raw fastq files (have to be unzipped for the above commands!):
@@ -682,7 +695,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     # Now need to extend the match to fasta files - NB - this time endings are specific to OneKP (.bz2) and AG (.gz) data sets:
                     elif re.search('.fasta$|.fa$', fastqFname) is not None and dataOriginAcronym == 'OneKP_Transcripts':
                         fastqPathName = fastqPath + '/' + fastqFname + '.bz2'
-                    elif re.search('.fasta$|.fa$', fastqFname) is not None and dataOriginAcronym == 'AG':
+                    elif re.search('.fasta$|.fa$', fastqFname) is not None and dataOriginAcronym == 'AG' or dataOriginAcronym == 'UG':
                         fastqPathName = fastqPath + '/' + fastqFname + '.gz'
                     else:
                         fastqPathName = fastqPath + '/' + fastqFname
@@ -692,11 +705,11 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     logger.info('fastqPathName: %s', fastqPathName)
 
                 # Paul B added:
-                if dataOriginAcronym == 'PAFTOL' or dataOriginAcronym == 'OneKP_Reads' or dataOriginAcronym == 'SRA':
+                if dataOriginAcronym == 'PAFTOL' or dataOriginAcronym == 'OneKP_Reads' or dataOriginAcronym == 'SRA' or dataOriginAcronym == 'GAP':  
                     fastqcStats = paftol.tools.generateFastqcStats(fastqFname)
                     newSeqStats = fastqStatsFromFastqcStats(fastqcStats)      # Paul B. NB - this is a database table object
-                elif dataOriginAcronym == 'OneKP_Transcripts' or dataOriginAcronym == 'AG':
-                    newSeqStats =paftol.database.analysis.FastqStats()
+                elif dataOriginAcronym == 'OneKP_Transcripts' or dataOriginAcronym == 'AG' or dataOriginAcronym == 'UG':  
+                    newSeqStats = paftol.database.analysis.FastqStats()
 
 
                 # Paul B - altered to fit with auto_increment + to add the full path to the fastq file:
@@ -719,22 +732,26 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, OneKP_Sequence=newDatasetSequence)
                 elif dataOriginAcronym == 'SRA':
                     newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, sraRunSequence=newDatasetSequence)
+                elif dataOriginAcronym == 'GAP':
+                    newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, GAP_Sequence=newDatasetSequence)
                 elif dataOriginAcronym == 'OneKP_Transcripts':
                     # Also calculate number of genes and sum length of contigs in the raw fasta file and add to the newSeqsStats object:
                     numbrSequences, sumLengthOfContigs = rawFilenameStats(filename=fastqFname)
-                    #newDatasetSequence.numSequences = numbrSequences
-                    #newDatasetSequence.sumLengthOfContigs = sumLengthOfContigs
-                    newSeqStats.numReads = numbrSequences
+                    newSeqStats.numbrRecords = numbrSequences
                     newSeqStats.sumLengthOfSeqs = sumLengthOfContigs
                     newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, OneKP_Sequence=newDatasetSequence)
                 elif dataOriginAcronym == 'AG':
                     # Also calculate number of genes and sum length of contigs in the raw fasta file and add to the newSeqsStats object:
                     numbrSequences, sumLengthOfContigs = rawFilenameStats(filename=fastqFname)
-                    #newDatasetSequence.numSequences = numbrSequences
-                    #newDatasetSequence.sumLengthOfContigs = sumLengthOfContigs
-                    newSeqStats.numReads = numbrSequences
+                    newSeqStats.numbrRecords = numbrSequences
                     newSeqStats.sumLengthOfSeqs = sumLengthOfContigs
                     newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, annotatedGenome=newDatasetSequence)
+                elif dataOriginAcronym == 'UG':
+                    # Also calculate number of genes and sum length of contigs in the raw fasta file and add to the newSeqsStats object:
+                    numbrSequences, sumLengthOfContigs = rawFilenameStats(filename=fastqFname)
+                    newSeqStats.numbrRecords = numbrSequences
+                    newSeqStats.sumLengthOfSeqs = sumLengthOfContigs
+                    newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, UnannotatedGenome=newDatasetSequence)
                 #print dir(newInputSequence)
                 #print "1.Looking at newInputSequence contents: ", newInputSequence.filename
                 newInputSequenceList.append(newInputSequence)
@@ -1178,13 +1195,22 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
     numMappedReads=None, numUnmappedReads=None, softwareVersion=None, cmdLine=None)
 
 
-    # Populate  the RecoveredContig object
+    # Populate the RecoveredContig object
     recoveredContigList = []
     RC_Countr = 0   # Counting the number of recovered contigs so I can compare and check it with the value calculated by the db (to check that auto_increment is working)
     for geneName in seqRecords:
         if seqRecords[geneName] is not None and len(seqRecords[geneName]) > 0:
             #print "geneName: ", geneName
             #print 'Sequence: ', seqRecords[geneName].seq
+            #print 'Sequence: ', seqRecords[geneName].description
+
+            # Parse the organism name from the fasta header (2nd field in record.description in the foramat returned by retrieveTargets):
+            headrFields = seqRecords[geneName].description.split()
+            #print 'headrFields:', headrFields[1]
+            # Get the representative reference target:
+            representativeReferenceTarget = findReferenceTarget(analysisDatabase, geneName, headrFields[1])
+            if representativeReferenceTarget is None:
+                raise StandardError, 'unknown reference target for geneName = %s, organismName = %s' % (geneName, headrFields[1])
 
             # Store the md5sum of each sequence for sample-gene version control:
             md5Seq = hashlib.md5()
@@ -1192,7 +1218,7 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, new
             md5sum = md5Seq.hexdigest()
             #print 'seq record md5sum:', md5sum
 
-            recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery=contigRecovery, paftolGene=paftolGeneDict[geneName], seqLength=len(seqRecords[geneName]), md5sum=md5sum, representativeReferenceTarget=None)
+            recoveredContig = paftol.database.analysis.RecoveredContig(contigRecovery=contigRecovery, paftolGene=paftolGeneDict[geneName], seqLength=len(seqRecords[geneName]), md5sum=md5sum, representativeReferenceTarget=representativeReferenceTarget)
             recoveredContigList.append(recoveredContig)
             RC_Countr += 1
     contigRecovery.numRecoveredContigsCheck = RC_Countr
