@@ -641,7 +641,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     newDatasetSequence = None           # Paul B. added - new table object for any data set type
     idSequencing = None                 # Paul B. added - used later in method so needs to be global (?)
     if dataOriginAcronym == 'PAFTOL':   # Paul B. added
-        idSequencing, orientation = parseCanonicalSymlink(fastqFname)
+        idSequencing, orientation = parseCanonicalSymlink(fastqFnameList[0])
         print 'idSequencing: ', idSequencing , 'orientation: ', orientation
         #newPaftolSequence = paftol.database.analysis.PaftolSequence(idSequencing=idSequencing, replicate=None)
         if idSequencing is not None:    # idSequencing may not be found
