@@ -589,11 +589,13 @@ def rawFilenameStats(filename=None):
 
 
 def findSequence(productionDatabase, sampleId):
-    ''' Paul B added - Finds a row in the PAFTOL db Sequence table corresponding to the sample Id in the ExternalSequenceID column
+    ''' Paul B added - Finds a row in the PAFTOL db Sequence table corresponding to the sample Id in the ExternalSequenceID column.
+        Not used for the PAFTOL data set.
 
     NB - 29.10.2020 - what happens if there are > 1 Sequence entries for the same ExternalSequenceID?
     Then this loop woud have to return a dict of them all then exit if keys > 1 OR pick the one with the largest idSequencing 
     which would be the most recent sequencing. OK for now though.
+    29.6.2021 - modified to identify unique samples so that only idSequencing ids for merged duplicate samples and non-duplicate samples are returned. 
 
     NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object!
     NB - If the production database is updated with extra rows, unless these rows are required, it seems that the db API doesn't need to be remade.
@@ -601,7 +603,9 @@ def findSequence(productionDatabase, sampleId):
     Returns a matching sequence table row object if one exists or None
     '''
     for sequence in productionDatabase.sequenceDict.values():   # returns a copy of all dict VALUES i.e. a Sequence row object
-        if sequence.externalSequenceId == sampleId:
+        # Paul B. - now testing the IsMerged and HashDuplicate columns so only idSequencing ids for merged duplicate samples and non-duplicate samples are returned   
+        #if sequence.externalSequenceId == sampleId:
+        if sequence.externalSequenceId == sampleId and ( (sequence.IsMerged == 0 and sequence.HasDuplicate == 0) or (sequence.IsMerged == 1 and sequence.HasDuplicate == 1) ):
             return sequence
     return None
 
@@ -923,6 +927,10 @@ def findContigRecoveryForFastqFname(analysisDatabase, fastqFname):
     fastqFile = findFastqFile(analysisDatabase, fastqFname)
     if fastqFile is None:
         return None
+
+
+
+
     if len(fastqFile.contigRecoveryFwdFastqList) + len(fastqFile.contigRecoveryRevFastqList) > 1:
         raise StandardError, 'multiple ContigRecovery instances for %s: %s' % (fastqFname, ', '.join(['%d' % cr.id for cr in fastqFile.contigRecoveryFwdFastqList +  fastqFile.contigRecoveryRevFastqList]))
     if len(fastqFile.contigRecoveryFwdFastqList) == 1:

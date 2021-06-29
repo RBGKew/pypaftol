@@ -132,6 +132,22 @@ class DataSource(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class DecisionReason(object):
+
+    def __init__(self, decisionReason=None):
+        self.idDecisionReason = None
+        self.decisionReason = decisionReason
+        # one-to-many
+        # fk_SequenceDataRelease_DecisionReason: SequenceDataRelease.idDecisionReason REFERENCES DecisionReason(idDecisionReason)
+        self.sequenceDataReleaseDecisionReasonList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `DecisionReason` (`DecisionReason`) VALUES (%s)'
+        l = []
+        l.append(self.decisionReason)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class ExtractionType(object):
 
     def __init__(self, extractionType=None):
@@ -372,35 +388,39 @@ class MigrationsLog(object):
 
 class Museum(object):
 
-    def __init__(self, museumId=None, museumName=None):
+    def __init__(self, museumId=None, museumName=None, museumUrL=None):
         self.idMuseumId = None
         self.museumId = museumId
         self.museumName = museumName
+        self.museumUrL = museumUrL
         # one-to-many
         # fk_idMuseumID: Specimen.idMuseumID REFERENCES Museum(idMuseumID)
         self.specimenMuseumIdList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `Museum` (`MuseumID`, `MuseumName`) VALUES (%s, %s)'
+        sqlCmd = 'INSERT INTO `Museum` (`MuseumID`, `MuseumName`, `MuseumURL`) VALUES (%s, %s, %s)'
         l = []
         l.append(self.museumId)
         l.append(self.museumName)
+        l.append(self.museumUrL)
         cursor.execute(sqlCmd, tuple(l))
 
 
 class Order(object):
 
-    def __init__(self, order=None):
+    def __init__(self, order=None, gymnosperm=None):
         self.idOrder = None
         self.order = order
+        self.gymnosperm = gymnosperm
         # one-to-many
         # OrderLink: Family.idOrder REFERENCES Order(idOrder)
         self.familyOrderList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `Order` (`Order`) VALUES (%s)'
+        sqlCmd = 'INSERT INTO `Order` (`Order`, `Gymnosperm`) VALUES (%s, %s)'
         l = []
         l.append(self.order)
+        l.append(self.gymnosperm)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -496,9 +516,12 @@ class Sample(object):
 
 class Sequence(object):
 
-    def __init__(self, sequenceId=None, library=None, platform=None, location=None, sequencingRun=None, numInferredCds=None, medianHybpiperCdsLength=None, status=None, hybridisationPool=None, r2FastqFile=None, r1FastqFile=None, blacklisted=None, blacklistedReason=None, sequencingStrategy=None, enaExpNumber=None, enaRunNumber=None, externalSequenceId=None):
+    def __init__(self, sequenceId=None, externalSequenceId=None, hasDuplicate=None, isMerged=None, library=None, platform=None, location=None, sequencingRun=None, numInferredCds=None, medianHybpiperCdsLength=None, status=None, hybridisationPool=None, r2FastqFile=None, r1FastqFile=None, blacklisted=None, blacklistedReason=None, sequencingStrategy=None, enaExpNumber=None, enaRunNumber=None, suspiciousPlacement=None):
         self.idSequencing = None
         self.sequenceId = sequenceId
+        self.externalSequenceId = externalSequenceId
+        self.hasDuplicate = hasDuplicate
+        self.isMerged = isMerged
         self.library = library
         self.platform = platform
         self.location = location
@@ -514,15 +537,22 @@ class Sequence(object):
         self.sequencingStrategy = sequencingStrategy
         self.enaExpNumber = enaExpNumber
         self.enaRunNumber = enaRunNumber
-        self.externalSequenceId = externalSequenceId
+        self.suspiciousPlacement = suspiciousPlacement
         # one-to-many
         # fk_SequenceDataRelease_Sequence: SequenceDataRelease.idSequencing REFERENCES Sequence(idSequencing)
         self.sequenceDataReleaseSequencingList = []
+        # fk_SequenceGeneStats_Sequence: SequenceGeneStats.idSequencing REFERENCES Sequence(idSequencing)
+        self.sequenceGeneStatsSequencingList = []
+        # fk_SequenceRawReads_Sequence: SequenceRawReads.idSequencing REFERENCES Sequence(idSequencing)
+        self.sequenceRawReadsSequencingList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `Sequence` (`SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `ExternalSequenceID`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Sequence` (`SequenceID`, `ExternalSequenceID`, `HasDuplicate`, `IsMerged`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `SuspiciousPlacement`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(self.sequenceId)
+        l.append(self.externalSequenceId)
+        l.append(self.hasDuplicate)
+        l.append(self.isMerged)
         l.append(None if self.library is None else self.library.idLibrary)
         l.append(None if self.platform is None else self.platform.idPlatform)
         l.append(None if self.location is None else self.location.idLocation)
@@ -538,23 +568,85 @@ class Sequence(object):
         l.append(None if self.sequencingStrategy is None else self.sequencingStrategy.idSequencingStrategy)
         l.append(self.enaExpNumber)
         l.append(self.enaRunNumber)
-        l.append(self.externalSequenceId)
+        l.append(self.suspiciousPlacement)
         cursor.execute(sqlCmd, tuple(l))
 
 
 class SequenceDataRelease(object):
 
-    def __init__(self, sequencing=None, dataRelease=None):
+    def __init__(self, sequencing=None, dataRelease=None, barcodeValidation=None, phylogeneticValidation=None, validationResult=None, decisionReason=None, validationComments=None):
         self.idSequenceDataRelease = None
         self.sequencing = sequencing
         self.dataRelease = dataRelease
+        self.barcodeValidation = barcodeValidation
+        self.phylogeneticValidation = phylogeneticValidation
+        self.validationResult = validationResult
+        self.decisionReason = decisionReason
+        self.validationComments = validationComments
         # one-to-many
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `SequenceDataRelease` (`idSequencing`, `idDataRelease`) VALUES (%s, %s)'
+        sqlCmd = 'INSERT INTO `SequenceDataRelease` (`idSequencing`, `idDataRelease`, `idBarcodeValidation`, `idPhylogeneticValidation`, `idValidationResult`, `idDecisionReason`, `ValidationComments`) VALUES (%s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.sequencing is None else self.sequencing.idSequencing)
         l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
+        l.append(None if self.barcodeValidation is None else self.barcodeValidation.idTestResult)
+        l.append(None if self.phylogeneticValidation is None else self.phylogeneticValidation.idTestResult)
+        l.append(None if self.validationResult is None else self.validationResult.idValidationResult)
+        l.append(None if self.decisionReason is None else self.decisionReason.idDecisionReason)
+        l.append(self.validationComments)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class SequenceGeneStats(object):
+
+    def __init__(self, sequencing=None, numRecoveredGenes=None, sumContigLength=None):
+        self.id = None
+        self.sequencing = sequencing
+        self.numRecoveredGenes = numRecoveredGenes
+        self.sumContigLength = sumContigLength
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `SequenceGeneStats` (`idSequencing`, `NumRecoveredGenes`, `SumContigLength`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(None if self.sequencing is None else self.sequencing.idSequencing)
+        l.append(self.numRecoveredGenes)
+        l.append(self.sumContigLength)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class SequenceInputSequence(object):
+
+    def __init__(self, idInputSequence=None, idSequencing=None, source=None):
+        self.id = None
+        self.idInputSequence = idInputSequence
+        self.idSequencing = idSequencing
+        self.source = source
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `SequenceInputSequence` (`idInputSequence`, `idSequencing`, `Source`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.idInputSequence)
+        l.append(self.idSequencing)
+        l.append(self.source)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class SequenceRawReads(object):
+
+    def __init__(self, sequencing=None, numReads=None):
+        self.id = None
+        self.sequencing = sequencing
+        self.numReads = numReads
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `SequenceRawReads` (`idSequencing`, `NumReads`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.sequencing is None else self.sequencing.idSequencing)
+        l.append(self.numReads)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -626,11 +718,12 @@ class Species(object):
 
 class Specimen(object):
 
-    def __init__(self, genus=None, idPaftol=None, species=None, bankId=None, lcd=None, msb=None, collector=None, collectorNo=None, voucherNo=None, museumBarcode=None, oldSpeciesName=None, sourceSpecimen=None, project=None, idOriginCountry=None, materialSource=None, ageOfMaterial=None, museumId=None, specimenReference=None):
+    def __init__(self, genus=None, idPaftol=None, species=None, kewId=None, bankId=None, lcd=None, msb=None, collector=None, collectorNo=None, voucherNo=None, museumBarcode=None, oldSpeciesName=None, sourceSpecimen=None, project=None, idOriginCountry=None, materialSource=None, ageOfMaterial=None, museumId=None, specimenReference=None):
         self.idSpecimen = None
         self.genus = genus
         self.idPaftol = idPaftol
         self.species = species
+        self.kewId = kewId
         self.bankId = bankId
         self.lcd = lcd
         self.msb = msb
@@ -658,11 +751,12 @@ class Specimen(object):
         # no python attribute: SourceSpecimen
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `Specimen` (`idGenus`, `idPaftol`, `idSpecies`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `idOriginCountry`, `idMaterialSource`, `AgeOfMaterial`, `idMuseumID`, `SpecimenReference`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `Specimen` (`idGenus`, `idPaftol`, `idSpecies`, `KewID`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `idOriginCountry`, `idMaterialSource`, `AgeOfMaterial`, `idMuseumID`, `SpecimenReference`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.genus is None else self.genus.idGenus)
         l.append(self.idPaftol)
         l.append(None if self.species is None else self.species.idSpecies)
+        l.append(self.kewId)
         l.append(self.bankId)
         l.append(self.lcd)
         l.append(self.msb)
@@ -751,6 +845,40 @@ class Status(object):
         sqlCmd = 'INSERT INTO `Status` (`Status`) VALUES (%s)'
         l = []
         l.append(self.status)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class TestResult(object):
+
+    def __init__(self, testResult=None):
+        self.idTestResult = None
+        self.testResult = testResult
+        # one-to-many
+        # fk_SequenceDataRelease_TestResult_barcode: SequenceDataRelease.idBarcodeValidation REFERENCES TestResult(idBarcodeValidation)
+        self.sequenceDataReleaseBarcodeValidationList = []
+        # fk_SequenceDataRelease_TestResult_phylogenetic: SequenceDataRelease.idPhylogeneticValidation REFERENCES TestResult(idPhylogeneticValidation)
+        self.sequenceDataReleasePhylogeneticValidationList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `TestResult` (`TestResult`) VALUES (%s)'
+        l = []
+        l.append(self.testResult)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class ValidationResult(object):
+
+    def __init__(self, validationResult=None):
+        self.idValidationResult = None
+        self.validationResult = validationResult
+        # one-to-many
+        # fk_SequenceDataRelease_ValidationResult: SequenceDataRelease.idValidationResult REFERENCES ValidationResult(idValidationResult)
+        self.sequenceDataReleaseValidationResultList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `ValidationResult` (`ValidationResult`) VALUES (%s)'
+        l = []
+        l.append(self.validationResult)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -886,6 +1014,20 @@ def loadDataSourceDict(connection, productionDatabase):
         entity.idDataSource = paftol.database.intOrNone(row[0])
         entity.dataSource = paftol.database.strOrNone(row[1])
         entityDict[entity.idDataSource] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadDecisionReasonDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idDecisionReason`, `DecisionReason` FROM `DecisionReason`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = DecisionReason()
+        entity.idDecisionReason = paftol.database.intOrNone(row[0])
+        entity.decisionReason = paftol.database.strOrNone(row[1])
+        entityDict[entity.idDecisionReason] = entity
     cursor.close()
     return entityDict
 
@@ -1138,13 +1280,14 @@ def loadMigrationsLogDict(connection, productionDatabase):
 def loadMuseumDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idMuseumID`, `MuseumID`, `MuseumName` FROM `Museum`'
+    sqlStatement = 'SELECT `idMuseumID`, `MuseumID`, `MuseumName`, `MuseumURL` FROM `Museum`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Museum()
         entity.idMuseumId = paftol.database.intOrNone(row[0])
         entity.museumId = paftol.database.strOrNone(row[1])
         entity.museumName = paftol.database.strOrNone(row[2])
+        entity.museumUrL = paftol.database.strOrNone(row[3])
         entityDict[entity.idMuseumId] = entity
     cursor.close()
     return entityDict
@@ -1153,12 +1296,13 @@ def loadMuseumDict(connection, productionDatabase):
 def loadOrderDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idOrder`, `Order` FROM `Order`'
+    sqlStatement = 'SELECT `idOrder`, `Order`, `Gymnosperm` FROM `Order`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Order()
         entity.idOrder = paftol.database.intOrNone(row[0])
         entity.order = paftol.database.strOrNone(row[1])
+        entity.gymnosperm = paftol.database.intOrNone(row[2])
         entityDict[entity.idOrder] = entity
     cursor.close()
     return entityDict
@@ -1290,14 +1434,17 @@ def loadSampleDict(connection, productionDatabase):
 def loadSequenceDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSequencing`, `SequenceID`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `ExternalSequenceID` FROM `Sequence`'
+    sqlStatement = 'SELECT `idSequencing`, `SequenceID`, `ExternalSequenceID`, `HasDuplicate`, `IsMerged`, `idLibrary`, `idPlatform`, `idLocation`, `SequencingRun`, `NumInferredCds`, `MedianHybpiperCdsLength`, `idStatus`, `HybridisationPool`, `R2FastqFile`, `R1FastqFile`, `Blacklisted`, `idBlacklistedReason`, `idSequencingStrategy`, `ENAExpNumber`, `ENARunNumber`, `SuspiciousPlacement` FROM `Sequence`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Sequence()
         entity.idSequencing = paftol.database.intOrNone(row[0])
         entity.sequenceId = paftol.database.intOrNone(row[1])
+        entity.externalSequenceId = paftol.database.strOrNone(row[2])
+        entity.hasDuplicate = paftol.database.intOrNone(row[3])
+        entity.isMerged = paftol.database.intOrNone(row[4])
         # many to one: library
-        entityId = paftol.database.intOrNone(row[2])
+        entityId = paftol.database.intOrNone(row[5])
         if entityId is None:
             entity.library = None
         elif entityId not in productionDatabase.libraryDict:
@@ -1307,7 +1454,7 @@ def loadSequenceDict(connection, productionDatabase):
             # type: int, name: idLibrary, foreignTable: Library, foreignColumn: idLibrary
             entity.library.sequenceLibraryList.append(entity)
         # many to one: platform
-        entityId = paftol.database.intOrNone(row[3])
+        entityId = paftol.database.intOrNone(row[6])
         if entityId is None:
             entity.platform = None
         elif entityId not in productionDatabase.platformDict:
@@ -1317,7 +1464,7 @@ def loadSequenceDict(connection, productionDatabase):
             # type: int, name: idPlatform, foreignTable: Platform, foreignColumn: idPlatform
             entity.platform.sequencePlatformList.append(entity)
         # many to one: location
-        entityId = paftol.database.intOrNone(row[4])
+        entityId = paftol.database.intOrNone(row[7])
         if entityId is None:
             entity.location = None
         elif entityId not in productionDatabase.locationDict:
@@ -1326,11 +1473,11 @@ def loadSequenceDict(connection, productionDatabase):
             entity.location = productionDatabase.locationDict[entityId]
             # type: int, name: idLocation, foreignTable: Location, foreignColumn: idLocation
             entity.location.sequenceLocationList.append(entity)
-        entity.sequencingRun = paftol.database.strOrNone(row[5])
-        entity.numInferredCds = paftol.database.intOrNone(row[6])
-        entity.medianHybpiperCdsLength = paftol.database.floatOrNone(row[7])
+        entity.sequencingRun = paftol.database.strOrNone(row[8])
+        entity.numInferredCds = paftol.database.intOrNone(row[9])
+        entity.medianHybpiperCdsLength = paftol.database.floatOrNone(row[10])
         # many to one: status
-        entityId = paftol.database.intOrNone(row[8])
+        entityId = paftol.database.intOrNone(row[11])
         if entityId is None:
             entity.status = None
         elif entityId not in productionDatabase.statusDict:
@@ -1339,12 +1486,12 @@ def loadSequenceDict(connection, productionDatabase):
             entity.status = productionDatabase.statusDict[entityId]
             # type: int, name: idStatus, foreignTable: Status, foreignColumn: idStatus
             entity.status.sequenceStatusList.append(entity)
-        entity.hybridisationPool = paftol.database.strOrNone(row[9])
-        entity.r2FastqFile = paftol.database.strOrNone(row[10])
-        entity.r1FastqFile = paftol.database.strOrNone(row[11])
-        entity.blacklisted = paftol.database.intOrNone(row[12])
+        entity.hybridisationPool = paftol.database.strOrNone(row[12])
+        entity.r2FastqFile = paftol.database.strOrNone(row[13])
+        entity.r1FastqFile = paftol.database.strOrNone(row[14])
+        entity.blacklisted = paftol.database.intOrNone(row[15])
         # many to one: blacklistedReason
-        entityId = paftol.database.intOrNone(row[13])
+        entityId = paftol.database.intOrNone(row[16])
         if entityId is None:
             entity.blacklistedReason = None
         elif entityId not in productionDatabase.blacklistedReasonDict:
@@ -1354,7 +1501,7 @@ def loadSequenceDict(connection, productionDatabase):
             # type: int, name: idBlacklistedReason, foreignTable: BlacklistedReason, foreignColumn: idBlacklistedReason
             entity.blacklistedReason.sequenceBlacklistedReasonList.append(entity)
         # many to one: sequencingStrategy
-        entityId = paftol.database.intOrNone(row[14])
+        entityId = paftol.database.intOrNone(row[17])
         if entityId is None:
             entity.sequencingStrategy = None
         elif entityId not in productionDatabase.sequencingStrategyDict:
@@ -1363,9 +1510,9 @@ def loadSequenceDict(connection, productionDatabase):
             entity.sequencingStrategy = productionDatabase.sequencingStrategyDict[entityId]
             # type: int, name: idSequencingStrategy, foreignTable: SequencingStrategy, foreignColumn: idSequencingStrategy
             entity.sequencingStrategy.sequenceSequencingStrategyList.append(entity)
-        entity.enaExpNumber = paftol.database.strOrNone(row[15])
-        entity.enaRunNumber = paftol.database.strOrNone(row[16])
-        entity.externalSequenceId = paftol.database.strOrNone(row[17])
+        entity.enaExpNumber = paftol.database.strOrNone(row[18])
+        entity.enaRunNumber = paftol.database.strOrNone(row[19])
+        entity.suspiciousPlacement = paftol.database.intOrNone(row[20])
         entityDict[entity.idSequencing] = entity
     cursor.close()
     return entityDict
@@ -1374,7 +1521,7 @@ def loadSequenceDict(connection, productionDatabase):
 def loadSequenceDataReleaseDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSequenceDataRelease`, `idSequencing`, `idDataRelease` FROM `SequenceDataRelease`'
+    sqlStatement = 'SELECT `idSequenceDataRelease`, `idSequencing`, `idDataRelease`, `idBarcodeValidation`, `idPhylogeneticValidation`, `idValidationResult`, `idDecisionReason`, `ValidationComments` FROM `SequenceDataRelease`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SequenceDataRelease()
@@ -1399,7 +1546,113 @@ def loadSequenceDataReleaseDict(connection, productionDatabase):
             entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
             # type: int, name: idDataRelease, foreignTable: DataRelease, foreignColumn: idDataRelease
             entity.dataRelease.sequenceDataReleaseDataReleaseList.append(entity)
+        # many to one: barcodeValidation
+        entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.barcodeValidation = None
+        elif entityId not in productionDatabase.testResultDict:
+            raise StandardError, 'no TestResult entity with idTestResult = %d' % entityId
+        else:
+            entity.barcodeValidation = productionDatabase.testResultDict[entityId]
+            # type: int, name: idBarcodeValidation, foreignTable: TestResult, foreignColumn: idTestResult
+            entity.barcodeValidation.sequenceDataReleaseBarcodeValidationList.append(entity)
+        # many to one: phylogeneticValidation
+        entityId = paftol.database.intOrNone(row[4])
+        if entityId is None:
+            entity.phylogeneticValidation = None
+        elif entityId not in productionDatabase.testResultDict:
+            raise StandardError, 'no TestResult entity with idTestResult = %d' % entityId
+        else:
+            entity.phylogeneticValidation = productionDatabase.testResultDict[entityId]
+            # type: int, name: idPhylogeneticValidation, foreignTable: TestResult, foreignColumn: idTestResult
+            entity.phylogeneticValidation.sequenceDataReleasePhylogeneticValidationList.append(entity)
+        # many to one: validationResult
+        entityId = paftol.database.intOrNone(row[5])
+        if entityId is None:
+            entity.validationResult = None
+        elif entityId not in productionDatabase.validationResultDict:
+            raise StandardError, 'no ValidationResult entity with idValidationResult = %d' % entityId
+        else:
+            entity.validationResult = productionDatabase.validationResultDict[entityId]
+            # type: int, name: idValidationResult, foreignTable: ValidationResult, foreignColumn: idValidationResult
+            entity.validationResult.sequenceDataReleaseValidationResultList.append(entity)
+        # many to one: decisionReason
+        entityId = paftol.database.intOrNone(row[6])
+        if entityId is None:
+            entity.decisionReason = None
+        elif entityId not in productionDatabase.decisionReasonDict:
+            raise StandardError, 'no DecisionReason entity with idDecisionReason = %d' % entityId
+        else:
+            entity.decisionReason = productionDatabase.decisionReasonDict[entityId]
+            # type: int, name: idDecisionReason, foreignTable: DecisionReason, foreignColumn: idDecisionReason
+            entity.decisionReason.sequenceDataReleaseDecisionReasonList.append(entity)
+        entity.validationComments = paftol.database.strOrNone(row[7])
         entityDict[entity.idSequenceDataRelease] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadSequenceGeneStatsDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `idSequencing`, `NumRecoveredGenes`, `SumContigLength` FROM `SequenceGeneStats`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = SequenceGeneStats()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: sequencing
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.sequencing = None
+        elif entityId not in productionDatabase.sequenceDict:
+            raise StandardError, 'no Sequence entity with idSequencing = %d' % entityId
+        else:
+            entity.sequencing = productionDatabase.sequenceDict[entityId]
+            # type: int, name: idSequencing, foreignTable: Sequence, foreignColumn: idSequencing
+            entity.sequencing.sequenceGeneStatsSequencingList.append(entity)
+        entity.numRecoveredGenes = paftol.database.intOrNone(row[2])
+        entity.sumContigLength = paftol.database.floatOrNone(row[3])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadSequenceInputSequenceDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `idInputSequence`, `idSequencing`, `Source` FROM `SequenceInputSequence`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = SequenceInputSequence()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.idInputSequence = paftol.database.intOrNone(row[1])
+        entity.idSequencing = paftol.database.intOrNone(row[2])
+        entity.source = paftol.database.strOrNone(row[3])
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadSequenceRawReadsDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `idSequencing`, `NumReads` FROM `SequenceRawReads`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = SequenceRawReads()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: sequencing
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.sequencing = None
+        elif entityId not in productionDatabase.sequenceDict:
+            raise StandardError, 'no Sequence entity with idSequencing = %d' % entityId
+        else:
+            entity.sequencing = productionDatabase.sequenceDict[entityId]
+            # type: int, name: idSequencing, foreignTable: Sequence, foreignColumn: idSequencing
+            entity.sequencing.sequenceRawReadsSequencingList.append(entity)
+        entity.numReads = paftol.database.intOrNone(row[2])
+        entityDict[entity.id] = entity
     cursor.close()
     return entityDict
 
@@ -1464,7 +1717,7 @@ def loadSpeciesDict(connection, productionDatabase):
 def loadSpecimenDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `idOriginCountry`, `idMaterialSource`, `AgeOfMaterial`, `idMuseumID`, `SpecimenReference` FROM `Specimen`'
+    sqlStatement = 'SELECT `idSpecimen`, `idGenus`, `idPaftol`, `idSpecies`, `KewID`, `BankID`, `LCD`, `MSB`, `Collector`, `CollectorNo`, `VoucherNo`, `MuseumBarcode`, `OldSpeciesName`, `idSourceSpecimen`, `idProject`, `idOriginCountry`, `idMaterialSource`, `AgeOfMaterial`, `idMuseumID`, `SpecimenReference` FROM `Specimen`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = Specimen()
@@ -1490,16 +1743,17 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.species = productionDatabase.speciesDict[entityId]
             # type: int, name: idSpecies, foreignTable: Species, foreignColumn: idSpecies
             entity.species.specimenSpeciesList.append(entity)
-        entity.bankId = paftol.database.intOrNone(row[4])
-        entity.lcd = paftol.database.strOrNone(row[5])
-        entity.msb = paftol.database.intOrNone(row[6])
-        entity.collector = paftol.database.strOrNone(row[7])
-        entity.collectorNo = paftol.database.strOrNone(row[8])
-        entity.voucherNo = paftol.database.strOrNone(row[9])
-        entity.museumBarcode = paftol.database.strOrNone(row[10])
-        entity.oldSpeciesName = paftol.database.strOrNone(row[11])
+        entity.kewId = paftol.database.strOrNone(row[4])
+        entity.bankId = paftol.database.intOrNone(row[5])
+        entity.lcd = paftol.database.strOrNone(row[6])
+        entity.msb = paftol.database.intOrNone(row[7])
+        entity.collector = paftol.database.strOrNone(row[8])
+        entity.collectorNo = paftol.database.strOrNone(row[9])
+        entity.voucherNo = paftol.database.strOrNone(row[10])
+        entity.museumBarcode = paftol.database.strOrNone(row[11])
+        entity.oldSpeciesName = paftol.database.strOrNone(row[12])
         # many to one: sourceSpecimen
-        entityId = paftol.database.intOrNone(row[12])
+        entityId = paftol.database.intOrNone(row[13])
         if entityId is None:
             entity.sourceSpecimen = None
         elif entityId not in productionDatabase.sourceSpecimenDict:
@@ -1509,7 +1763,7 @@ def loadSpecimenDict(connection, productionDatabase):
             # type: int, name: idSourceSpecimen, foreignTable: SourceSpecimen, foreignColumn: idSourceSpecimen
             entity.sourceSpecimen.specimenSourceSpecimenList.append(entity)
         # many to one: project
-        entityId = paftol.database.intOrNone(row[13])
+        entityId = paftol.database.intOrNone(row[14])
         if entityId is None:
             entity.project = None
         elif entityId not in productionDatabase.projectDict:
@@ -1518,9 +1772,9 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.project = productionDatabase.projectDict[entityId]
             # type: int, name: idProject, foreignTable: Project, foreignColumn: idProject
             entity.project.specimenProjectList.append(entity)
-        entity.idOriginCountry = paftol.database.intOrNone(row[14])
+        entity.idOriginCountry = paftol.database.intOrNone(row[15])
         # many to one: materialSource
-        entityId = paftol.database.intOrNone(row[15])
+        entityId = paftol.database.intOrNone(row[16])
         if entityId is None:
             entity.materialSource = None
         elif entityId not in productionDatabase.materialSourceDict:
@@ -1529,9 +1783,9 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.materialSource = productionDatabase.materialSourceDict[entityId]
             # type: int, name: idMaterialSource, foreignTable: MaterialSource, foreignColumn: idMaterialSource
             entity.materialSource.specimenMaterialSourceList.append(entity)
-        entity.ageOfMaterial = paftol.database.intOrNone(row[16])
+        entity.ageOfMaterial = paftol.database.intOrNone(row[17])
         # many to one: museumId
-        entityId = paftol.database.intOrNone(row[17])
+        entityId = paftol.database.intOrNone(row[18])
         if entityId is None:
             entity.museumId = None
         elif entityId not in productionDatabase.museumDict:
@@ -1540,7 +1794,7 @@ def loadSpecimenDict(connection, productionDatabase):
             entity.museumId = productionDatabase.museumDict[entityId]
             # type: int, name: idMuseumID, foreignTable: Museum, foreignColumn: idMuseumID
             entity.museumId.specimenMuseumIdList.append(entity)
-        entity.specimenReference = paftol.database.strOrNone(row[18])
+        entity.specimenReference = paftol.database.strOrNone(row[19])
         entityDict[entity.idSpecimen] = entity
     cursor.close()
     return entityDict
@@ -1644,6 +1898,34 @@ def loadStatusDict(connection, productionDatabase):
     return entityDict
 
 
+def loadTestResultDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idTestResult`, `TestResult` FROM `TestResult`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = TestResult()
+        entity.idTestResult = paftol.database.intOrNone(row[0])
+        entity.testResult = paftol.database.strOrNone(row[1])
+        entityDict[entity.idTestResult] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadValidationResultDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `idValidationResult`, `ValidationResult` FROM `ValidationResult`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = ValidationResult()
+        entity.idValidationResult = paftol.database.intOrNone(row[0])
+        entity.validationResult = paftol.database.strOrNone(row[1])
+        entityDict[entity.idValidationResult] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadIso_country_3166_1Dict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -1678,6 +1960,7 @@ class ProductionDatabase(object):
         self.dNAVolumeDict = {}
         self.dataReleaseDict = {}
         self.dataSourceDict = {}
+        self.decisionReasonDict = {}
         self.extractionTypeDict = {}
         self.familyDict = {}
         self.geneStatsDict = {}
@@ -1696,6 +1979,9 @@ class ProductionDatabase(object):
         self.sampleDict = {}
         self.sequenceDict = {}
         self.sequenceDataReleaseDict = {}
+        self.sequenceGeneStatsDict = {}
+        self.sequenceInputSequenceDict = {}
+        self.sequenceRawReadsDict = {}
         self.sequencingStrategyDict = {}
         self.sourceDict = {}
         self.sourceSpecimenDict = {}
@@ -1705,6 +1991,8 @@ class ProductionDatabase(object):
         self.specimenGeneStatsDict = {}
         self.specimenRawReadsDict = {}
         self.statusDict = {}
+        self.testResultDict = {}
+        self.validationResultDict = {}
         self.iso_country_3166_1Dict = {}
         self.actionDict = loadActionDict(connection, self)
         self.blacklistedReasonDict = loadBlacklistedReasonDict(connection, self)
@@ -1713,6 +2001,7 @@ class ProductionDatabase(object):
         self.dNAVolumeDict = loadDNAVolumeDict(connection, self)
         self.dataReleaseDict = loadDataReleaseDict(connection, self)
         self.dataSourceDict = loadDataSourceDict(connection, self)
+        self.decisionReasonDict = loadDecisionReasonDict(connection, self)
         self.extractionTypeDict = loadExtractionTypeDict(connection, self)
         self.orderDict = loadOrderDict(connection, self)
         self.familyDict = loadFamilyDict(connection, self)
@@ -1736,7 +2025,12 @@ class ProductionDatabase(object):
         self.platformDict = loadPlatformDict(connection, self)
         self.sequencingStrategyDict = loadSequencingStrategyDict(connection, self)
         self.sequenceDict = loadSequenceDict(connection, self)
+        self.testResultDict = loadTestResultDict(connection, self)
+        self.validationResultDict = loadValidationResultDict(connection, self)
         self.sequenceDataReleaseDict = loadSequenceDataReleaseDict(connection, self)
+        self.sequenceGeneStatsDict = loadSequenceGeneStatsDict(connection, self)
+        self.sequenceInputSequenceDict = loadSequenceInputSequenceDict(connection, self)
+        self.sequenceRawReadsDict = loadSequenceRawReadsDict(connection, self)
         self.specimenDataReleaseDict = loadSpecimenDataReleaseDict(connection, self)
         self.specimenGeneStatsDict = loadSpecimenGeneStatsDict(connection, self)
         self.specimenRawReadsDict = loadSpecimenRawReadsDict(connection, self)
@@ -1751,6 +2045,7 @@ class ProductionDatabase(object):
         s = s + 'dNAVolume: %d\n' % len(self.dNAVolumeDict)
         s = s + 'dataRelease: %d\n' % len(self.dataReleaseDict)
         s = s + 'dataSource: %d\n' % len(self.dataSourceDict)
+        s = s + 'decisionReason: %d\n' % len(self.decisionReasonDict)
         s = s + 'extractionType: %d\n' % len(self.extractionTypeDict)
         s = s + 'order: %d\n' % len(self.orderDict)
         s = s + 'family: %d\n' % len(self.familyDict)
@@ -1774,7 +2069,12 @@ class ProductionDatabase(object):
         s = s + 'platform: %d\n' % len(self.platformDict)
         s = s + 'sequencingStrategy: %d\n' % len(self.sequencingStrategyDict)
         s = s + 'sequence: %d\n' % len(self.sequenceDict)
+        s = s + 'testResult: %d\n' % len(self.testResultDict)
+        s = s + 'validationResult: %d\n' % len(self.validationResultDict)
         s = s + 'sequenceDataRelease: %d\n' % len(self.sequenceDataReleaseDict)
+        s = s + 'sequenceGeneStats: %d\n' % len(self.sequenceGeneStatsDict)
+        s = s + 'sequenceInputSequence: %d\n' % len(self.sequenceInputSequenceDict)
+        s = s + 'sequenceRawReads: %d\n' % len(self.sequenceRawReadsDict)
         s = s + 'specimenDataRelease: %d\n' % len(self.specimenDataReleaseDict)
         s = s + 'specimenGeneStats: %d\n' % len(self.specimenGeneStatsDict)
         s = s + 'specimenRawReads: %d\n' % len(self.specimenRawReadsDict)
