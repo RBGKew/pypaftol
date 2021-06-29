@@ -597,7 +597,7 @@ def findSequence(productionDatabase, sampleId):
     which would be the most recent sequencing. OK for now though.
     29.6.2021 - modified to identify unique samples so that only idSequencing ids for merged duplicate samples and non-duplicate samples are returned. 
 
-    NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object!
+    NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object (changed to lower case in the dbapi - see PythonName() method)
     NB - If the production database is updated with extra rows, unless these rows are required, it seems that the db API doesn't need to be remade.
 
     Returns a matching sequence table row object if one exists or None
@@ -605,7 +605,7 @@ def findSequence(productionDatabase, sampleId):
     for sequence in productionDatabase.sequenceDict.values():   # returns a copy of all dict VALUES i.e. a Sequence row object
         # Paul B. - now testing the IsMerged and HashDuplicate columns so only idSequencing ids for merged duplicate samples and non-duplicate samples are returned   
         #if sequence.externalSequenceId == sampleId:
-        if sequence.externalSequenceId == sampleId and ( (sequence.IsMerged == 0 and sequence.HasDuplicate == 0) or (sequence.IsMerged == 1 and sequence.HasDuplicate == 1) ):
+        if sequence.externalSequenceId == sampleId and ( (sequence.isMerged == 0 and sequence.hasDuplicate == 0) or (sequence.isMerged == 1 and sequence.hasDuplicate == 1) ):
             return sequence
     return None
 
