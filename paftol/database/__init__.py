@@ -913,7 +913,7 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
             if representativeReferenceTarget is not None:   # Paul B. added
                 logger.debug('Existing reference target in db')    # Paul B. added
                 if representativeReferenceTarget.paftolTargetLength != len(paftolTarget.seqRecord): # Paul B. added
-                    logger.info('WARNING: existing reference target in db has a different length (%d bp) from a new reference target with the same name (%d) bp.', representativeReferenceTarget.paftolTargetLength, len(paftolTarget.seqRecord))    # Paul B. added
+                    logger.warning('WARNING: existing reference target in db has a different length (%d bp) from a new reference target with the same name (%d) bp.', representativeReferenceTarget.paftolTargetLength, len(paftolTarget.seqRecord))    # Paul B. added
                 refTargetAreadyInDBCountr+=1# Paul B. added
             else:   # Paul B. added
                 logger.debug('Existing reference target NOT in db')    # Paul B. added
