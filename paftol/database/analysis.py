@@ -40,7 +40,7 @@ class AnnotatedGenome(object):
 
 class ContigRecovery(object):
 
-    def __init__(self, fwdFastq=None, revFastq=None, fwdTrimmedFastqStats=None, revTrimmedFastqStats=None, contigFastaFileName=None, contigFastaFilePathName=None, contigFastaFileMd5sum=None, referenceTarget=None, numMappedReads=None, numUnmappedReads=None, softwareVersion=None, cmdLine=None, numRecoveredContigsCheck=None):
+    def __init__(self, fwdFastq=None, revFastq=None, fwdTrimmedFastqStats=None, revTrimmedFastqStats=None, contigFastaFileName=None, contigFastaFilePathName=None, contigFastaFileMd5sum=None, referenceTarget=None, numMappedReads=None, numUnmappedReads=None, softwareVersion=None, cmdLine=None, numRecoveredContigsCheck=None, recoveryRun=None):
         self.id = None
         self.fwdFastq = fwdFastq
         self.revFastq = revFastq
@@ -55,6 +55,7 @@ class ContigRecovery(object):
         self.softwareVersion = softwareVersion
         self.cmdLine = cmdLine
         self.numRecoveredContigsCheck = numRecoveredContigsCheck
+        self.recoveryRun = recoveryRun
         # one-to-many
         # fk_ContigRecoveryDataRelease_contigRecoveryId: ContigRecoveryDataRelease.contigRecoveryId REFERENCES ContigRecovery(contigRecoveryId)
         self.contigRecoveryDataReleaseContigRecoveryList = []
@@ -62,7 +63,7 @@ class ContigRecovery(object):
         self.recoveredContigContigRecoveryList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `ContigRecovery` (`fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileName`, `contigFastaFilePathName`, `contigFastaFileMd5sum`, `referenceTargetId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine`, `numRecoveredContigsCheck`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `ContigRecovery` (`fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileName`, `contigFastaFilePathName`, `contigFastaFileMd5sum`, `referenceTargetId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine`, `numRecoveredContigsCheck`, `recoveryRunId`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'
         l = []
         l.append(None if self.fwdFastq is None else self.fwdFastq.id)
         l.append(None if self.revFastq is None else self.revFastq.id)
@@ -77,6 +78,7 @@ class ContigRecovery(object):
         l.append(self.softwareVersion)
         l.append(self.cmdLine)
         l.append(self.numRecoveredContigsCheck)
+        l.append(None if self.recoveryRun is None else self.recoveryRun.id)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -127,6 +129,10 @@ class DataRelease(object):
         self.geneTreeDataReleaseDataReleaseList = []
         # fk_OneKP_SequenceDataRelease_dataReleaseId: OneKP_SequenceDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
         self.oneKP_SequenceDataReleaseDataReleaseList = []
+        # fk_RecoveryRun_dataReleaseId: RecoveryRun.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.recoveryRunDataReleaseList = []
+        # fk_RecoveryRunInDataRelease_dataReleaseId: RecoveryRunInDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
+        self.recoveryRunInDataReleaseDataReleaseList = []
         # fk_SRA_RunSequenceDataRelease_dataReleaseId: SRA_RunSequenceDataRelease.dataReleaseId REFERENCES DataRelease(dataReleaseId)
         self.srA_RunSequenceDataReleaseDataReleaseList = []
 
@@ -452,6 +458,44 @@ class RecoveredContig(object):
         cursor.execute(sqlCmd, tuple(l))
 
 
+class RecoveryRun(object):
+
+    def __init__(self, recoveryRunName=None, description=None, dataRelease=None):
+        self.id = None
+        self.recoveryRunName = recoveryRunName
+        self.description = description
+        self.dataRelease = dataRelease
+        # one-to-many
+        # fk_ContigRecovery_recoveryRunId: ContigRecovery.recoveryRunId REFERENCES RecoveryRun(recoveryRunId)
+        self.contigRecoveryRecoveryRunList = []
+        # fk_RecoveryRunInDataRelease_recoveryRunId: RecoveryRunInDataRelease.recoveryRunId REFERENCES RecoveryRun(recoveryRunId)
+        self.recoveryRunInDataReleaseRecoveryRunList = []
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `RecoveryRun` (`recoveryRunName`, `description`, `dataReleaseId`) VALUES (%s, %s, %s)'
+        l = []
+        l.append(self.recoveryRunName)
+        l.append(self.description)
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
+        cursor.execute(sqlCmd, tuple(l))
+
+
+class RecoveryRunInDataRelease(object):
+
+    def __init__(self, dataRelease=None, recoveryRun=None):
+        self.id = None
+        self.dataRelease = dataRelease
+        self.recoveryRun = recoveryRun
+        # one-to-many
+
+    def insertIntoDatabase(self, cursor):
+        sqlCmd = 'INSERT INTO `RecoveryRunInDataRelease` (`dataReleaseId`, `recoveryRunId`) VALUES (%s, %s)'
+        l = []
+        l.append(None if self.dataRelease is None else self.dataRelease.idDataRelease)
+        l.append(None if self.recoveryRun is None else self.recoveryRun.id)
+        cursor.execute(sqlCmd, tuple(l))
+
+
 class ReferenceTarget(object):
 
     def __init__(self, paftolGene=None, paftolOrganism=None, paftolTargetLength=None, targetsFastaFile=None, targetsFastaFilePathName=None, numTargetSequences=None, md5sum=None):
@@ -560,23 +604,23 @@ class SequenceType(object):
 
 class SpeciesTree(object):
 
-    def __init__(self, cmdLine=None, softwareVersion=None, newickFile=None, newickFilePathName=None):
+    def __init__(self, newickFile=None, newickFilePathName=None, cmdLine=None, softwareVersion=None):
         self.id = None
-        self.cmdLine = cmdLine
-        self.softwareVersion = softwareVersion
         self.newickFile = newickFile
         self.newickFilePathName = newickFilePathName
+        self.cmdLine = cmdLine
+        self.softwareVersion = softwareVersion
         # one-to-many
         # fk_GeneTree_speciesTreeId: GeneTree.speciesTreeId REFERENCES SpeciesTree(speciesTreeId)
         self.geneTreeSpeciesTreeList = []
 
     def insertIntoDatabase(self, cursor):
-        sqlCmd = 'INSERT INTO `SpeciesTree` (`cmdLine`, `softwareVersion`, `newickFile`, `newickFilePathName`) VALUES (%s, %s, %s, %s)'
+        sqlCmd = 'INSERT INTO `SpeciesTree` (`newickFile`, `newickFilePathName`, `cmdLine`, `softwareVersion`) VALUES (%s, %s, %s, %s)'
         l = []
-        l.append(self.cmdLine)
-        l.append(self.softwareVersion)
         l.append(self.newickFile)
         l.append(self.newickFilePathName)
+        l.append(self.cmdLine)
+        l.append(self.softwareVersion)
         cursor.execute(sqlCmd, tuple(l))
 
 
@@ -591,7 +635,7 @@ class UnannotatedGenome(object):
         self.source = source
         self.genomeVersion = genomeVersion
         # one-to-many
-        # fk_unannotatedGenomeId: InputSequence.UnannotatedGenomeId REFERENCES UnannotatedGenome(UnannotatedGenomeId)
+        # fk_InputSequence_UnannotatedGenomeId: InputSequence.UnannotatedGenomeId REFERENCES UnannotatedGenome(UnannotatedGenomeId)
         self.inputSequenceUnannotatedGenomeList = []
 
     def insertIntoDatabase(self, cursor):
@@ -628,7 +672,7 @@ def loadAnnotatedGenomeDict(connection, productionDatabase):
 def loadContigRecoveryDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileName`, `contigFastaFilePathName`, `contigFastaFileMd5sum`, `referenceTargetId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine`, `numRecoveredContigsCheck` FROM `ContigRecovery`'
+    sqlStatement = 'SELECT `id`, `fwdFastqId`, `revFastqId`, `fwdTrimmedFastqStatsId`, `revTrimmedFastqStatsId`, `contigFastaFileName`, `contigFastaFilePathName`, `contigFastaFileMd5sum`, `referenceTargetId`, `numMappedReads`, `numUnmappedReads`, `softwareVersion`, `cmdLine`, `numRecoveredContigsCheck`, `recoveryRunId` FROM `ContigRecovery`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = ContigRecovery()
@@ -691,6 +735,16 @@ def loadContigRecoveryDict(connection, productionDatabase):
         entity.softwareVersion = paftol.database.strOrNone(row[11])
         entity.cmdLine = paftol.database.strOrNone(row[12])
         entity.numRecoveredContigsCheck = paftol.database.intOrNone(row[13])
+        # many to one: recoveryRun
+        entityId = paftol.database.intOrNone(row[14])
+        if entityId is None:
+            entity.recoveryRun = None
+        elif entityId not in productionDatabase.recoveryRunDict:
+            raise StandardError, 'no RecoveryRun entity with id = %d' % entityId
+        else:
+            entity.recoveryRun = productionDatabase.recoveryRunDict[entityId]
+            # type: int, name: recoveryRunId, foreignTable: RecoveryRun, foreignColumn: id
+            entity.recoveryRun.contigRecoveryRecoveryRunList.append(entity)
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -1180,6 +1234,64 @@ def loadRecoveredContigDict(connection, productionDatabase):
     return entityDict
 
 
+def loadRecoveryRunDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `recoveryRunName`, `description`, `dataReleaseId` FROM `RecoveryRun`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = RecoveryRun()
+        entity.id = paftol.database.intOrNone(row[0])
+        entity.recoveryRunName = paftol.database.strOrNone(row[1])
+        entity.description = paftol.database.strOrNone(row[2])
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[3])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.recoveryRunDataReleaseList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
+def loadRecoveryRunInDataReleaseDict(connection, productionDatabase):
+    cursor = connection.cursor()
+    entityDict = {}
+    sqlStatement = 'SELECT `id`, `dataReleaseId`, `recoveryRunId` FROM `RecoveryRunInDataRelease`'
+    cursor.execute(sqlStatement)
+    for row in cursor:
+        entity = RecoveryRunInDataRelease()
+        entity.id = paftol.database.intOrNone(row[0])
+        # many to one: dataRelease
+        entityId = paftol.database.intOrNone(row[1])
+        if entityId is None:
+            entity.dataRelease = None
+        elif entityId not in productionDatabase.dataReleaseDict:
+            raise StandardError, 'no DataRelease entity with idDataRelease = %d' % entityId
+        else:
+            entity.dataRelease = productionDatabase.dataReleaseDict[entityId]
+            # type: int, name: dataReleaseId, foreignTable: DataRelease, foreignColumn: idDataRelease
+            entity.dataRelease.recoveryRunInDataReleaseDataReleaseList.append(entity)
+        # many to one: recoveryRun
+        entityId = paftol.database.intOrNone(row[2])
+        if entityId is None:
+            entity.recoveryRun = None
+        elif entityId not in productionDatabase.recoveryRunDict:
+            raise StandardError, 'no RecoveryRun entity with id = %d' % entityId
+        else:
+            entity.recoveryRun = productionDatabase.recoveryRunDict[entityId]
+            # type: int, name: recoveryRunId, foreignTable: RecoveryRun, foreignColumn: id
+            entity.recoveryRun.recoveryRunInDataReleaseRecoveryRunList.append(entity)
+        entityDict[entity.id] = entity
+    cursor.close()
+    return entityDict
+
+
 def loadReferenceTargetDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
@@ -1309,15 +1421,15 @@ def loadSequenceTypeDict(connection, productionDatabase):
 def loadSpeciesTreeDict(connection, productionDatabase):
     cursor = connection.cursor()
     entityDict = {}
-    sqlStatement = 'SELECT `id`, `cmdLine`, `softwareVersion`, `newickFile`, `newickFilePathName` FROM `SpeciesTree`'
+    sqlStatement = 'SELECT `id`, `newickFile`, `newickFilePathName`, `cmdLine`, `softwareVersion` FROM `SpeciesTree`'
     cursor.execute(sqlStatement)
     for row in cursor:
         entity = SpeciesTree()
         entity.id = paftol.database.intOrNone(row[0])
-        entity.cmdLine = paftol.database.strOrNone(row[1])
-        entity.softwareVersion = paftol.database.strOrNone(row[2])
-        entity.newickFile = paftol.database.strOrNone(row[3])
-        entity.newickFilePathName = paftol.database.strOrNone(row[4])
+        entity.newickFile = paftol.database.strOrNone(row[1])
+        entity.newickFilePathName = paftol.database.strOrNone(row[2])
+        entity.cmdLine = paftol.database.strOrNone(row[3])
+        entity.softwareVersion = paftol.database.strOrNone(row[4])
         entityDict[entity.id] = entity
     cursor.close()
     return entityDict
@@ -1363,6 +1475,8 @@ class AnalysisDatabase(object):
         self.paftolGeneDict = {}
         self.paftolSequenceDict = {}
         self.recoveredContigDict = {}
+        self.recoveryRunDict = {}
+        self.recoveryRunInDataReleaseDict = {}
         self.referenceTargetDict = {}
         self.replicateSequenceDict = {}
         self.sRA_RunSequenceDict = {}
@@ -1386,14 +1500,16 @@ class AnalysisDatabase(object):
         self.exemplarGeneDict = loadExemplarGeneDict(connection, self)
         self.paftolGeneDict = loadPaftolGeneDict(connection, self)
         self.referenceTargetDict = loadReferenceTargetDict(connection, self)
-        self.contigRecoveryDict = loadContigRecoveryDict(connection, self)
         self.dataReleaseDict = loadDataReleaseDict(connection, self)
+        self.recoveryRunDict = loadRecoveryRunDict(connection, self)
+        self.contigRecoveryDict = loadContigRecoveryDict(connection, self)
         self.contigRecoveryDataReleaseDict = loadContigRecoveryDataReleaseDict(connection, self)
         self.speciesTreeDict = loadSpeciesTreeDict(connection, self)
         self.geneTreeDict = loadGeneTreeDict(connection, self)
         self.geneTreeDataReleaseDict = loadGeneTreeDataReleaseDict(connection, self)
         self.oneKP_SequenceDataReleaseDict = loadOneKP_SequenceDataReleaseDict(connection, self)
         self.recoveredContigDict = loadRecoveredContigDict(connection, self)
+        self.recoveryRunInDataReleaseDict = loadRecoveryRunInDataReleaseDict(connection, self)
         self.sRA_RunSequenceDataReleaseDict = loadSRA_RunSequenceDataReleaseDict(connection, self)
 
     def __str__(self):
@@ -1414,14 +1530,16 @@ class AnalysisDatabase(object):
         s = s + 'exemplarGene: %d\n' % len(self.exemplarGeneDict)
         s = s + 'paftolGene: %d\n' % len(self.paftolGeneDict)
         s = s + 'referenceTarget: %d\n' % len(self.referenceTargetDict)
-        s = s + 'contigRecovery: %d\n' % len(self.contigRecoveryDict)
         s = s + 'dataRelease: %d\n' % len(self.dataReleaseDict)
+        s = s + 'recoveryRun: %d\n' % len(self.recoveryRunDict)
+        s = s + 'contigRecovery: %d\n' % len(self.contigRecoveryDict)
         s = s + 'contigRecoveryDataRelease: %d\n' % len(self.contigRecoveryDataReleaseDict)
         s = s + 'speciesTree: %d\n' % len(self.speciesTreeDict)
         s = s + 'geneTree: %d\n' % len(self.geneTreeDict)
         s = s + 'geneTreeDataRelease: %d\n' % len(self.geneTreeDataReleaseDict)
         s = s + 'oneKP_SequenceDataRelease: %d\n' % len(self.oneKP_SequenceDataReleaseDict)
         s = s + 'recoveredContig: %d\n' % len(self.recoveredContigDict)
+        s = s + 'recoveryRunInDataRelease: %d\n' % len(self.recoveryRunInDataReleaseDict)
         s = s + 'sRA_RunSequenceDataRelease: %d\n' % len(self.sRA_RunSequenceDataReleaseDict)
         return s
 

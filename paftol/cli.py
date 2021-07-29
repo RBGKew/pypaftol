@@ -244,7 +244,11 @@ like approach, unsing tblastn for mapping reads to targets.
 
 def runTargetRecovery(argNamespace):
     if argNamespace.usePaftolDb:
-        paftol.database.preRecoveryCheck(argNamespace.forwardreads, argNamespace.reversereads)
+        # Paul B. - now including the recovery run version/name and using kwargs
+        ### NB - preRecoveryCheck() seems to be able to accept a list of files here
+        ### but the method itself has code for only checking one file!
+        #paftol.database.preRecoveryCheck(argNamespace.forwardreads, argNamespace.reversereads)
+        paftol.database.preRecoveryCheck(forwardFastqFname=argNamespace.forwardreads, reverseFastqFname=argNamespace.reversereads, recoveryRunName=argNamespace.usePaftolDb)
     trimmomaticRunner = None
     if argNamespace.trimmer == 'trimmomatic':
         trimmomaticRunner = argToTrimmomaticRunner(argNamespace)
@@ -291,7 +295,7 @@ def runTargetRecovery(argNamespace):
         fastaFilePath = pwd + '/' + result.reconstructedCdsFastaFname
         print 'fastaFilePath: ', fastaFilePath
         result.reconstructedCdsFastaFnamePath = fastaFilePath
-        paftol.database.addRecoveryResult(result)
+        paftol.database.addRecoveryResult(result, argNamespace.usePaftolDb)
     
 
 def runOverlapAnalysis(argNamespace):
@@ -477,7 +481,7 @@ def runAddTargetsFile(argNamespace):
 def runAddPaftolFastqFiles(argNamespace):
     # Paul B. - changed to include the data origin, path to the fastq file(s), sample identifier for non-paftol data and genes from an external gene recovery
     #paftol.database.addPaftolFastqFiles(argNamespace.fastq)
-    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath, argNamespace.sampleId, argNamespace.addExternalGenes)
+    paftol.database.addPaftolFastqFiles(argNamespace.fastq, argNamespace.dataOrigin, argNamespace.fastqPath, argNamespace.sampleId, argNamespace.addExternalGenes, argNamespace.recoveryRunName)
     # NB - fastq is a list of fastq files under argNameSpace, fastqPath is a single value
 
 
@@ -568,7 +572,9 @@ def addRecoverParser(subparsers):
     p.add_argument('--mapper', choices=['tblastn', 'bwa'], help='method to be used for mapping reads to target genes', required=True)
     p.add_argument('--assembler', choices=['spades', 'overlapSerial'], help='method to be used to assemble reads mapped to a gene into contigs', required=True)
     p.add_argument('--contigFname', help='filename for contigs')
-    p.add_argument('--usePaftolDb', action='store_true', help='store results in PAFTOL database')
+    # Paul B. - changed to store the name of a specific recovery run as well as to specify to log recovery results into the analysis database: Format e.g. --usePaftolDb <run_name>
+    #p.add_argument('--usePaftolDb', action='store_true', help='store results in PAFTOL database for a specific recovery run')
+    p.add_argument('--usePaftolDb', help='store results in PAFTOL database. Need to specify a recovery run name')
     addTrimmomaticRunnerToParser(p)
     addTblastnRunnerToParser(p)
     addBwaRunnerToParser(p)    
@@ -673,7 +679,8 @@ def addAddPaftolFastqFilesParser(subparsers):
     p.add_argument('--dataOrigin', help='specify acronym for data origin: PAFTOL, OneKP_Transcripts, OneKP_Reads, SRA or AG (annotated genome)', required=True)
     p.add_argument('--fastqPath', help='path to fastq or raw fasta files (just path to filename, not including filename; assumes files are unzipped and lack the .gz suffix)')
     p.add_argument('--sampleId', help='specify the sample identifier')      # Paul B - removed: , required=True)
-    p.add_argument('--addExternalGenes', help='add info on externally recovered genes from a fasta file - please specify the full path, including the filename (NB - option only relevant to OneKP_Transcripts or genome data sets (AG and UG))')
+    p.add_argument('--addExternalGenes', help='add info on externally recovered genes from a fasta file. Specify the full path, including the filename (NB - option only relevant to OneKP_Transcripts or genome data sets (AG and UG))')
+    p.add_argument('--recoveryRunName', help='Specify a recovery run name if using --addExternalGenes option')
     p.set_defaults(func=runAddPaftolFastqFiles)
 
 
