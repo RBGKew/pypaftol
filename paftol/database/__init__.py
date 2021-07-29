@@ -952,7 +952,7 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
             if not transactionSuccessful:
                 connection.rollback()
                 # Paul B added:
-                logger.info('ERROR: commit unsucessful')
+                logger.warning('ERROR: commit unsucessful')
             cursor.close()
     finally:
         if not transactionSuccessful:
