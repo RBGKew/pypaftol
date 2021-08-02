@@ -541,6 +541,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                                 if externalGenesFile is not None:
                                     ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
                                     addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)
+###                                    
                                     ### Consider to break out of loop after proceesing [0] element
                     connection.commit()
                     transactionSuccessful = True
@@ -568,6 +569,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
             time.sleep(timeToSleep)                                                 # Paul B added
 ### TRYING TO ADD CONNECTION ASGASIN HERE:
             connection.close()      # Making certain connection is closed here
+            analysisDatabaseDetails = getAnalysisDatabaseDetails() 
             connection = analysisDatabaseDetails.makeConnection()
             analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
 
@@ -814,6 +816,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
         # Note: completely changed (improved?) the try ... except ... finally clauses written elsewhere
         if externalGenesFile is not None:
             transactionSuccessful = False
+### I COULD CLOSE THE DB ABOVE + OPEN THE DB AGAIN HERE - SIMILAR TO WHAT HAPPENS DURING A RECOVERY
             try:
                 cursor = connection.cursor(prepared=True)
                 addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)
@@ -1277,6 +1280,7 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, ext
     logger.info('inputSequence.filename: %s', inputSequence.filename)
 
     paftol.database.preRecoveryCheck(inputSequence.filename, None, recoveryRunName)
+### use preRecoveryCheckExternalGenes() method instead so as not to connect twice
     recoveryRun = findRecoveryRun(analysisDatabase, recoveryRunName)    # Returns a RecoveryRun object
 
     # Get seq records from externalGenesFile (gene recoveries) into a dict.
