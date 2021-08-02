@@ -560,7 +560,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                     print "ERROR: commit unsucessful for newPaftolSequence"      #, inputSequenceList[0].paftolSequence.id
                 #lockCursor.execute('UNLOCK TABLES')
                 #lockCursor.close()
-            connection.close()  # Paul B. added - not used here before, why not?
+####            connection.close()  # Paul B. added - not used here before, why not?
             connectionSuccessful = True    # Paul B added
             logger.warning('connectionSuccessful == %s', connectionSuccessful) # Paul B added
         except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError): # Paul B added
@@ -816,7 +816,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
         # Note: completely changed (improved?) the try ... except ... finally clauses written elsewhere
         if externalGenesFile is not None:
             transactionSuccessful = False
-### I COULD CLOSE THE DB ABOVE + OPEN THE DB AGAIN HERE - SIMILAR TO WHAT HAPPENS DURING A RECOVERY
+### I COULD CLOSE THE DB ABOVE + OPEN THE DB AGAIN HERE - SIMILAR TO WHAT HAPPENS DURING A RECOVERY, then I can add a cxn while loop here
             try:
                 cursor = connection.cursor(prepared=True)
                 addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)
