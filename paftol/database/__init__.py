@@ -494,6 +494,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
             #lockCursor = connection.cursor()
             #lockCursor.execute('LOCK TABLE PaftolFastqFile WRITE, FastqFile WRITE, FastqStats WRITE')
             try:
+#### THINK I NEED A COMPLETELY NEW CONNECTION IF IT FAILS
                 cursor = connection.cursor(prepared=True)
                 # Inserting into paftolSequence once, then id is available for both fastq files.
                 # An alternative would be to bring in the newPaftolSequence object to avoid 
@@ -565,6 +566,11 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
             timeToSleep = random.randint(1,25)                                                                                      # Paul B added
             print "Sample unable to connect to the database - retrying in ", timeToSleep, "seconds..."                              # Paul B added
             time.sleep(timeToSleep)                                                 # Paul B added
+### TRYING TO ADD CONNECTION ASGASIN HERE:
+            connection.close()      # Making certain connection is closed here
+            connection = analysisDatabaseDetails.makeConnection()
+            analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+
             connectionCountr += 1                                                   # Paul B added
             if connectionCountr > 10:                                               # Paul B added 
                 logger.warning('Tried to connect to database 10 times, giving up!') # Paul B added 
@@ -644,6 +650,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     
 
     analysisDatabaseDetails = getAnalysisDatabaseDetails()
+### DON'T CONNECT HERE - NO YOU HAVE TO CONNECT!!!!
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
     # Paul B. added to check dataOriginName with name in DataOrigin table:
@@ -1053,6 +1060,10 @@ def preRecoveryCheck(forwardFastqFname=None, reverseFastqFname=None, recoveryRun
         msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (reverseFastqFname, contigRecovery.id))
     if len(msgList) > 0:
         raise StandardError, ', '.join(msgList)
+
+
+def preRecoveryCheckExternalGenes(forwardFastqFname=None, reverseFastqFname=None, recoveryRunName=None):
+    pass
 
 
 def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
