@@ -519,7 +519,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                         #insertedPaftolFastqFile.fastqFile.id = generateUnusedPrimaryKey(cursor, 'FastqFile')
                         ###if insertedInputSequence.fastqStats is not None:
     ####
-                        logger.info('inputSequence.filename: ', inputSequence.filename)
+                        logger.info('Up to inserted inputSequence.filename')
                         if inputSequence.fastqStats is not None:
                             # Paul B. removed - now using auto_increment
                             #insertedPaftolFastqFile.fastqFile.fastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
@@ -529,7 +529,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                             inputSequence.fastqStats.insertIntoDatabase(cursor)
                             inputSequence.fastqStats.id = cursor.lastrowid
 ###
-                            logger.info('Got up to here: ', inputSequence.filename)
+                            logger.info('Got up to here: ')
                             if inputSequence.fastqStats.id is not None:
                                 print 'inputSequence.fastqStats.id: ', inputSequence.fastqStats.id      # inputSequence.fastqStats.id
                         # InputSequence requires the primary keys from FastqStats and PaftolSequence tables (retrieved above) 
