@@ -988,7 +988,7 @@ def findContigRecoveryForFastqFname(analysisDatabase, fastqFname, recoveryRun):
     crListFwdFastq = []
     for cr in fastqFile.contigRecoveryFwdFastqList:     # returns a ContigRecovery row object
         #logger.info('Contig recovery: cr.recoveryRun.id %s; cr.contigFastaFileName %s', cr.recoveryRun.id, cr.contigFastaFileName)
-        if cr.recoveryRun.id == recoveryRun.id:
+        if cr.recoveryRun.id == recoveryRun.id:     # NB - cr.recoveryRun.id is allowed to be NULL in the db, but it should always be occupied so does it need to be made NOT NULL?
             crListFwdFastq.append(cr)
             logger.info('Contig recovery found (via fwdFastqId) for recovery run %s: cr.recoveryRun.id %s; cr.contigFastaFileName %s', recoveryRun.recoveryRunName, cr.recoveryRun.id, cr.contigFastaFileName)
     crListRevFastq = []
