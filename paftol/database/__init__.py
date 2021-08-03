@@ -1296,7 +1296,6 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, ext
 
     logger.info('inputSequence.filename: %s', inputSequence.filename)
 
-
     paftol.database.preRecoveryCheckExternalGenes(analysisDatabase=analysisDatabase, forwardFastqFname=inputSequence.filename, everseFastqFname=None, recoveryRunName=recoveryRunName)
     recoveryRun = findRecoveryRun(analysisDatabase, recoveryRunName)    # Returns a RecoveryRun object
 
