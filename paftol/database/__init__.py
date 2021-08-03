@@ -484,72 +484,66 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
         # Now checking entries from the InputSequence table:
         preInsertCheckInputSequence(inputSequence)
 
-    connectionSuccessful = False                              # Paul B added
-    connectionCountr = 1                                      # Paul B added
-    while connectionSuccessful == False:                      # Paul B added
-        try:                                                  # Paul B added
-            logger.warning('Connection attempt %s ...', connectionCountr) # Paul B added
-            transactionSuccessful = False
-            # Paul B. - removed table locking and introduced auto_increment for each primary key:
-            #lockCursor = connection.cursor()
-            #lockCursor.execute('LOCK TABLE PaftolFastqFile WRITE, FastqFile WRITE, FastqStats WRITE')
+#    connectionSuccessful = False                              # Paul B added
+#    connectionCountr = 1                                      # Paul B added
+#    while connectionSuccessful == False:                      # Paul B added - not implment
+#    try:                                                  # Paul B added
+#       logger.warning('Connection attempt %s ...', connectionCountr) # Paul B added
+        transactionSuccessful = False
+        # Paul B. - removed table locking and introduced auto_increment for each primary key:
+        #lockCursor = connection.cursor()
+        #lockCursor.execute('LOCK TABLE PaftolFastqFile WRITE, FastqFile WRITE, FastqStats WRITE')
+        try:
+            cursor = connection.cursor(prepared=True)
+            # Inserting into paftolSequence once, then id is available for both fastq files.
+            # An alternative would be to bring in the newPaftolSequence object to avoid 
+            # accessing the PaftolSequence table via an inputSequence object - now doing this.
+            #inputSequenceList[0].paftolSequence.insertIntoDatabase(cursor)
+            #inputSequenceList[0].paftolSequence.id = cursor.lastrowid
+            newPaftolSequence.insertIntoDatabase(cursor)
+            newPaftolSequence.id = cursor.lastrowid
+            if newPaftolSequence.id is not None:
+                print "newPaftolSequence.id:", newPaftolSequence.id
+            #print "inputSequenceList[0].paftolSequence.id: ", inputSequenceList[0].paftolSequence.id
+            #print "inputSequenceList[1].paftolSequence.id: ", inputSequenceList[1].paftolSequence.id  # proves paftolSequence object is the same instance.
             try:
-#### THINK I NEED A COMPLETELY NEW CONNECTION IF IT FAILS
-                cursor = connection.cursor(prepared=True)
-                # Inserting into paftolSequence once, then id is available for both fastq files.
-                # An alternative would be to bring in the newPaftolSequence object to avoid 
-                # accessing the PaftolSequence table via an inputSequence object - now doing this.
-                #inputSequenceList[0].paftolSequence.insertIntoDatabase(cursor)
-                #inputSequenceList[0].paftolSequence.id = cursor.lastrowid
-                newPaftolSequence.insertIntoDatabase(cursor)
-                newPaftolSequence.id = cursor.lastrowid
-                if newPaftolSequence.id is not None:
-                    print "newPaftolSequence.id:", newPaftolSequence.id
-                #print "inputSequenceList[0].paftolSequence.id: ", inputSequenceList[0].paftolSequence.id
-                #print "inputSequenceList[1].paftolSequence.id: ", inputSequenceList[1].paftolSequence.id  # proves paftolSequence object is the same instance.
-                try:
-                    for inputSequence in inputSequenceList:
-                        # Paul B. - don't understand the purpose of the deepcopy - deepcopy is a copy whose items are different instances I think
-                        #           It now causes an error so will removed it: RuntimeError: maximum recursion depth exceeded while calling a Python object
-                        #insertedInputSequence = copy.deepcopy(inputSequence)
-                        #print "insertedInputSequence.fastqStats.numReads: ", insertedInputSequence.fastqStats.numReads
-                        #print "insertedInputSequence.paftolSequence.idSequencing: ", insertedInputSequence.paftolSequence.idSequencing
-                        # Paul B - altered for auto_increment:
-                        #insertedPaftolFastqFile.id = generateUnusedPrimaryKey(cursor, 'PaftolFastqFile')
-                        #insertedPaftolFastqFile.fastqFile.id = generateUnusedPrimaryKey(cursor, 'FastqFile')
-                        ###if insertedInputSequence.fastqStats is not None:
-    ####
-                        logger.info('Up to inserted inputSequence.filename')
-                        if inputSequence.fastqStats is not None:
-                            # Paul B. removed - now using auto_increment
-                            #insertedPaftolFastqFile.fastqFile.fastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
-                            ###insertedInputSequence.fastqStats.insertIntoDatabase(cursor)
-                            ###insertedInputSequence.fastqStats.id = cursor.lastrowid
-                            ###print 'insertedInputSequence.fastqStats.id: '           #, insertedInputSequence.fastqStats.id
-                            inputSequence.fastqStats.insertIntoDatabase(cursor)
-                            inputSequence.fastqStats.id = cursor.lastrowid
-###
-                            logger.info('Got up to here: ')
-                            if inputSequence.fastqStats.id is not None:
-                                print 'inputSequence.fastqStats.id: ', inputSequence.fastqStats.id      # inputSequence.fastqStats.id
-                        # InputSequence requires the primary keys from FastqStats and PaftolSequence tables (retrieved above) 
-                        ###insertedInputSequence.insertIntoDatabase(cursor)
-                        ###insertedInputSequence.id = cursor.lastrowid
-                        inputSequence.insertIntoDatabase(cursor)
-                        inputSequence.id = cursor.lastrowid
-                        if inputSequence.id is not None:
-                            print 'insertedInputSequence.id: ', inputSequence.id                    # insertedInputSequence.id
-                            print 'insertedInputSequence.filename: ', inputSequence.filename        # insertedInputSequence.filename
-                            if inputSequence.dataOrigin.acronym == 'OneKP_Transcripts' or inputSequence.dataOrigin.acronym == 'AG' or inputSequence.dataOrigin.acronym == 'UG':
-                            ### 15.7.2021 - Paul B. now considering to change this to testing presence of external Genes file only, then any data set could be added after recovery as well
-                                if externalGenesFile is not None:
-                                    ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
-                                    addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)
-###                                    
-                                    ### Consider to break out of loop after proceesing [0] element
-                    connection.commit()
-                    transactionSuccessful = True
-                finally:
+                for inputSequence in inputSequenceList:
+                    # Paul B. - don't understand the purpose of the deepcopy - deepcopy is a copy whose items are different instances I think
+                    #           It now causes an error so will removed it: RuntimeError: maximum recursion depth exceeded while calling a Python object
+                    #insertedInputSequence = copy.deepcopy(inputSequence)
+                    #print "insertedInputSequence.fastqStats.numReads: ", insertedInputSequence.fastqStats.numReads
+                    #print "insertedInputSequence.paftolSequence.idSequencing: ", insertedInputSequence.paftolSequence.idSequencing
+                    # Paul B - altered for auto_increment:
+                    #insertedPaftolFastqFile.id = generateUnusedPrimaryKey(cursor, 'PaftolFastqFile')
+                    #insertedPaftolFastqFile.fastqFile.id = generateUnusedPrimaryKey(cursor, 'FastqFile')
+                    ###if insertedInputSequence.fastqStats is not None:
+                    if inputSequence.fastqStats is not None:
+                        # Paul B. removed - now using auto_increment
+                        #insertedPaftolFastqFile.fastqFile.fastqStats.id = generateUnusedPrimaryKey(cursor, 'FastqStats')
+                        ###insertedInputSequence.fastqStats.insertIntoDatabase(cursor)
+                        ###insertedInputSequence.fastqStats.id = cursor.lastrowid
+                        ###print 'insertedInputSequence.fastqStats.id: '           #, insertedInputSequence.fastqStats.id
+                        inputSequence.fastqStats.insertIntoDatabase(cursor)
+                        inputSequence.fastqStats.id = cursor.lastrowid
+                        if inputSequence.fastqStats.id is not None:
+                            print 'inputSequence.fastqStats.id: ', inputSequence.fastqStats.id      # inputSequence.fastqStats.id
+                    # InputSequence requires the primary keys from FastqStats and PaftolSequence tables (retrieved above) 
+                    ###insertedInputSequence.insertIntoDatabase(cursor)
+                    ###insertedInputSequence.id = cursor.lastrowid
+                    inputSequence.insertIntoDatabase(cursor)
+                    inputSequence.id = cursor.lastrowid
+                    if inputSequence.id is not None:
+                        print 'insertedInputSequence.id: ', inputSequence.id                    # insertedInputSequence.id
+                        print 'insertedInputSequence.filename: ', inputSequence.filename        # insertedInputSequence.filename
+                        if inputSequence.dataOrigin.acronym == 'OneKP_Transcripts' or inputSequence.dataOrigin.acronym == 'AG' or inputSequence.dataOrigin.acronym == 'UG':
+                        ### 15.7.2021 - Paul B. now considering to change this to testing presence of external Genes file only, then any data set could be added after recovery as well
+                            if externalGenesFile is not None:
+                                ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
+                                addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)                                    
+                                ### Consider to break out of loop after proceesing [0] element
+                connection.commit()
+                transactionSuccessful = True
+            finally:
                     if not transactionSuccessful:
                         connection.rollback()
                         print "ERROR: commit unsucessful for insertedInputSequence.fastqStats.id: "             #, insertedInputSequence.fastqStats.id
@@ -558,29 +552,28 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                         print "ERROR: commit unsucessful for contigRecovery.id, if --addExternalGenes Flag in use"                          #, contigRecovery.id
                         print "ERROR: commit unsucessful for recoveredContig.id (for last row created), if --addExternalGenes Flag in use"  #, recoveredContig.id
                     cursor.close()
-            finally:
-                if not transactionSuccessful:
-                    connection.rollback()
-                    print "ERROR: commit unsucessful for newPaftolSequence"      #, inputSequenceList[0].paftolSequence.id
-                #lockCursor.execute('UNLOCK TABLES')
-                #lockCursor.close()
-####            connection.close()  # Paul B. added - not used here before, why not?
-            connectionSuccessful = True    # Paul B added
-            logger.warning('connectionSuccessful == %s', connectionSuccessful) # Paul B added
-        except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError): # Paul B added
-            timeToSleep = random.randint(1,25)                                                                                      # Paul B added
-            print "Sample unable to connect to the database - retrying in ", timeToSleep, "seconds..."                              # Paul B added
-            time.sleep(timeToSleep)                                                 # Paul B added
-### TRYING TO ADD CONNECTION ASGASIN HERE:
-            connection.close()      # Making certain connection is closed here
-            analysisDatabaseDetails = getAnalysisDatabaseDetails() 
-            connection = analysisDatabaseDetails.makeConnection()
-            analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
-
-            connectionCountr += 1                                                   # Paul B added
-            if connectionCountr > 10:                                               # Paul B added 
-                logger.warning('Tried to connect to database 10 times, giving up!') # Paul B added 
-                return  transactionSuccessful                                       # Paul B added
+        finally:
+            if not transactionSuccessful:
+                connection.rollback()
+                print "ERROR: commit unsucessful for newPaftolSequence"      #, inputSequenceList[0].paftolSequence.id
+            #lockCursor.execute('UNLOCK TABLES')
+            #lockCursor.close()
+        connection.close()  # Paul B. added - not used here before, why not?
+        connectionSuccessful = True    # Paul B added
+        logger.warning('connectionSuccessful == %s', connectionSuccessful) # Paul B added
+    #except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError): # Paul B added
+    #    timeToSleep = random.randint(1,25)                                                                                      # Paul B added
+    #    print "Sample unable to connect to the database - retrying in ", timeToSleep, "seconds..."                              # Paul B added
+    #    time.sleep(timeToSleep)                                                 # Paul B added
+    # This might not be the correct place to re-connect (?)    
+    #    connection.close()      # Making certain connection is closed here
+    #    analysisDatabaseDetails = getAnalysisDatabaseDetails() 
+    #    connection = analysisDatabaseDetails.makeConnection()
+    #    analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    #    connectionCountr += 1                                                   # Paul B added
+    #    if connectionCountr > 10:                                               # Paul B added 
+    #        logger.warning('Tried to connect to database 10 times, giving up!') # Paul B added 
+    #        return  transactionSuccessful                                       # Paul B added
     return transactionSuccessful
 
 
@@ -655,10 +648,11 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
     connection.close()
     
 
+    logger.info('Connecting to analysis database and creating analysisDatabase object')
     analysisDatabaseDetails = getAnalysisDatabaseDetails()
-### DON'T CONNECT HERE - NO YOU HAVE TO CONNECT!!!!
     connection = analysisDatabaseDetails.makeConnection()
     analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+    logger.info('Finished creating analysisDatabase object')
     # Paul B. added to check dataOriginName with name in DataOrigin table:
     # NB - this check means that the --dataOrigin flag is no longer strictly an 'option'
     # but I followed the logic for --geneType flag in addTargetsFile 
@@ -786,7 +780,7 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
                     # Also calculate number of genes and sum length of contigs in the raw fasta file and add to the newSeqsStats object:
                     numbrSequences, sumLengthOfContigs = rawFilenameStats(filename=fastqFname)
                     newSeqStats.numbrRecords = numbrSequences
-                    newSeqStats.sumLengthOfSeqs = sumLengthOfContigs
+                    #newSeqStats.sumLengthOfSeqs = sumLengthOfContigs   # Not adding if data set is UG - otherwise would need to use a 'big int' for this db field
                     newInputSequence = paftol.database.analysis.InputSequence(dataOrigin=dataOrigin, filename=fastqFname, pathName=fastqPathName, md5sum=md5sum, fastqStats=newSeqStats, UnannotatedGenome=newDatasetSequence)
                 #print dir(newInputSequence)
                 #print "1.Looking at newInputSequence contents: ", newInputSequence.filename
@@ -820,7 +814,6 @@ def addPaftolFastqFiles(fastqFnameList=None, dataOriginAcronym=None, fastqPath=N
         # Note: completely changed (improved?) the try ... except ... finally clauses written elsewhere
         if externalGenesFile is not None:
             transactionSuccessful = False
-### I COULD CLOSE THE DB ABOVE + OPEN THE DB AGAIN HERE - SIMILAR TO WHAT HAPPENS DURING A RECOVERY, then I can add a cxn while loop here
             try:
                 cursor = connection.cursor(prepared=True)
                 addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)
@@ -1069,8 +1062,29 @@ def preRecoveryCheck(forwardFastqFname=None, reverseFastqFname=None, recoveryRun
         raise StandardError, ', '.join(msgList)
 
 
-def preRecoveryCheckExternalGenes(forwardFastqFname=None, reverseFastqFname=None, recoveryRunName=None):
-    pass
+def preRecoveryCheckExternalGenes(analysisDatabase=None, forwardFastqFname=None, reverseFastqFname=None, recoveryRunName=None):
+    ''' Paul B. - added function, same as preRecoveryCheck() above except that an existing analysisDatabase is imported instead of 
+        creating a new one - saves ~ 2 minutes
+    '''
+
+    msgList = []
+    #analysisDatabase = getAnalysisDatabase()    # Paul B - I think that this object can only be seen in this method and can't be seen outside but doesn't the db connection need to be closed?
+    # Paul B. - added:
+    recoveryRun = findRecoveryRun(analysisDatabase, recoveryRunName)
+    if recoveryRun is None: 
+        # Exit with errror. NB: contrasts with what happens if the fastq files are not found!
+        raise StandardError, 'RecoveryRun.id not found in the db for recovery run name entered: %s' % recoveryRunName
+    else:
+        logger.info('Recovery run found for recovery run name: %s ', recoveryRunName)
+
+    contigRecovery = findContigRecoveryForFastqFname(analysisDatabase, forwardFastqFname, recoveryRun)
+    if contigRecovery is not None:
+        msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (forwardFastqFname, contigRecovery.id))
+    contigRecovery = findContigRecoveryForFastqFname(analysisDatabase, reverseFastqFname, recoveryRun)
+    if contigRecovery is not None:
+        msgList.append('recovery already done for %s (contigRecovery.id = %d)' % (reverseFastqFname, contigRecovery.id))
+    if len(msgList) > 0:
+        raise StandardError, ', '.join(msgList)
 
 
 def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
@@ -1276,15 +1290,14 @@ def addExternalGenes(cursor=None, analysisDatabase=None, inputSequence=None, ext
 
         Input parameters: cursor from the database connection object, analysisDatabase object, input sequence row object and the name of an external recovered genes file
 
-        Note: There is no check to see whether a recovered genes fasta file is present (c.f. gene recovery from fastq files - preRecoveryCheck method).
-        However in this case, the recovered genes fasta file is being loaded at the same time as the sample is being added for the first time (which is checked),
-        so the recovered genes file can't already be there. 
+        Note: now checking to see whether a recovered genes fasta file is present (c.f. gene recovery from fastq files - preRecoveryCheck method), except
+        using preRecoveryCheckExternalGenes() so that the existing analysisDatabase object can be used instead of creatign a new one.
     '''
 
     logger.info('inputSequence.filename: %s', inputSequence.filename)
 
-    paftol.database.preRecoveryCheck(inputSequence.filename, None, recoveryRunName)
-### use preRecoveryCheckExternalGenes() method instead so as not to connect twice
+
+    paftol.database.preRecoveryCheckExternalGenes(analysisDatabase=analysisDatabase, forwardFastqFname=inputSequence.filename, everseFastqFname=None, recoveryRunName=recoveryRunName)
     recoveryRun = findRecoveryRun(analysisDatabase, recoveryRunName)    # Returns a RecoveryRun object
 
     # Get seq records from externalGenesFile (gene recoveries) into a dict.
