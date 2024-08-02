@@ -1499,7 +1499,7 @@ static PyObject *clib_semiglobal_alignment_series(PyObject *self, PyObject *args
     free_biosequence(biosequence0);
   }
   free_biosequence(biosequence1);
-  free_symbol_score_matrix(symbol_score_matrix);
+  free_symbol_score_matrix(symbol_score_matrix);  
   Py_DECREF(python_sequence_list);
   Py_DECREF(python_symbol_score_matrix);
   return (result_list);
