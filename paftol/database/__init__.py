@@ -17,7 +17,7 @@ import Bio.SeqIO
 
 import paftol
 import paftol.tools
-import paftol.database.analysis
+import paftol.database.analysis     # Paul B - not using now 
 import paftol.database.production
 
 
@@ -48,17 +48,31 @@ def floatOrNone(x):
         return float(x)
     
 
-def findFastaFile(analysisDatabase, fastaFname):
+def findFastaFile0(analysisDatabase, fastaFname):
     ''' Finds the targets file from the ReferenceTarget table.
 
-    
     Returns a ReferenceTarget row object. 
     '''
     # Paul B. - now getting file from the ReferenceTarget table
     #for fastaFile in analysisDatabase.fastaFileDict.values():   # fastaFile is a row object containing column headers as values
-    for fastaFile in analysisDatabase.referenceTargetDict.values(): 
+    for fastaFile in analysisDatabase.referenceTargetDict.values():
         # Paul B. filename variable has changed:
         #if fastaFile.filename == fastaFname:
+        if fastaFile.targetsFastaFile == fastaFname:
+            return fastaFile
+    return None
+
+
+def findFastaFile(analysisDatabase, fastaFname):
+    ''' Adapted method to the  paftol merged database.
+        Renamed the old method to findFastaFile0
+
+        Finds the targets file from the TargetSet table.
+
+        Returns a TargetSet row object. 
+    '''
+
+    for fastaFile in analysisDatabase.targetSetDict.values(): # fastaFile is a row object containing column headers as values
         if fastaFile.targetsFastaFile == fastaFname:
             return fastaFile
     return None
@@ -541,6 +555,7 @@ def insertInputSequenceList(connection, analysisDatabase, inputSequenceList, new
                             ### NB - 8.9.2020 - should only be one file, so only tolerating a single file here - would be good to break out of loop after
                             addExternalGenes(cursor=cursor, analysisDatabase=analysisDatabase, inputSequence=inputSequence, externalGenesFile=externalGenesFile, recoveryRunName=recoveryRunName)                                    
                             ### Consider to break out of loop after proceesing [0] element
+                        ### 4.11.2021- shoudl have an else clause here to warn user that external genes file was not found
             connection.commit()
             transactionSuccessful = True
         finally:
@@ -618,6 +633,7 @@ def findSequence(productionDatabase, sampleId):
     NB - 29.10.2020 - what happens if there are > 1 Sequence entries for the same ExternalSequenceID?
     Then this loop woud have to return a dict of them all then exit if keys > 1 OR pick the one with the largest idSequencing 
     which would be the most recent sequencing. OK for now though.
+    4.1.2022 - now there are 3 examples of > idSequencing for the same ExternalSequenceID but they might be removed - involves idSeqing 24293, 24403, 24427
     29.6.2021 - modified to identify unique samples so that only idSequencing ids for merged duplicate samples and non-duplicate samples are returned. 
 
     NB - 'ExternalSequenceID' db table field name == 'externalSequenceId' in Python Sequence object (changed to lower case in the dbapi - see PythonName() method)
@@ -848,7 +864,8 @@ def findDataOrigin(analysisDatabase, dataOriginAcronym):
     return None
 
 
-def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=False, geneTypeName=None):
+# Copied and modified this method for uploading targets to the new PAFTOL db (after merging production and analysis dbs)
+def addTargetsFile0(targetsFname, fastaPath=None, description=None, insertGenes=False, geneTypeName=None):
     if insertGenes and geneTypeName is None:
         raise StandardError, 'illegal state: insertion of new genes requested but no gene type name given'
      # Paul B. - recreated the full path to the fasta target file (assumed to be within the paftol dir):
@@ -883,6 +900,7 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
     #targetsFastaFile = paftol.database.analysis.FastaFile(None, targetsFname, md5sum, None, numSequences)
     # Paul B. - now sending to the ReferenceTarget table:
     #targetsFastaFile = paftol.database.analysis.FastaFile(targetsFname, None, md5sum, None, numSequences)
+#### 20.3.2024 - might be good to alter paftolGene from db to Gene - will cause a mistake if not
     knownGeneNameList = [paftolGene.geneName for paftolGene in analysisDatabase.paftolGeneDict.values()]
     missingGeneNameList = []
     for geneName in paftolTargetSet.paftolGeneDict.keys():
@@ -895,6 +913,7 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
     for missingGeneName in missingGeneNameList:
         # Paul B. - changed to fit with the auto_increment - 25.5.2020 - also added the exemplarGeneId:
         #newPaftolGene = paftol.database.analysis.PaftolGene(None, missingGeneName, geneType)
+##### Needs changeing - might need to add idExemplarGene
         newPaftolGene = paftol.database.analysis.PaftolGene(missingGeneName, geneType, None)
         newPaftolGeneList.append(newPaftolGene)
     paftolGeneDict = {}
@@ -969,6 +988,152 @@ def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=F
     connection.close()
     return transactionSuccessful
 
+
+def addTargetsFile(targetsFname, fastaPath=None, description=None, insertGenes=False, geneTypeName=None):
+    '''
+    Paul B - copied this method to addTargetsFile0, the state before merging production and analysis dbs into paftol db.
+    This method was modified to connect to the new merged paftol db
+
+    ''' 
+
+    if insertGenes and geneTypeName is None:
+        raise StandardError, 'illegal state: insertion of new genes requested but no gene type name given'
+     # Paul B. - recreated the full path to the fasta target file (assumed to be within the paftol dir):
+    if fastaPath is not None:       
+        fastaPath = fastaPath + '/' + targetsFname
+        logger.info('fastqPath to be stored in the db: %s', fastaPath)
+    md5sum = paftol.tools.md5HexdigestFromFile(targetsFname)        
+    paftolTargetSet = paftol.PaftolTargetSet()         # A PaftolTargetSet object
+    paftolTargetSet.readFasta(targetsFname)
+    logger.debug('Finished reading in: %s', targetsFname)    # Paul B. added
+    numSequences = len(paftolTargetSet.getSeqRecordList())
+    ### Paul B. - changed config file to use productiondb.cfg: analysisDatabaseDetails = getAnalysisDatabaseDetails()
+    analysisDatabaseDetails = getProductionDatabaseDetails()
+    connection = analysisDatabaseDetails.makeConnection()
+    ### Paul B - changed to production: analysisDatabase = paftol.database.analysis.AnalysisDatabase(connection)
+### Paul B. - once finishd, change analysisDatabase to 'paftolDatabase'
+    analysisDatabase = paftol.database.production.ProductionDatabase(connection)
+    geneType = findGeneType(analysisDatabase, geneTypeName)     # Paul B. - a geneType object
+    if geneType is None:
+        connection.close()
+        raise StandardError, 'unknown gene type: %s' % geneTypeName
+    ### Paul B.: need to specify the path from the paftol/ folder now: targetsFile = findFastaFile(analysisDatabase, targetsFname)
+    targetsFile = findFastaFile(analysisDatabase, fastaPath)
+    if targetsFile is not None:
+        connection.close()
+        ### Paul B. - updated column header name for paftol merge db: if targetsFile.md5sum == md5sum:
+        if targetsFile.targetsFastaFileMd5sum == md5sum:
+            logger.info('targets file %s already in database, verified md5sum', targetsFname)
+            #print 'ok'
+            return
+        else:
+            raise StandardError, 'targets file %s in database with md5sum = %s, but found md5sum = %s' % (targetsFname, targetsFile.md5sum, md5sum)
+
+    # Now prepare to add target file info to TargetSet table
+    targetSet = paftol.database.production.TargetSet(targetsFastaFile=fastaPath, targetsFastaFileMd5sum=md5sum, numTargetSequences=numSequences) # Creates a target set row object
+
+    # connection.start_transaction(isolation_level='REPEATABLE READ', readonly=False)
+    # Paul B. - changed to fit with the auto_increment
+    #targetsFastaFile = paftol.database.analysis.FastaFile(None, targetsFname, md5sum, None, numSequences)
+    # Paul B. - now sending to the ReferenceTarget table:
+    #targetsFastaFile = paftol.database.analysis.FastaFile(targetsFname, None, md5sum, None, numSequences) 
+    knownGeneNameList = [Gene.geneName for Gene in analysisDatabase.geneDict.values()]
+    missingGeneNameList = []
+    for geneName in paftolTargetSet.paftolGeneDict.keys():
+        if geneName not in knownGeneNameList:
+            missingGeneNameList.append(geneName)
+    if not insertGenes and len(missingGeneNameList) > 0:
+        connection.close()
+        raise StandardError, 'missing genes: %s' % ', '.join(missingGeneNameList)
+    newPaftolGeneList = []
+    for missingGeneName in missingGeneNameList:
+        # Paul B. - changed to fit with the auto_increment - 25.5.2020 - also added the exemplarGeneId:
+        #newPaftolGene = paftol.database.analysis.PaftolGene(None, missingGeneName, geneType)
+        newPaftolGene = paftol.database.production.Gene(missingGeneName, geneType, None) # Paul B. changed
+        newPaftolGeneList.append(newPaftolGene)
+    paftolGeneDict = {}
+    for newPaftolGene in newPaftolGeneList:
+        paftolGeneDict[newPaftolGene.GeneName] = newPaftolGene
+#######20.3.2024 - chenge to Gene for clarity!!!!!!!!!!!!!
+    for paftolGene in analysisDatabase.geneDict.values():
+        paftolGeneDict[paftolGene.geneName] = paftolGene
+    referenceTargetList = []
+    # Paul B. - now testing whether the reference target is already present in the db,
+    #           only adding if reference target is new.
+    refTargetAreadyInDBCountr = 0  # reference target (organism-gene) already in table
+    refTargetNotInDbCountr = 0     # new reference targets to add.
+### 21.3.2024 - need to understand these two lines
+
+
+#### 8.4.2024 - this loop seems to be taking a too long to check Angiosperms353_V2 seqs.
+#### All sequences are novel anyway and the database will crash if gene-organism combination is already in the db.
+#### So have removed the call to findReferenceTarget() that doees the check plus lines around - see '####' block below
+####    This  method call was not present in the original code! I still don't know what this loop does!!!!!
+    for paftolGene in paftolTargetSet.paftolGeneDict.values():      # paftolTargetSet holds the info from the target file. Includes:  self.paftolGeneDict = {} and self.organismDict = {}
+                                                                    #   self.paftolGeneDict contains a PAFTOL Gene object which contains a self.paftolTargetDict
+        for paftolTarget in paftolGene.paftolTargetDict.values():   # PaftolGene object contains a collection of organisms for each PAFTOL gene!  self.paftolTargetDict = {}
+                                                                    # BUT I don't understand how or where the organisms are associated with each gene 
+            # Paul B. - changed to fit with the auto_increment:
+            #referenceTargetList.append(paftol.database.analysis.ReferenceTarget(None, paftolGeneDict[paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), targetsFastaFile))
+            # Paul B. - now changing to add the targets file info:
+            #referenceTargetList.append(paftol.database.analysis.ReferenceTarget(paftolGeneDict[paftolGene.name], paftolTarget.organism.name, len(paftolTarget.seqRecord), targetsFastaFile))
+            logger.debug('paftolGeneDict[paftolGene.name]: %s', paftolGene.name)    # Paul B. added
+            logger.debug('paftolTarget.organism.name: %s', paftolTarget.organism.name)  # Paul B. added
+####            representativeReferenceTarget = findReferenceTarget(analysisDatabase, paftolGene.name, paftolTarget.organism.name)  # Paul B. added
+####            if representativeReferenceTarget is not None:   # Paul B. added
+####                logger.debug('Existing reference target in db')    # Paul B. added
+####                if representativeReferenceTarget.paftolTargetLength != len(paftolTarget.seqRecord): # Paul B. added
+####                    logger.warning('WARNING: existing reference target in db has a different length (%d bp) from a new reference target with the same name (%d) bp.', representativeReferenceTarget.paftolTargetLength, len(paftolTarget.seqRecord))    # Paul B. added
+####                refTargetAreadyInDBCountr+=1# Paul B. added
+####            else:   # Paul B. added
+####                logger.debug('Existing reference target NOT in db')    # Paul B. added
+            refTargetNotInDbCountr += 1     # Paul B. added
+            referenceTargetList.append(paftol.database.production.ReferenceTarget(gene=paftolGeneDict[paftolGene.name], organism=paftolTarget.organism.name, targetLength=len(paftolTarget.seqRecord), \
+            targetSet=targetSet) )
+    logger.info('Number of reference targets already in db: %s; number of reference targets to add to the db: %s', refTargetAreadyInDBCountr, refTargetNotInDbCountr)   # Paul B. added
+
+
+    transactionSuccessful = False
+    # Paul B. - removed table locking and introduced auto_increment for each primary key:
+    #lockCursor = connection.cursor()
+    #lockCursor.execute('LOCK TABLE FastaFile WRITE, FastqFile WRITE, FastqStats WRITE, GeneType WRITE, PaftolGene WRITE, ReferenceTarget WRITE')
+    try:
+        logger.info('adding new targets file %s', targetsFname) # Paul B. removed
+        cursor = connection.cursor(prepared=True)
+        try:
+            targetSet.insertIntoDatabase(cursor)
+            targetSet.idTargetSet = cursor.lastrowid
+
+            for newPaftolGene in newPaftolGeneList:
+                #newPaftolGene.id = generateUnusedPrimaryKey(cursor, 'PaftolGene')
+                newPaftolGene.insertIntoDatabase(cursor)
+                newPaftolGene.idGene = cursor.lastrowid
+                print "newPaftolGene.idGene: ", newPaftolGene.idGene
+            #targetsFastaFile.id = generateUnusedPrimaryKey(cursor, 'FastaFile')
+            # Paul B. - changed to send to ReferenceTarget table instead:
+            #targetsFastaFile.insertIntoDatabase(cursor)
+            #targetsFastaFile.id = cursor.lastrowid
+            #print "targetsFastaFile.id: ", targetsFastaFile.id
+            for referenceTarget in referenceTargetList:
+                #referenceTarget.id = generateUnusedPrimaryKey(cursor, 'ReferenceTarget')
+                referenceTarget.insertIntoDatabase(cursor)
+                referenceTarget.idReferenceTarget = cursor.lastrowid
+                logger.debug('idReferenceTarget: %d', referenceTarget.idReferenceTarget)
+            connection.commit()
+            transactionSuccessful = True
+        finally:
+            if not transactionSuccessful:
+                connection.rollback()
+                # Paul B added:
+                logger.warning('ERROR: commit unsucessful')
+            cursor.close()
+    finally:
+        if not transactionSuccessful:
+            connection.rollback()
+        #lockCursor.execute('UNLOCK TABLES')
+        #lockCursor.close()
+    connection.close()
+    return transactionSuccessful
 
 def findFastqFiles(analysisDatabase, result):
     fwdFastqFname = os.path.basename(result.forwardFastq)
@@ -1110,11 +1275,28 @@ def findContigRecoveryForSequencing(analysisDatabase, idSequencing):
         raise StandardError, 'idSequencing %d: found multiple ContigRecovery instances: %s' % (idSequencing, ', '.join(['%d' % cr.id for cr in contigRecoveryList]))
 
     
-def findReferenceTarget(analysisDatabase, geneName, paftolOrganism):
+def findReferenceTarget0(analysisDatabase, geneName, paftolOrganism):
     logger.debug('searching for %s-%s', paftolOrganism, geneName)
     for referenceTarget in analysisDatabase.referenceTargetDict.values():
-        logger.debug('checking %s-%s', referenceTarget.paftolOrganism, referenceTarget.paftolGene.geneName)
-        if referenceTarget.paftolOrganism == paftolOrganism and referenceTarget.paftolGene.geneName == geneName:
+        logger.debug('checking %s-%s', referenceTarget.Organism, referenceTarget.Gene.GeneName)
+        if referenceTarget.Organism == Organism and referenceTarget.Gene.GeneName == geneName:
+            return referenceTarget
+    return None
+
+
+def findReferenceTarget(analysisDatabase, geneName, organism):
+    ''' Adapted method to the  paftol merged database.
+        Renamed the old method to findReferenceTarget0
+
+        Finds the reference target of each sequence in the target set
+
+        Returns a ReferenceTarge row object. 
+    '''
+
+    logger.debug('searching for %s-%s', organism, geneName)
+    for referenceTarget in analysisDatabase.referenceTargetDict.values():
+        logger.debug('checking %s-%s', referenceTarget.organism, referenceTarget.gene.geneName)
+        if referenceTarget.organism == organism and referenceTarget.gene.geneName == geneName:
             return referenceTarget
     return None
 
@@ -1272,7 +1454,7 @@ def addRecoveryResult(result, recoveryRunName):
             connection.close()
             connectionSuccessful = True    # Paul B added
             logger.info('connectionSuccessful == %s', connectionSuccessful) # Paul B added
-        except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError): # Paul B added
+        except (mysql.connector.errors.InterfaceError, mysql.connector.errors.InternalError, mysql.connector.errors.DatabaseError, mysql.connector.errors.IntegrityError):
             timeToSleep = random.randint(1,25)                                                                                      # Paul B added
             print "Sample unable to connect to the database - retrying in ", timeToSleep, "seconds..."                              # Paul B added
             time.sleep(timeToSleep)                                                 # Paul B added
