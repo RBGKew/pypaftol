@@ -1528,7 +1528,7 @@ static struct PyModuleDef moduledef = {
         PyModuleDef_HEAD_INIT,
         "clib",
         NULL,
-        NULL,
+        -1,
         clib_methods,
         NULL,
         NULL,

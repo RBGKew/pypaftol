@@ -15,7 +15,7 @@ import csv
 import Bio
 import Bio.SeqIO
 import Bio.SeqIO.QualityIO
-import Bio.Alphabet.IUPAC
+#import Bio.Alphabet.IUPAC    ### Paul B. - Bio.Alphabet no longer exists!
 import Bio.Blast
 import Bio.Blast.NCBIXML
 
@@ -728,13 +728,16 @@ class TargetRecoverer(HybseqAnalyser):
         geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
         exonerateRunner = paftol.tools.ExonerateRunner()
         Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
-        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
-        # allow stop translation
-        aminoAcidSet.add('*')
-        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
-        if len(setDiff) > 0:
-            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
-            return None
+        
+        ### Paul B. - Bio.Alphabet no longer exists so need to comment out these lines 
+        #aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        ## allow stop translation
+        #aminoAcidSet.add('*')
+        #setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
+        #if len(setDiff) > 0:
+        #    logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
+        #    return None
+        ### Paul B. - removed to here
         contigFname = self.makeGeneContigsFname(geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))
@@ -1143,7 +1146,9 @@ methods, respectively.
         self.paftolGeneDict = {}
         self.organismDict = {}
         self.fastaHandleStr = str(fastaHandle)
-        for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
+        ### Paul B. - Bio.Alphabet no longer exists so need to to remove alphabet 
+        #for sr in Bio.SeqIO.parse(fastaHandle, 'fasta', alphabet=Bio.Alphabet.IUPAC.ambiguous_dna):
+        for sr in Bio.SeqIO.parse(fastaHandle, 'fasta'):
             organismName, geneName = extractOrganismAndGeneNames(sr.id)
             if not isSane(organismName):
                 raise Exception('bad organism name: %s' % organismName)
@@ -1716,13 +1721,16 @@ class HybpiperAnalyser(HybseqAnalyser):
         logger.debug('gene %s: %d spades contigs', geneName, len(contigList))
         geneProtein = self.translateGene(result.representativePaftolTargetDict[geneName].seqRecord)
         Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
-        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
-        # allow stop translation
-        aminoAcidSet.add('*')
-        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
-        if len(setDiff) > 0:
-            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
-            return None
+       
+        ### Paul B. - Bio.Alphabet no longer exists so need to comment out these lines
+        # aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        # # allow stop translation
+        # aminoAcidSet.add('*')
+        # setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
+        # if len(setDiff) > 0:
+        #     logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
+        #     return None
+        ### Paul B - removed to here
         contigFname = self.makeGeneContigsFname(geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateRunner = paftol.tools.ExonerateRunner()
@@ -2118,13 +2126,15 @@ class OverlapAnalyser(HybseqAnalyser):
         exonerateRunner = paftol.tools.ExonerateRunner()
 
         Bio.SeqIO.write([geneProtein], self.makeWorkdirPath('%s-protein.fasta' % geneName), 'fasta')
-        aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
-        # allow stop translation
-        aminoAcidSet.add('*')
-        setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
-        if len(setDiff) > 0:
-            logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
-            return None
+        ### Paul B. - Bio.Alphabet no longer exists so need to comment out these lines
+        # aminoAcidSet = set(Bio.Alphabet.IUPAC.protein.letters.lower())
+        # # allow stop translation
+        # aminoAcidSet.add('*')
+        # setDiff = set(str(geneProtein.seq).lower()) - aminoAcidSet
+        # if len(setDiff) > 0:
+        #     logger.warning('gene %s: invalid amino acids %s' % (geneName, ', '.join(setDiff)))
+        #     return None
+        ### Paul B - removed to here
         contigFname = self.makeGeneContigsFname(geneName)
         Bio.SeqIO.write(contigList, contigFname, 'fasta')
         exonerateResultList = exonerateRunner.parse(geneProtein, contigFname, 'protein2genome', bestn=len(contigList))

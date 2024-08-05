@@ -18,8 +18,8 @@ import hashlib  # Paul B. Updated code to use hashlib
 import shutil
 
 import Bio
-import Bio.Alphabet
-import Bio.Alphabet.IUPAC
+#import Bio.Alphabet         ### Paul B. - Bio.Alphabet no longer exists!
+#import Bio.Alphabet.IUPAC
 import Bio.Seq
 import Bio.SeqRecord
 import Bio.Align
@@ -80,22 +80,28 @@ def alignCdsByProtein(alignedProteinSeqRecord, cdsSeqRecord):
     c = str(cdsSeqRecord.seq)
     # if len(c) != 3 * len(u):
     #     raise StandardError, 'incompatible sequences: CDS %s (length %d), ungapped prtotein sequence %s (length %d)' % (cdsSeqRecord.id, len(c), alignedProteinSeqRecord.id, len(u))
-    proteinAlphabet = alignedProteinSeqRecord.seq.alphabet
-    if not isinstance(proteinAlphabet, Bio.Alphabet.Gapped):
-        proteinAlphabet = Bio.Alphabet.Gapped(proteinAlphabet)
-    cdsAlphabet = cdsSeqRecord.seq.alphabet
-    if not isinstance(cdsAlphabet, Bio.Alphabet.Gapped):
-        cdsAlphabet = Bio.Alphabet.Gapped(cdsAlphabet)
+    ### Paul B. - removed these two conditionals and just used '-' chars in for loop below instead
+    # proteinAlphabet = alignedProteinSeqRecord.seq.alphabet
+    # if not isinstance(proteinAlphabet, Bio.Alphabet.Gapped):
+    #     proteinAlphabet = Bio.Alphabet.Gapped(proteinAlphabet)
+    # cdsAlphabet = cdsSeqRecord.seq.alphabet
+    # if not isinstance(cdsAlphabet, Bio.Alphabet.Gapped):
+    #     cdsAlphabet = Bio.Alphabet.Gapped(cdsAlphabet)
     a = str(alignedProteinSeqRecord.seq)
     s = ''
     i = 0
     for aa in a:
-        if aa == proteinAlphabet.gap_char:
-            s = s + 3 * cdsAlphabet.gap_char
+        ### Paul B. - changed to '-' char for aa and s
+        # if aa == proteinAlphabet.gap_char:
+        if aa == '-':
+            # s = s + 3 * cdsAlphabet.gap_char
+            s = s + 3 * '-'
         else:
             s = s + c[i:i + 3]
             i = i + 3
-    return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, cdsAlphabet), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
+    ### Paul B. - removed cdsAlphabet
+    # return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, cdsAlphabet), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
+    return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s), id=cdsSeqRecord.id, description='%s, gapped along %s' % (cdsSeqRecord.description, alignedProteinSeqRecord.id))
 
 
 def countSeqRecords(fName, fFormat):
@@ -120,16 +126,25 @@ if the sequence contains triplets with both gap and non-gap symbols.
 @return: translated sequence
 @rtype: C{Bio.Seq.Seq}
 """
-    if not isinstance(seq.alphabet, Bio.Alphabet.Gapped):
+    ### Paul B. - this line asks whether the seq contains gaps - if it does then the Seq object 
+    ### is returned here otherwise the seq is translated whilst adjusting for gaps.
+    ### Will just search the seq string for gaps then return or continue in the same way.
+    gapMatch = re.search('-', seq)
+    # if not isinstance(seq.alphabet, Bio.Alphabet.Gapped):
+    if not gapMatch:
         return seq.translate(table=table)
-    ungappedAlphabet = seq.alphabet.alphabet
+    ### Paul B. - removed use of alphabet here:
+    # ungappedAlphabet = seq.alphabet.alphabet
     s = str(seq)
     gapStart = None
     gapList = []
     for i in range(len(s)):
-        if s[i] == seq.alphabet.gap_char and gapStart is None:
+        ### Paul B. - replaced with '-'' in two places
+        #if s[i] == seq.alphabet.gap_char and gapStart is None:
+        if s[i] == '-' and gapStart is None:
             gapStart = i
-        if s[i] != seq.alphabet.gap_char and gapStart is not None:
+        #if s[i] != seq.alphabet.gap_char and gapStart is not None:
+        if s[i] != '-' and gapStart is not None:
             gapList.append((gapStart, i, ))
             gapStart = None
     if gapStart is not None:
@@ -144,17 +159,23 @@ if the sequence contains triplets with both gap and non-gap symbols.
             raise Exception('cannot translate: range %d:%d does not coincide with triplet boundaries' % (gapStart, gapEnd))
         if nongapStart < gapStart:
             ungappedSeq = seq[nongapStart:gapStart]
-            ungappedSeq.alphabet = ungappedAlphabet
+            ### Paul B. - I think I just remove the use of alphabet here:
+            #ungappedSeq.alphabet = ungappedAlphabet
             t = t + str(ungappedSeq.translate(table))
-        t = t + seq.alphabet.gap_char * ((gapEnd - gapStart) / 3)
+        ### Paul B. - replaceed with '-' instead
+        # t = t + seq.alphabet.gap_char * ((gapEnd - gapStart) / 3)
+        # t = t + '-' * ((gapEnd - gapStart) / 3)
         nongapStart = gapEnd
     if nongapStart < len(seq):
         if (len(seq) - nongapStart) % 3 != 0:
             raise Exception('cannot translate: range %d:%d does not coincide with triplet boundaries' % (nongapStart, len(seq)))
         ungappedSeq = seq[nongapStart:]
-        ungappedSeq.alphabet = ungappedAlphabet
+         ### Paul B. - I think I just remove the use of alphabet here:
+        #ungappedSeq.alphabet = ungappedAlphabet
         t = t + str(ungappedSeq.translate(table))
-    return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
+    ### Paul B. - removed the alphabet variable
+    # return Bio.Seq.Seq(t, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
+    return Bio.Seq.Seq(t)
 
 
 def translateSeqRecord(dnaSeqRecord, table='Standard'):
@@ -172,6 +193,7 @@ The sequence of the record has to be over a nucleotide alphabet (so it can be me
     l = len(dnaSeqRecord) - (len(dnaSeqRecord) % 3)
     if l < len(dnaSeqRecord):
         logger.warning('seqRecord %s: length %d is not an integer multiple of 3 -- not a CDS?', dnaSeqRecord.id, len(dnaSeqRecord))
+### Paul B. - ehat to do here with translate table
     pepSeqRecord = Bio.SeqRecord.SeqRecord(dnaSeqRecord.seq[:l].translate(table), id='%s-pep' % dnaSeqRecord.id, description='%s, translated' % dnaSeqRecord.description)
     return pepSeqRecord
 
@@ -946,8 +968,11 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             vulgarLetterAnnotation = ([None] * len(qLeftFlank)) + vulgarLetterAnnotation + ([None] * len(qRightFlank))
         # logger.debug('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d', len(qAln), len(tAln), len(vulgarLetterAnnotation))
         # sys.stderr.write('len(qAln) = %d, len(tAln) = %d, len(vulgarLetterAnnotation) = %d\n' % (len(qAln), len(tAln), len(vulgarLetterAnnotation)))
-        qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
-        tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        ### Paul B. - removed both alphabet variables:
+        # qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.unambiguous_dna))
+        # tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        qAlnSeq = Bio.Seq.Seq(qAln)
+        tAlnSeq = Bio.Seq.Seq(tAln)
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
         return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id, letter_annotations = {'vulgar': vulgarLetterAnnotation[:]}), Bio.SeqRecord.SeqRecord(tAlnSeq, id=self.targetAlignmentSeq.id, letter_annotations = {'vulgar': vulgarLetterAnnotation[:]})])
 
@@ -993,8 +1018,11 @@ Ranges are canonicalised to be ascending, therefore returned ranges are ascendin
             # s = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
             # s3 = s[:(len(s) - len(s) % 3)]
             # logger.debug('tA_tr: %s%s', str(translateGapped(s3)), '' if len(s) == len(s3) else '.')
-        qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
-        tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        ### Paul B. - removed both alphabet variables:
+        # qAlnSeq = Bio.Seq.Seq(qAln, alphabet=Bio.Alphabet.Gapped(Bio.Alphabet.IUPAC.protein))
+        # tAlnSeq = Bio.Seq.Seq(tAln, alphabet=Bio.Alphabet.Gapped(self.targetAlignmentSeq.seq.alphabet))
+        qAlnSeq = Bio.Seq.Seq(qAln)
+        tAlnSeq = Bio.Seq.Seq(tAln)
         # FIXME: assuming standard translation table -- check whether exonerate supports setting table?
         tAlnProt = translateGapped(tAlnSeq)
         return Bio.Align.MultipleSeqAlignment([Bio.SeqRecord.SeqRecord(qAlnSeq, id=self.queryAlignmentSeq.id), Bio.SeqRecord.SeqRecord(tAlnProt, id='%s_pep' % self.targetAlignmentSeq.id)])
@@ -1095,7 +1123,9 @@ class ExonerateRunner(object):
             return None
         return float(s)
 
-    def parseSeq(self, f, label, alphabet, seqId):
+    ### Paul B. - removed alphabet fro method definition
+    # def parseSeq(self, f, label, alphabet, seqId):
+    def parseSeq(self, f, label, seqId):
         line = self.nextLine(f)
         m = self.seqStartRe.match(line)
         if m is None:
@@ -1107,7 +1137,9 @@ class ExonerateRunner(object):
         while s != 'seqEnd':
             seq = seq + s
             s = self.nextLine(f)
-        return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq, alphabet), id=seqId)
+        ### Paul B. - removed alphabet variable
+        # return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq, alphabet), id=seqId)
+        return Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(seq), id=seqId)
 
     def makeSeqId(self, exonerateResult, seqType):
         return('%s_%s_%s' % (exonerateResult.queryId, exonerateResult.targetId, seqType))
@@ -1151,10 +1183,15 @@ class ExonerateRunner(object):
         exonerateResult.equivalencedSimilarity = self.parseInt(f, 'equivalencedSimilarity')
         exonerateResult.equivalencedMismatches = self.parseInt(f, 'equivalencedMismatches')
         exonerateResult.vulgar = self.parseString(f, 'vulgar')
-        exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
-        exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateResult, 'qaln'))
-        exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
-        exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
+        ### Paul B. - removed 3rd variable in next 4 lines and from parseSeq() definition
+        # exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'qcds'))
+        # exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', Bio.Alphabet.IUPAC.protein, self.makeSeqId(exonerateResult, 'qaln'))
+        # exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'tcds'))
+        # exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', Bio.Alphabet.IUPAC.ambiguous_dna, self.makeSeqId(exonerateResult, 'taln'))
+        exonerateResult.queryCdsSeq = self.parseSeq(f, 'queryCds', self.makeSeqId(exonerateResult, 'qcds'))
+        exonerateResult.queryAlignmentSeq = self.parseSeq(f, 'queryAlignment', self.makeSeqId(exonerateResult, 'qaln'))
+        exonerateResult.targetCdsSeq = self.parseSeq(f, 'targetCds', self.makeSeqId(exonerateResult, 'tcds'))
+        exonerateResult.targetAlignmentSeq = self.parseSeq(f, 'targetAlignment', self.makeSeqId(exonerateResult, 'taln'))
         if exonerateResult.exonerateModel == 'protein2genome:local':
             # FIXME: kludge -- throwing away rubbish output of exonerate, would be much better not to generate it in the first place
             # FIXME: would seem better to not include fields that don't apply and that exonerate populates with garbage
@@ -1324,7 +1361,8 @@ the caller's responsibility to close it.
 
 def alignMerge(pairwiseAlignmentList):
     gapChar = '-'
-    alphabet = pairwiseAlignmentList[0][0].seq.alphabet
+    ### Paul B. - removed alphabet from this Seq object:
+    # alphabet = pairwiseAlignmentList[0][0].seq.alphabet
     refId  = pairwiseAlignmentList[0][0].id
     refseqList = []
     otherseqList = []
@@ -1391,7 +1429,9 @@ def alignMerge(pairwiseAlignmentList):
                     vulgarLetterAnnotationList[n].append(pairwiseAlignmentList[n][1].letter_annotations['vulgar'][i[n]])
                 staralignLetterAnnotationList[n].append(i[n])
                 i[n] = i[n] + 1
-    refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id='%s_ref' % refId)
+    ### Paul B. - removed the alphabet variable
+    # refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq), alphabet=alphabet), id='%s_ref' % refId)
+    refSr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(refSymbolSeq)), id='%s_ref' % refId)
     srList = [refSr]
     # sys.stderr.write('ref. %s: length: %d\n' % (refSr.id, len(refSr)))
     for n in range(len(pairwiseAlignmentList)):
@@ -1399,7 +1439,9 @@ def alignMerge(pairwiseAlignmentList):
         if vulgarLetterAnnotationList[n] is not None:
             letter_annotations['vulgar'] = vulgarLetterAnnotationList[n]
         letter_annotations['staralign'] = staralignLetterAnnotationList[n]
-        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n]), alphabet=alphabet), id='%s_%05d' % (pairwiseAlignmentList[n][1].id, n), letter_annotations = letter_annotations)
+        ### Paul B. - removed the alphabet variable:
+        # sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n]), alphabet=alphabet), id='%s_%05d' % (pairwiseAlignmentList[n][1].id, n), letter_annotations = letter_annotations)
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(''.join(otherSymbolSeqList[n])), id='%s_%05d' % (pairwiseAlignmentList[n][1].id, n), letter_annotations = letter_annotations)
         # sys.stderr.write('%s: length %d\n' % (sr.id, len(sr)))
         srList.append(sr)
     # Bio.SeqIO.write(srList, sys.stderr, 'fasta')
@@ -1888,10 +1930,20 @@ class MeanAndStddev(object):
 def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
     if len(sr1) != len(sr2):
         raise Exception('sequences %s and %s differ in length: %d != %d' % (sr1.id, sr2.id, len(sr1), len(sr2)))
-    gapChar = None
-    if isinstance(sr1.seq.alphabet, Bio.Alphabet.Gapped) and isinstance(sr2.seq.alphabet, Bio.Alphabet.Gapped):
-        if sr1.seq.alphabet.gap_char == sr2.seq.alphabet.gap_char:
-            gapChar = sr1.seq.alphabet.gap_char
+    ### Paul B. - changed:
+    #gapChar = None
+    gapChar = '-'
+    ### Paul B - I think line below asks whether seqs contain a gap char anywhere in both seqs
+    ### if they do and the gap char used is the same for both seqs, then use the gap char seq from sr1.
+    ### It must be looking at aligned seq as each char of seq is being looked at in turn: s1[i] == s2[i]
+    ### For an alignment there will be gaps in most cases so gapChar will equal '-'.
+    ### Could test if seqs contain gaps but probably easiest to assume the are gap chars so gapChar = '-'.
+    ### I can only see this being required for runNeedleComparison() which I'm not using.
+
+    ### Paul B. - removed this clause:
+    # if isinstance(sr1.seq.alphabet, Bio.Alphabet.Gapped) and isinstance(sr2.seq.alphabet, Bio.Alphabet.Gapped):
+    #     if sr1.seq.alphabet.gap_char == sr2.seq.alphabet.gap_char:
+    #         gapChar = sr1.seq.alphabet.gap_char
     s1 = str(sr1.seq)
     s2 = str(sr2.seq)
     if ignoreCase:
@@ -1900,7 +1952,10 @@ def numIdenticalSymbols(sr1, sr2, ignoreCase=True):
     n = 0
     for i in range(len(s1)):
         if s1[i] == s2[i]:
+            ### Paul B. - if gapChar is None, there are no gap chars in either seq so char is counted
+            ### if not, then just need to ask if one of s1[i] or s2[i] is a gap so as not to be counted.
             if gapChar is None or s1[i] != gapChar:
+            ### Paul B. - could turn on Paftools debug level but ok for now
                 # logger.debug('s1[%d] = %s, s2[%d] = %s', i, s1[i], i, s2[i])
                 n = n + 1
     # logger.debug('%s / %s, length: %d, n: %d, gapChar: %s', sr1.id, sr2.id, len(sr1), n, str(gapChar))
@@ -1919,12 +1974,17 @@ annotated with C{None}.
 @return: C{list} of gap class annotations
 @rtype: C{list}
     """
-    if not isinstance(sr.seq.alphabet, Bio.Alphabet.Gapped):
+    ### Paul B - Now just testing whether sr.seq contains a gap:
+    gapMatch = re.search('-', sr.seq)
+    # if not isinstance(sr.seq.alphabet, Bio.Alphabet.Gapped):
+    if not gapMatch:
         raise Exception('sequence is not gapped (not an aligned sequence?)')
     s = str(sr.seq)
     gapClass = [None] * len(sr)
     for i in range(len(s)):
-        if s[i] == sr.seq.alphabet.gap_char:
+        ### Paul B. - replaced with '-' instead:
+        # if s[i] == sr.seq.alphabet.gap_char:
+        if s[i] == '-':
             gapClass[i] = 'i'
     i = 0
     while i < len(sr) and gapClass[i] == 'i':
@@ -1932,9 +1992,12 @@ annotated with C{None}.
         i = i + 1
     if i < len(sr):
         i = len(sr) - 1
-        while s[i] == sr.seq.alphabet.gap_char:
+        ### Paul B. - replaced with '-' instead:
+        # while s[i] == sr.seq.alphabet.gap_char:
+        while s[i] == '-':
             gapClass[i] = 't'
             i = i - 1
+    ### Paul - this might be wrong now if it's linked to Bio.alphabet:
     sr.letter_annotations['gapClass'] = gapClass
     return gapClass
 
@@ -2036,7 +2099,9 @@ class NeedleRunner(PairwiseAlignmentRunner):
                 needleProcess.stdin.close()
                 os._exit(0)
             needleProcess.stdin.close()
-            alignmentList = list(Bio.AlignIO.parse(needleProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            ### Paul B. - removed the alphabet variable
+            # alignmentList = list(Bio.AlignIO.parse(needleProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            alignmentList = list(Bio.AlignIO.parse(needleProcess.stdout, 'emboss'))
             needleProcess.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
@@ -2078,7 +2143,9 @@ class WaterRunner(PairwiseAlignmentRunner):
                 waterProcess.stdin.close()
                 os._exit(0)
             waterProcess.stdin.close()
-            alignmentList = list(Bio.AlignIO.parse(waterProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            ### Paul B. - removed the alphabet variable
+            #alignmentList = list(Bio.AlignIO.parse(waterProcess.stdout, 'emboss', alphabet=Bio.Alphabet.Gapped(sra.seq.alphabet)))
+            alignmentList = list(Bio.AlignIO.parse(waterProcess.stdout, 'emboss'))
             waterProcess.stdout.close()
             wPid, wExit = os.waitpid(pid, 0)
             if pid != wPid:
@@ -2334,7 +2401,9 @@ class Contig(object):
             if symbol != self.gapChar:
                 s = s + symbol
                 depthProfile.append(column.getNumNongaps(self.gapChar))
-        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, alphabet=Bio.Alphabet.IUPAC.ambiguous_dna), id='contig', description='numReads=%s, meanDepth=%f' % (self.numRows(), float(sum(depthProfile)) / float(len(depthProfile))))
+        ### Paul B. - removed the alphabet variable
+        # sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s, alphabet=Bio.Alphabet.IUPAC.ambiguous_dna), id='contig', description='numReads=%s, meanDepth=%f' % (self.numRows(), float(sum(depthProfile)) / float(len(depthProfile))))
+        sr = Bio.SeqRecord.SeqRecord(Bio.Seq.Seq(s), id='contig', description='numReads=%s, meanDepth=%f' % (self.numRows(), float(sum(depthProfile)) / float(len(depthProfile))))
         sr.letter_annotations['depth'] = depthProfile
         return sr
 
