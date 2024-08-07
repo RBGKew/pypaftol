@@ -13,7 +13,8 @@ import tempfile
 import logging
 import copy
 import math
-import md5
+#import md5
+import hashlib          ### Paul B. added - md5 module is deprecated  
 import shutil
 
 import Bio
