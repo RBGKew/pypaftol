@@ -162,6 +162,7 @@ def argToBlastnRunner(argNamespace):
     return blastnRunner
 
 
+### Paul B - 7.1.2025 - this method seems replication of the checkAbsenceOfTblastnOptions above - shouldn't it be checkAbsenceOfblastnOptions?
 def checkAbsenceOfTblastnOptions(argNamespace, msg):
     checkAbsenceOfOptions(['bastNumThreads', 'blastGapOpen', 'blastGapExtend', 'blastEvalue', 'blastWindowSize'], argNamespace, msg)
 
@@ -321,9 +322,26 @@ def runRetrieveTargets(argNamespace):
         paftolTargetSet.readFasta(sys.stdin)
     else:
         paftolTargetSet.readFasta(argNamespace.targetsfile)
-    blastnRunner = argToBlastnRunner(argNamespace)
+        ###print(paftolTargetSet.paftolGeneDict) # Paul B test - contains objects
+        #print(paftolTargetSet.getSeqRecordList())
+    # Paul B. - added option to use blastn or tblastn - removed call to argToBlastnRunner
+    # if argNamespace.blastProgram == 'blastn':
+    #     blastnRunner = argToBlastnRunner(argNamespace)
+    # elif argNamespace.blastProgram == 'tblastn':
+    #     tblastnRunner = argToTblastnRunner(argNamespace)
+    # else:
+    #     raise Exception('ERROR: incorrect BLAST program name. The options are blastn or tblastn')
+
     paftolTargetSeqRetriever = paftol.PaftolTargetSeqRetriever()
-    targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet, blastnRunner)
+    ### Paul B. - changed from blastnRunner to blastRunner to make call it generic.
+    ### Original code: targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet, blastnRunner)
+    ### For some reason blastn is workng but not tblastn so will add both separately here for now:
+    if argNamespace.blastProgram == 'blastn':
+        targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet, 'blastn')
+    else:
+        argNamespace.blastProgram == 'tblastn'
+        targetList = paftolTargetSeqRetriever.retrievePaftolTargetList(argNamespace.genomeName, argNamespace.fastaFname, paftolTargetSet, 'tblastn')
+    
     if argNamespace.outfile is None:
         Bio.SeqIO.write(targetList, sys.stdout, 'fasta')
     else :
@@ -612,7 +630,11 @@ def addRetrieveTargetListParser(subparsers):
     p = subparsers.add_parser('retrievetargets', help='retrieve DNA sequences matching a gene targets file (e.g. Angiopserms353 gene set) from a transcriptome or  coding sequences from an annotated genome')
     p.add_argument('--genomeName', help='genome name - name of the DNA blast db - the database must be created beforehand and the makeblastdb —parseSeqId option must be used', required=True)
     p.add_argument('--fastaFname', help='DNA FASTA file - name of the file matching the blast db - fasta records become the blast subjects (hits)', required=True)
-    addBlastnRunnerToParser(p)
+    # Paul B. - added blastProgram argument to command line options to give a choice of blastn and tblastn:
+    p.add_argument('--blastProgram', help='BLAST program name required. Options are: blast and tblastn', required=True)
+    ### Paul B. - changed to just use addBlastnRunnerToParser method directly  - identical/generic for blast and tblastn 
+    #addBlastnRunnerToParser(p)
+    addBlastRunnerToParser(p)
     p.add_argument('targetsfile', nargs='?', help='target sequences (DNA FASTA), default stdin. Format of FASTA header line must be: >organismId-geneId (after Angiosoperms353 gene set) - these fasta records become the blast queries')
     p.add_argument('outfile', nargs='?', help='output file (fasta), default stdout. Output FASTA header contains the full ID (i.e. gene and organism name) of the target gene query as well as the ID and info from the blast subject; format: >geneId organismId organism-gene:organismId-geneId originalBlastSubjectHitId evalue originalBlastSubjectHitIdDescription')
     p.set_defaults(func=runRetrieveTargets)

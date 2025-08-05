@@ -204,7 +204,9 @@ the target genes.
         l = len(geneDna) - (len(geneDna) % 3)
         if l < len(geneDna):
             logger.warning('gene %s: length %d is not an integer multiple of 3 -- not a CDS?', geneDna.id, len(geneDna))
-        geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s-pep' % geneDna.id, description='%s, translated' % geneDna.description)
+        ### Paul B - removed '-pep' from the translated seqIds
+        ###geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s-pep' % geneDna.id, description='%s, translated' % geneDna.description)
+        geneProtein = Bio.SeqRecord.SeqRecord(geneDna.seq[:l].translate(), id='%s' % geneDna.id, description='%s, translated' % geneDna.description)
         return geneProtein
 
     def setRepresentativeGenes(self, result):
@@ -1080,6 +1082,8 @@ organisms.
 
 
 def extractOrganismAndGeneNames(s):
+    ### Paul B. - added print
+    #print("extractOrganismAndGeneNames: ", s)
     # FIXME: should tighten this up to fail on dangling garbage (?)
     paftolTargetRe = re.compile('([^-]+)-([^-]+)')
     m = paftolTargetRe.match(s)
@@ -1089,6 +1093,7 @@ def extractOrganismAndGeneNames(s):
     else:
         organismName = 'unknown'
         geneName = s
+    #print("organismName, geneName: ", organismName, geneName)   ### Paul B. added - OK
     return organismName, geneName
 
 
@@ -1196,6 +1201,7 @@ methods, respectively.
             self.numOfftargetReads = self.numOfftargetReads + 1
 
     def processBlastAlignment(self, query, blastAlignment):
+        print("PaulB - 16.1.2025: entered the other processBlastAln method?")
         organismName, geneName = extractOrganismAndGeneNames(query)
         self.checkOrganismAndGene(organismName, geneName)
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
@@ -1615,17 +1621,20 @@ class PaftolTargetSeqRetriever(object):
         ''' Paul B. - Adds a single blast record to to this objects blastAlignmentDict - loop through
                       all blast records occurs in BlastRunner.processBlast() method 
 
-        Input parameters: query name (in this case a target sequence name in this format: 
-                          organismId-geneId) and a single blast alignment record.
+            Input parameters: query name (in this case a target sequence name in this format: 
+                              organismId-geneId) and a single blast alignment record.
 
-        Note: method adds the top hit only and for each gene only unless there is a hit with a better e-value.
-              Might want to extend this to ensure that the top hit is also reasonably covered across the gene (?)
-              BUT gene may straddle multiple HSPs. 
-    '''
+            Note: method adds the top hit only and for each gene only unless there is a hit with a better e-value.
+                  Might want to extend this to ensure that the top hit is also reasonably covered across the gene (?)
+                  BUT gene may straddle multiple HSPs. 
+        '''
+
         ### Paul B. - removing split of the 'query' gene name
         organismName, geneName = extractOrganismAndGeneNames(query)
         ###geneName = query    # Not working w.r.t. multiple PAFTOL genes check - may need to split further down
-       
+        #print("geneName, organismName (after returning):", organismName, " ", geneName)
+        #print(blastAlignment)
+
         if geneName in self.blastAlignmentDict:
             if blastAlignment.hsps[0].expect < self.blastAlignmentDict[geneName].hsps[0].expect:
                 self.blastAlignmentDict[geneName] = blastAlignment
@@ -1636,22 +1645,55 @@ class PaftolTargetSeqRetriever(object):
             # Paul B added:
             self.blastAlignmentOrganismDict[geneName] = organismName
 
-    def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet, blastnRunner=None):
-        if blastnRunner is None:
-            blastnRunner = tools.BlastnRunner()
+    ### Paul B - changed to bring in the name of the blast program instead
+    ###def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet, blastnRunner=None):
+    def retrievePaftolTargetList(self, genomeName, fastaFname, paftolTargetSet, blastProgram):
+        ### Paul B - 15.1.2025 - this would seem to be incorrect to not initiate object with paftol.tools.BlastnRunner()
+        ### I think it should exist here already and I'm trying to make it blastn, tblastn or blastx - remove for now
+        ###if blastnRunner is None:
+        ###    blastnRunner = tools.BlastnRunner()
+        ### Paul B. - instead, create the blast runners here
+        ###print(argToBlastnRunner(argNamespace))
         self.blastAlignmentDict = {}
-        blastnRunner.processBlast(self, fastaFname, paftolTargetSet.getSeqRecordList())
+        ### Paul B - made runners separately for each program
+        ###blastnRunner.processBlast(self, fastaFname, paftolTargetSet.getSeqRecordList())
+        if blastProgram == 'blastn':
+             blastnRunner = paftol.tools.BlastnRunner()
+             # Paul B added indexing:
+             blastnRunner.indexDatabase(fastaFname)
+             blastnRunner.processBlast(self, fastaFname, paftolTargetSet.getSeqRecordList())
+        elif blastProgram == 'tblastn':
+            tblastnRunner = paftol.tools.TblastnRunner()
+            hybSeqAnalyserTr = HybseqAnalyser() # This is cheating - created an object completely unrelated to this task into order to pinch the translate feature.
+            targetProteinList = [hybSeqAnalyserTr.translateGene(geneSr) for geneSr in paftolTargetSet.getSeqRecordList()]
+            #print("targetProteinList:", targetProteinList)
+            # Paul B added indexing:
+            tblastnRunner.indexDatabase(fastaFname)
+            ###                            names of queries?  indexed db file   trans query seq (which are the targets)
+            ###tblastnRunner.processTblastn(paftolTargetSet, fastaFname, targetProteinList)
+            tblastnRunner.processTblastn(self, fastaFname, targetProteinList)
+            #print(self.blastAlignmentDict)
+        else:
+            raise Exception('ERROR: incorrect BLAST program name. The options are blastn or tblastn')
         seqIdGeneDict = {}
         for geneName in self.blastAlignmentDict:
+            ### Paul B - 16.1.2025 - test print:
+            #print("geneName:", geneName)
             seqId = self.blastAlignmentDict[geneName].hit_id
-            if seqId in seqIdGeneDict:
+            ### Paul B - removed: if seqId in seqIdGeneDict:
                 # Paul B.: this conditional checks for same db hit appearing again for another target gene which would not be good.
-                # This is a different check to checking for multiple db hits appearing for the same gene - I thibnk top hit only is 
-                # being taken by the processBlastAlignment method above 
-                raise Exception('multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName))
-            seqIdGeneDict[seqId] = geneName
+                # This is a different check to checking for multiple db hits appearing for the same gene - I think top hit only is 
+                # being taken by the processBlastAlignment method above
+                # Paul B - printing good message and outputs here rather than crashing:  
+                ### raise Exception('multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName))
+            if seqId not in seqIdGeneDict:
+                seqIdGeneDict[seqId] = geneName
+            else: 
+                ## raise Exception('multiple PAFTOL genes for %s: %s, %s' % (seqId, seqIdGeneDict[seqId], geneName))
+                logger.warning('multiple PAFTOL genes for transcript/cds %s: gene %s included, %s excluded - 10.4.2025 - need to determine whether this is the correct outcome!' % (seqId, seqIdGeneDict[seqId], geneName))
+            ### Paul B: moved to above if clause: seqIdGeneDict[seqId] = geneName
         paftolTargetList = []
-        for seqRecord in Bio.SeqIO.parse(fastaFname, 'fasta'):
+        for seqRecord in Bio.SeqIO.parse(fastaFname, 'fasta'):  # Paul B. - taking the top hit 
             if seqRecord.id in seqIdGeneDict:
                 seqId = seqRecord.id
                 geneName = seqIdGeneDict[seqId]

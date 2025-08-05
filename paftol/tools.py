@@ -1795,20 +1795,40 @@ C{blastAlignmentProcessor}.
 @param queryList: List of query sequences
 @type queryList: C{list} of C{Bio.SeqRecordSeqRecord} instances
 """
+        ### Paul B. - added debug:
+        logger.debug('Hello: inside super processBlast - query list:')
+        ###print("queryList:", queryList)
+
         blastArgv = self.makeBlastArgv(blastProgram, databaseFname)
         logger.debug('%s', ' '.join(blastArgv))
-        blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        #blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        ### Paul B. - for Python3, needed to decode the data to Unicode strings:
+        blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
         pid = os.fork()
         if pid == 0:
             blastProcess.stdout.close()
             for query in queryList:
-                blastProcess.stdin.write(query.format('fasta'))
+                blastProcess.stdin.write(query.format('fasta')) # Paul B. - NB for Python3 a a bytes-like object is required, not 'str'
             blastProcess.stdin.close()
             os._exit(0)
         blastProcess.stdin.close()
         for blastRecord in Bio.Blast.NCBIXML.parse(blastProcess.stdout):
+            #print(type(blastRecord))
+            #print(vars(blastRecord))
             for alignment in blastRecord.alignments:
-                blastAlignmentProcessor.processBlastAlignment(blastRecord.query, alignment)
+                ### PAUL B. two checks:
+                ###print("BBBBBB", blastRecord.query, "BBBBBBBBBB")
+                ###print("BBBBBB", type(blastRecord.query), "BBBBBBBBBB")
+                ###print(type(alignment))
+                #print(vars(alignment))
+                ### Paul B. - for translated seqs, query name coming out as e.g. "AWJM-5921 AWJM-5921, translated"
+                ###           so just need to use the first field: 
+                queryFields = blastRecord.query.split()
+                #print("queryFields[0]: ", queryFields[0])
+                #print("expect score: ", alignment.hsps[0].expect )
+                ### Paul B. had to use a modified query field for tblastn:
+                #print(type(blastAlignmentProcessor) )
+                blastAlignmentProcessor.processBlastAlignment(queryFields[0], alignment)
         blastProcess.stdout.close()
         wPid, wExit = os.waitpid(pid, 0)
         if pid != wPid:
@@ -1846,6 +1866,8 @@ class TblastnRunner(BlastRunner):
         super(TblastnRunner, self).indexDatabase(databaseFname, 'nucl')
 
     def processTblastn(self, blastAlignmentProcessor, databaseFname, queryList):
+        ### Paul B. - added debug:
+        logger.debug('TblastnRunner.processTblastn')
         super(TblastnRunner, self).processBlast('tblastn', blastAlignmentProcessor, databaseFname, queryList)
 
 
