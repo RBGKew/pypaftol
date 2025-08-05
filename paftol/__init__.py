@@ -1201,7 +1201,7 @@ methods, respectively.
             self.numOfftargetReads = self.numOfftargetReads + 1
 
     def processBlastAlignment(self, query, blastAlignment):
-        print("PaulB - 16.1.2025: entered the other processBlastAln method?")
+        ###print("PaulB - 16.1.2025: entered the other processBlastAln method")   # Could add print DEBUG error channel but too many lines are printed!
         organismName, geneName = extractOrganismAndGeneNames(query)
         self.checkOrganismAndGene(organismName, geneName)
         paftolTarget = self.organismDict[organismName].paftolTargetDict[geneName]
