@@ -1803,12 +1803,13 @@ C{blastAlignmentProcessor}.
         logger.debug('%s', ' '.join(blastArgv))
         #blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         ### Paul B. - for Python3, needed to decode the data to Unicode strings:
-        blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
+        ###blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
+        blastProcess = subprocess.Popen(blastArgv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text='true') ### Pau B. - changed to text='true' - for Python 3.7+ only 
         pid = os.fork()
         if pid == 0:
             blastProcess.stdout.close()
             for query in queryList:
-                blastProcess.stdin.write(query.format('fasta')) # Paul B. - NB for Python3 a a bytes-like object is required, not 'str'
+                blastProcess.stdin.write(query.format('fasta')) # Paul B. - NB for Python3 a a bytes-like object is required, not 'str': altenative to text='true' above is here: stdin.write(query.encode('utf-8').format('fasta'))
             blastProcess.stdin.close()
             os._exit(0)
         blastProcess.stdin.close()
