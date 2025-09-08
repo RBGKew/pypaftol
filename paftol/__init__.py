@@ -214,7 +214,8 @@ the target genes.
         result.representativePaftolTargetDict = {}
         for geneName in result.paftolTargetSet.paftolGeneDict:
             representativePaftolTarget = None
-            maxMappingScoreSum = None
+            ### Paul B. changed from (for Python2-->3 conversion):maxMappingScoreSum = None
+            maxMappingScoreSum = float('-inf')
             for organismName in result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict:
                 mappingScoreSum = result.paftolTargetSet.paftolGeneDict[geneName].paftolTargetDict[organismName].mappingScoreSum()
                 if representativePaftolTarget is None or (mappingScoreSum is not None and mappingScoreSum > maxMappingScoreSum):
